@@ -2,12 +2,14 @@ import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useProfile } from '@/hooks/useProfile';
-import { MONTHLY_ATTENDANCE } from '@/data/rft-data';
 
 // ─── Belt colors ─────────────────────────────────────────────────
 const BELT_COLORS: Record<string, string> = {
@@ -23,17 +25,11 @@ const BELT_LABEL: Record<string, string> = {
   blanche: 'BL.', bleue: 'BL.', violette: 'VIO.', marron: 'MAR.', noire: 'NOI.',
 };
 
-function BJJBelt({ color = 'marron', stripes = 2, height = 32 }: { color?: string; stripes?: number; height?: number }) {
+function BJJBelt({ color = 'marron', height = 32 }: { color?: string; height?: number }) {
   const bg = BELT_COLORS[color] ?? BELT_COLORS.marron;
-  const tapeColor = color === 'noire' ? '#9B1B14' : '#0A0A0A';
   return (
     <View style={[beltS.belt, { height, backgroundColor: bg }]}>
       <View style={beltS.stitch} />
-      <View style={[beltS.tape, { backgroundColor: tapeColor }]}>
-        {[0, 1, 2, 3].map((i) => (
-          <View key={i} style={[beltS.stripe, { backgroundColor: i < stripes ? '#F2EDE0' : 'rgba(255,255,255,0.05)' }]} />
-        ))}
-      </View>
     </View>
   );
 }
@@ -47,11 +43,6 @@ const beltS = StyleSheet.create({
     position: 'absolute', left: 6, right: 90, top: '50%', height: 1,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  tape: {
-    marginLeft: 'auto', width: 80, borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.8)',
-    flexDirection: 'row', paddingHorizontal: 8, gap: 4, alignItems: 'stretch',
-  },
-  stripe: { flex: 1 },
 });
 
 // ─── Medal disc ───────────────────────────────────────────────────
@@ -85,16 +76,13 @@ function mdS(t: Theme) {
   });
 }
 
-const BAR_MAX_H = 60;
-const maxCount = Math.max(...MONTHLY_ATTENDANCE.map((m) => m.count));
-
 export default function ProfilScreen() {
   const { theme: t } = useTheme();
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
 
   const { profile, belt, palmares, loading } = useProfile();
-  const isCoach = user?.app_metadata?.role === 'coach';
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
 
   if (loading) {
     return (
@@ -104,16 +92,16 @@ export default function ProfilScreen() {
     );
   }
 
-  const firstName = profile?.first_name ?? '';
-  const lastName = profile?.last_name ?? '';
+  const firstName = profile?.firstName ?? '';
+  const lastName = profile?.lastName ?? '';
   const initials = `${firstName[0] ?? ''}${lastName[0] ?? ''}`;
-  const memberId = profile?.member_id ? `#${profile.member_id}` : '—';
+  const memberId = profile?.memberId ? `#${profile.memberId}` : '—';
 
   const beltColor = belt?.color ?? 'blanche';
   const beltStripes = belt?.stripes ?? 0;
   const beltColorLabel = beltColor.toUpperCase();
-  const beltPromoBy = belt?.promoted_by ?? '—';
-  const beltPromoDate = belt?.promoted_date ?? '—';
+  const beltPromoBy = belt?.promotedBy ?? '—';
+  const beltPromoDate = belt?.promotedDate ?? '—';
 
   const gold   = palmares.filter((r) => r.place === 1).length;
   const silver = palmares.filter((r) => r.place === 2).length;
@@ -132,11 +120,11 @@ export default function ProfilScreen() {
           <View style={{ flexDirection: 'row', gap: 4 }}>
             {isCoach && (
               <Pressable style={styles.settingsBtn} onPress={() => router.push('/admin')}>
-                <Text style={styles.settingsIcon}>🛡️</Text>
+                <Ionicons name="shield-outline" size={22} color={t.bone} />
               </Pressable>
             )}
             <Pressable style={styles.settingsBtn} onPress={() => router.push('/settings')}>
-              <Text style={styles.settingsIcon}>⚙️</Text>
+              <Ionicons name="settings-outline" size={22} color={t.bone} />
             </Pressable>
           </View>
         </View>
@@ -151,17 +139,23 @@ export default function ProfilScreen() {
           </View>
           <View style={styles.idRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
+              {profile?.avatarUrl
+                ? <Image source={{ uri: profile.avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                : <Text style={styles.avatarText}>{initials}</Text>
+              }
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.idName}>{firstName.toUpperCase()} {lastName.toUpperCase()}</Text>
               <Text style={styles.idMeta}>
-                {profile?.category?.toUpperCase() ?? '—'} · {profile?.weight_class ?? '—'} · {profile?.stance?.toUpperCase() ?? '—'}
+                {profile?.category?.toUpperCase() ?? '—'} · {profile?.weightClass ?? '—'} · {profile?.stance?.toUpperCase() ?? '—'}
               </Text>
             </View>
           </View>
           <Pressable style={styles.editProfileBtn} onPress={() => router.push('/edit-profile')}>
-            <Text style={styles.editProfileText}>✏️ MODIFIER LE PROFIL</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="create-outline" size={11} color={t.crimson} />
+              <Text style={styles.editProfileText}>MODIFIER LE PROFIL</Text>
+            </View>
           </Pressable>
         </View>
 
@@ -169,15 +163,18 @@ export default function ProfilScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardLabel}>GRADE BJJ</Text>
-            <Pressable onPress={() => router.push('/edit-belt')}>
-              <Text style={styles.editText}>✏ MODIFIER</Text>
-            </Pressable>
+            {isCoach && (
+              <Pressable onPress={() => router.push('/edit-belt')}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="create-outline" size={11} color={t.crimson} />
+                  <Text style={styles.editText}>MODIFIER</Text>
+                </View>
+              </Pressable>
+            )}
           </View>
-          <BJJBelt color={beltColor} stripes={beltStripes} height={32} />
+          <BJJBelt color={beltColor} height={32} />
           <View style={styles.beltRow}>
-            <Text style={styles.beltName}>
-              {beltColorLabel} · <Text style={{ color: t.crimson }}>{beltStripes} BARRES</Text>
-            </Text>
+            <Text style={styles.beltName}>{beltColorLabel}</Text>
           </View>
           <Text style={styles.beltPromo}>
             Promu le {beltPromoDate} par{' '}
@@ -250,10 +247,10 @@ export default function ProfilScreen() {
             <View key={i} style={[styles.resultRow, i > 0 && styles.resultBorder]}>
               <MedalDisc place={r.place} size={32} t={t} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.resultName}>{r.competition_name}</Text>
-                <Text style={styles.resultMeta}>{r.comp_date} · {r.weight_class ?? ''}</Text>
+                <Text style={styles.resultName}>{r.competitionName}</Text>
+                <Text style={styles.resultMeta}>{r.compDate} · {r.weightClass ?? ''}</Text>
               </View>
-              {r.comp_type && (
+              {r.compType && (
                 <View style={styles.tag}>
                   <Text style={styles.tagText}>{r.comp_type}</Text>
                 </View>
@@ -264,34 +261,10 @@ export default function ProfilScreen() {
         </View>
 
         {/* ── Activité section ─────────────────────────────── */}
-        <View style={styles.sectionHeader}>
+        <Pressable style={styles.sectionHeader} onPress={() => router.push('/mon-activite')}>
           <Text style={styles.cardLabel}>MON ACTIVITÉ</Text>
-          <Pressable onPress={() => router.push('/mon-activite')}>
-            <Text style={styles.seeAll}>VOIR TOUT →</Text>
-          </Pressable>
-        </View>
-
-        {/* Bar chart */}
-        <View style={styles.card}>
-          <Text style={styles.chartLabel}>PRÉSENCES — 6 DERNIERS MOIS</Text>
-          <View style={styles.chartRow}>
-            {MONTHLY_ATTENDANCE.map((item, i) => {
-              const isLast = i === MONTHLY_ATTENDANCE.length - 1;
-              const barH = Math.round((item.count / maxCount) * BAR_MAX_H);
-              return (
-                <View key={i} style={styles.chartBar}>
-                  <Text style={[styles.chartCount, { color: isLast ? t.crimson : t.textDim }]}>{item.count}</Text>
-                  <View style={[styles.bar, {
-                    height: barH,
-                    backgroundColor: t.crimson,
-                    opacity: isLast ? 1 : 0.35,
-                  }]} />
-                  <Text style={[styles.chartMonth, { color: isLast ? t.crimson : t.textMute }]}>{item.month}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
+          <Text style={styles.seeAll}>VOIR TOUT →</Text>
+        </Pressable>
 
         {/* ── Covoiturages section ──────────────────────────── */}
         <Pressable style={styles.sectionHeader} onPress={() => router.push('/mes-covoiturages')}>
@@ -302,16 +275,16 @@ export default function ProfilScreen() {
         {/* ── Settings links ────────────────────────────────── */}
         <View style={styles.card}>
           {([
-            ['⚙️', 'Paramètres', '/settings'],
-            ['🔒', 'Confidentialité', '/settings'],
-            ['📢', 'Notifications', '/settings'],
+            ['settings-outline', 'Paramètres', '/settings'],
+            ['lock-closed-outline', 'Confidentialité', '/settings'],
+            ['notifications-outline', 'Notifications', '/settings'],
           ] as [string, string, string][]).map(([icon, label, path], i) => (
             <Pressable
               key={i}
               style={[styles.settingsRow, i < 2 && styles.settingsRowBorder]}
               onPress={() => router.push(path as any)}
             >
-              <Text style={styles.settingsIcon2}>{icon}</Text>
+              <Ionicons name={icon as any} size={18} color={t.textDim} />
               <Text style={styles.settingsLabel}>{label}</Text>
               <Text style={styles.settingsArrow}>›</Text>
             </Pressable>
@@ -410,14 +383,6 @@ function makeStyles(t: Theme) {
     tag: { paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: t.crimson, borderRadius: 2 },
     tagText: { fontFamily: FONTS.mono, fontSize: 8.5, color: t.crimson, letterSpacing: 1 },
     chevron: { fontSize: 18, color: t.textMute, lineHeight: 20 },
-
-    // Chart
-    chartLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5, marginBottom: 12 },
-    chartRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: BAR_MAX_H + 30 },
-    chartBar: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-    bar: { width: '100%', borderRadius: 2, minHeight: 4 },
-    chartCount: { fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.5 },
-    chartMonth: { fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1 },
 
     // Carpool card
     carpoolCard: {

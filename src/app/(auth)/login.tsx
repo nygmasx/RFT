@@ -7,10 +7,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/context/ThemeContext';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { authClient } from '@/lib/auth-client';
 
 export default function LoginScreen() {
   const { theme: t } = useTheme();
+  const { refreshProfileStatus } = useAuth();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
@@ -20,19 +22,21 @@ export default function LoginScreen() {
     if (!email.trim() || !password) { setError('Remplis tous les champs.'); return; }
     setError('');
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await authClient.signIn.email({
       email: email.trim().toLowerCase(),
       password,
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(
-        error.message.includes('Invalid login')
+        error.message.includes('Invalid') || error.message.includes('credentials')
           ? 'Email ou mot de passe incorrect.'
           : error.message
       );
+      return;
     }
-    // AuthContext redirige automatiquement selon le statut du profil
+    await refreshProfileStatus();
+    setLoading(false);
   };
 
   const s = styles(t);
@@ -53,7 +57,9 @@ export default function LoginScreen() {
             <View style={s.logoBlock}>
               <View style={s.sunMark}>
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <View key={i} style={[s.ray, { transform: [{ rotate: `${i * 45}deg` }] }]} />
+                  <View key={i} style={[s.rayWrap, { transform: [{ rotate: `${i * 45}deg` }] }]}>
+                    <View style={s.ray} />
+                  </View>
                 ))}
                 <View style={s.sunCore} />
               </View>
@@ -132,11 +138,11 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
 
   logoBlock: { alignItems: 'center', marginTop: 32, gap: 10 },
   sunMark: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  ray: {
-    position: 'absolute', width: 3, height: 26,
-    backgroundColor: t.crimson, borderRadius: 2,
-    top: 0, left: 30.5, transformOrigin: '50% 32px',
+  rayWrap: {
+    position: 'absolute', width: 64, height: 64,
+    alignItems: 'center', justifyContent: 'flex-start',
   },
+  ray: { width: 3, height: 16, backgroundColor: t.crimson, borderRadius: 2 },
   sunCore: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.crimson },
   clubName: { fontSize: 22, fontWeight: '900', color: t.bone, letterSpacing: 3, textTransform: 'uppercase' },
   tagline: { fontSize: 10, fontWeight: '600', color: t.textMute, letterSpacing: 3, textTransform: 'uppercase' },

@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
@@ -71,10 +73,10 @@ export default function AccueilScreen() {
         </View>
         <View style={styles.headerActions}>
           <Pressable style={styles.iconBtn} onPress={() => router.push('/calendar')}>
-            <Text style={styles.iconBtnText}>📅</Text>
+            <Ionicons name="calendar-outline" size={18} color={t.bone} />
           </Pressable>
           <Pressable style={styles.notifBtn}>
-            <Text style={styles.notifIcon}>🔔</Text>
+            <Ionicons name="notifications-outline" size={18} color={t.bone} />
             <View style={styles.notifDot} />
           </Pressable>
         </View>
@@ -94,7 +96,7 @@ export default function AccueilScreen() {
               <View style={styles.heroGradient} />
               <View style={styles.heroTags}>
                 {hero.tag && <Tag text={hero.tag} filled color={t.crimson} t={t} />}
-                {hero.pinned && <Tag text="📌 ÉPINGLÉ" color={t.bone} t={t} />}
+                {hero.pinned && <Tag text="ÉPINGLÉ" color={t.bone} t={t} />}
               </View>
               <View style={styles.heroContent}>
                 <Text style={styles.heroTitle}>{hero.title}</Text>
@@ -169,9 +171,10 @@ export default function AccueilScreen() {
                   onPress={() => router.push({ pathname: '/chat', params: { channel: c.id, name: c.name } })}
                 >
                   <View style={[styles.messageAvatar, isTop && styles.messageAvatarTop]}>
-                    <Text style={[styles.messageAvatarText, isTop && styles.messageAvatarTextTop]}>
-                      {isTop ? '☀' : c.name[0]}
-                    </Text>
+                    {isTop
+                      ? <Ionicons name="sunny" size={18} color={t.bone} />
+                      : <Text style={[styles.messageAvatarText, isTop && styles.messageAvatarTextTop]}>{c.name[0]}</Text>
+                    }
                   </View>
                   <View style={styles.messageBody}>
                     <View style={styles.messageHeader}>

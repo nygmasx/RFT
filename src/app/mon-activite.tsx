@@ -1,18 +1,33 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
-import { MONTHLY_ATTENDANCE, MY_ACTIVITY } from '@/data/rft-data';
+import { useProfile } from '@/hooks/useProfile';
 
-const BAR_MAX_H = 80;
-const maxCount = Math.max(...MONTHLY_ATTENDANCE.map((m) => m.count));
+const MEDAL_COLORS: Record<number, string> = {
+  1: '#D4A436', 2: '#BFC4C7', 3: '#C07A3A',
+};
+
+function placeLabel(place: number): string {
+  if (place === 1) return '1ER';
+  if (place === 2) return '2E';
+  if (place === 3) return '3E';
+  return `T${place}`;
+}
 
 export default function MonActiviteScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const { palmares, loading } = useProfile();
+
+  const gold   = palmares.filter((r) => r.place === 1).length;
+  const silver = palmares.filter((r) => r.place === 2).length;
+  const bronze = palmares.filter((r) => r.place === 3).length;
 
   return (
     <View style={styles.container}>
@@ -26,77 +41,89 @@ export default function MonActiviteScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* Summary stats */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCell, styles.statBorder]}>
-            <Text style={styles.statValue}>62</Text>
-            <Text style={styles.statLabel}>COURS</Text>
-          </View>
-          <View style={[styles.statCell, styles.statBorder]}>
-            <Text style={styles.statValue}>8</Text>
-            <Text style={styles.statLabel}>STAGES</Text>
-          </View>
-          <View style={styles.statCell}>
-            <Text style={styles.statValue}>84%</Text>
-            <Text style={styles.statLabel}>ASSIDUITÉ</Text>
-          </View>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={t.crimson} size="large" />
         </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Bar chart */}
-        <View style={styles.card}>
-          <Text style={styles.chartTitle}>PRÉSENCES — 6 DERNIERS MOIS</Text>
-          <View style={styles.chartRow}>
-            {MONTHLY_ATTENDANCE.map((item, i) => {
-              const isLast = i === MONTHLY_ATTENDANCE.length - 1;
-              const barH = Math.max(4, Math.round((item.count / maxCount) * BAR_MAX_H));
-              return (
-                <View key={i} style={styles.chartBar}>
-                  <Text style={[styles.chartCount, { color: isLast ? t.crimson : t.textDim }]}>
-                    {item.count}
-                  </Text>
-                  <View style={[styles.bar, {
-                    height: barH,
-                    backgroundColor: t.crimson,
-                    opacity: isLast ? 1 : 0.35,
-                  }]} />
-                  <Text style={[styles.chartMonth, { color: isLast ? t.crimson : t.textMute }]}>
-                    {item.month}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Activity list */}
-        <Text style={styles.sectionLabel}>MES DERNIERS COURS</Text>
-        <View style={styles.activityList}>
-          {MY_ACTIVITY.map((a, i) => (
-            <View key={i} style={[styles.activityRow, i > 0 && styles.activityBorder]}>
-              <View style={styles.actLeft}>
-                <View style={[styles.actDot, { backgroundColor: a.type === 'stage' ? t.gold : '#3B82F6' }]} />
-                <View style={[
-                  styles.actTag,
-                  { backgroundColor: a.type === 'stage' ? 'rgba(201,162,75,0.12)' : 'rgba(59,130,246,0.12)' },
-                ]}>
-                  <Text style={[styles.actTagText, { color: a.type === 'stage' ? t.gold : '#3B82F6' }]}>
-                    {a.type === 'stage' ? 'STAGE' : 'COURS'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.actCenter}>
-                <Text style={styles.actTitle}>{a.title}</Text>
-                <Text style={styles.actDate}>{a.date}</Text>
-              </View>
-              <Text style={styles.actDuration}>{a.duration}</Text>
+          {/* Summary stats */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statCell, styles.statBorder]}>
+              <Text style={styles.statValue}>{String(palmares.length).padStart(2, '0')}</Text>
+              <Text style={styles.statLabel}>COMPÉT.</Text>
             </View>
-          ))}
-        </View>
+            <View style={[styles.statCell, styles.statBorder]}>
+              <Text style={[styles.statValue, { color: MEDAL_COLORS[1] }]}>{gold}</Text>
+              <Text style={styles.statLabel}>OR</Text>
+            </View>
+            <View style={[styles.statCell, styles.statBorder]}>
+              <Text style={[styles.statValue, { color: MEDAL_COLORS[2] }]}>{silver}</Text>
+              <Text style={styles.statLabel}>ARGENT</Text>
+            </View>
+            <View style={styles.statCell}>
+              <Text style={[styles.statValue, { color: MEDAL_COLORS[3] }]}>{bronze}</Text>
+              <Text style={styles.statLabel}>BRONZE</Text>
+            </View>
+          </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          {/* Competition history */}
+          <Text style={styles.sectionLabel}>HISTORIQUE DES COMPÉTITIONS</Text>
+
+          {palmares.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="medal-outline" size={48} color={t.textMute} />
+              <Text style={styles.emptyText}>Aucune compétition enregistrée</Text>
+              <Pressable style={styles.addBtn} onPress={() => router.push('/add-result')}>
+                <Text style={styles.addBtnText}>＋ AJOUTER UN RÉSULTAT</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {palmares.map((r, i) => {
+                const medalColor = MEDAL_COLORS[r.place];
+                return (
+                  <View key={r.id} style={[styles.row, i > 0 && styles.rowBorder]}>
+                    {/* Medal disc */}
+                    <View style={[styles.medal, { backgroundColor: medalColor ?? t.elevated }]}>
+                      <Text style={[styles.medalText, { color: medalColor ? '#1a0e0b' : t.textDim }]}>
+                        {placeLabel(r.place)}
+                      </Text>
+                    </View>
+
+                    {/* Info */}
+                    <View style={styles.rowInfo}>
+                      <Text style={styles.compName}>{r.competition_name}</Text>
+                      <View style={styles.rowMeta}>
+                        <Text style={styles.metaText}>{r.comp_date}</Text>
+                        {r.weight_class && (
+                          <Text style={styles.metaText}>· {r.weight_class}</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Type tag */}
+                    {r.comp_type && (
+                      <View style={styles.tag}>
+                        <Text style={styles.tagText}>{r.comp_type}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {palmares.length > 0 && (
+            <Pressable style={styles.addBtn} onPress={() => router.push('/add-result')}>
+              <Text style={styles.addBtnText}>＋ AJOUTER UN RÉSULTAT</Text>
+            </Pressable>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -104,6 +131,7 @@ export default function MonActiviteScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     header: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4,
@@ -126,34 +154,38 @@ function makeStyles(t: Theme) {
     statValue: { fontFamily: FONTS.display, fontSize: 26, color: t.crimson, fontWeight: '900', lineHeight: 28 },
     statLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5, marginTop: 4 },
 
-    // Chart
-    card: {
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, padding: 14,
-    },
-    chartTitle: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1.5, marginBottom: 14 },
-    chartRow: { flexDirection: 'row', alignItems: 'flex-end', height: BAR_MAX_H + 36 },
-    chartBar: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-    bar: { width: '70%', borderRadius: 2, minHeight: 4 },
-    chartCount: { fontFamily: FONTS.mono, fontSize: 9.5, letterSpacing: 0.5 },
-    chartMonth: { fontFamily: FONTS.mono, fontSize: 8.5, letterSpacing: 1 },
-
-    // Activity list
+    // List
     sectionLabel: {
       fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2, marginTop: 4,
     },
-    activityList: {
+    list: {
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
     },
-    activityRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    activityBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
-    actLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    actDot: { width: 7, height: 7, borderRadius: 3.5 },
-    actTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2 },
-    actTagText: { fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '700', letterSpacing: 0.5 },
-    actCenter: { flex: 1 },
-    actTitle: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '600' },
-    actDate: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1, marginTop: 2 },
-    actDuration: { fontFamily: FONTS.mono, fontSize: 10.5, color: t.textDim, letterSpacing: 0.5 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
+    rowBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
+    medal: {
+      width: 44, height: 44, borderRadius: 22,
+      alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.4)',
+    },
+    medalText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+    rowInfo: { flex: 1 },
+    compName: { fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '700' },
+    rowMeta: { flexDirection: 'row', gap: 6, marginTop: 3 },
+    metaText: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 0.5 },
+    tag: {
+      paddingHorizontal: 6, paddingVertical: 3,
+      borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 2,
+    },
+    tagText: { fontFamily: FONTS.mono, fontSize: 8.5, color: t.textDim, letterSpacing: 1 },
+
+    // Empty + add
+    empty: { alignItems: 'center', paddingVertical: 48, gap: 10 },
+    emptyText: { fontFamily: FONTS.body, fontSize: 14, color: t.textMute },
+    addBtn: {
+      borderWidth: 1, borderColor: t.crimson, borderRadius: 3,
+      paddingVertical: 12, alignItems: 'center',
+    },
+    addBtnText: { fontFamily: FONTS.mono, fontSize: 11, color: t.crimson, letterSpacing: 1.5, fontWeight: '700' },
   });
 }

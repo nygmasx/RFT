@@ -1,9 +1,12 @@
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useMemo, useState, useEffect } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
@@ -25,28 +28,48 @@ export default function EditProfileScreen() {
   const [weightClass, setWeightClass] = useState('-77kg');
   const [stance, setStance] = useState('Droitier');
   const [phone, setPhone] = useState('');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // Populate fields when profile loads
   useEffect(() => {
     if (profile) {
-      setFirstName(profile.first_name ?? '');
-      setLastName(profile.last_name ?? '');
+      setFirstName(profile.firstName ?? '');
+      setLastName(profile.lastName ?? '');
       setCategory(profile.category ?? 'Adultes');
-      setWeightClass(profile.weight_class ?? '-77kg');
+      setWeightClass(profile.weightClass ?? '-77kg');
       setStance(profile.stance ?? 'Droitier');
       setPhone(profile.phone ?? '');
+      setAvatarUri(profile.avatarUrl ?? null);
     }
   }, [profile]);
 
+  const pickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.4,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      setAvatarUri(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
+
   const handleSave = async () => {
+    setSaving(true);
     await updateProfile({
-      first_name: firstName,
-      last_name: lastName,
+      firstName,
+      lastName,
       category,
-      weight_class: weightClass,
+      weightClass,
       stance,
       phone,
+      avatarUrl: avatarUri ?? undefined,
     });
+    setSaving(false);
     router.back();
   };
 
@@ -68,8 +91,11 @@ export default function EditProfileScreen() {
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>MODIFIER LE PROFIL</Text>
-          <Pressable onPress={handleSave}>
-            <Text style={styles.saveText}>ENREGISTRER</Text>
+          <Pressable onPress={handleSave} disabled={saving}>
+            {saving
+              ? <ActivityIndicator color={t.crimson} size="small" />
+              : <Text style={styles.saveText}>ENREGISTRER</Text>
+            }
           </Pressable>
         </View>
       </SafeAreaView>
@@ -79,10 +105,16 @@ export default function EditProfileScreen() {
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            {avatarUri
+              ? <Image source={{ uri: avatarUri }} style={{ width: 80, height: 80, borderRadius: 4 }} />
+              : <Text style={styles.avatarText}>{initials}</Text>
+            }
           </View>
-          <Pressable style={styles.photoBtn}>
-            <Text style={styles.photoLabel}>📷 Modifier la photo</Text>
+          <Pressable style={styles.photoBtn} onPress={pickAvatar}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="camera-outline" size={14} color={t.crimson} />
+              <Text style={styles.photoLabel}>Modifier la photo</Text>
+            </View>
           </Pressable>
         </View>
 

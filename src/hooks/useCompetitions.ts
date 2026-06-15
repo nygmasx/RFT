@@ -1,34 +1,26 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { api } from '@/lib/api';
 import { Competition, Registration } from '@/lib/database.types';
-import { useAuth } from '@/context/AuthContext';
+
+export type CompetitionWithSource = Competition & { _fromCalendar?: boolean };
 
 export function useCompetitions() {
-  const { user } = useAuth();
-  const [upcoming, setUpcoming] = useState<Competition[]>([]);
+  const [upcoming, setUpcoming]           = useState<CompetitionWithSource[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]             = useState(true);
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    Promise.all([
-      supabase
-        .from('competitions')
-        .select('*')
-        .gte('comp_date', today)
-        .order('comp_date', { ascending: true }),
-      user
-        ? supabase
-            .from('registrations')
-            .select('*, competitions(*)')
-            .eq('user_id', user.id)
-        : Promise.resolve({ data: [] }),
-    ]).then(([comps, regs]) => {
-      setUpcoming(comps.data ?? []);
-      setRegistrations((regs.data as Registration[]) ?? []);
-      setLoading(false);
-    });
-  }, [user]);
+  const refetch = useCallback(() => {
+    api.get<{ upcoming: CompetitionWithSource[]; registrations: Registration[] }>('/api/competitions')
+      .then(({ upcoming, registrations }) => {
+        setUpcoming(upcoming ?? []);
+        setRegistrations(registrations ?? []);
+        setLoading(false);
+      })
+      .catch((e) => { console.error('[useCompetitions]', e.message); setLoading(false); });
+  }, []);
 
-  return { upcoming, registrations, loading };
+  useFocusEffect(refetch);
+
+  return { upcoming, registrations, loading, refetch };
 }

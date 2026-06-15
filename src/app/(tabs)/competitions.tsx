@@ -1,12 +1,15 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
 import { Competition, Registration } from '@/lib/database.types';
+import { supabase } from '@/lib/supabase';
 
 function Tag({ text, color, filled, t }: { text: string; color?: string; filled?: boolean; t: Theme }) {
   const c = color ?? t.crimson;
@@ -74,8 +77,22 @@ export default function CompetitionsScreen() {
   const [activeTab, setActiveTab] = useState(0);
   const tabs = ['À venir', 'Mes inscriptions', 'Passées'];
 
-  const { upcoming, registrations, loading } = useCompetitions();
+  const { upcoming, registrations, loading, refetch } = useCompetitions();
   const today = new Date().toISOString().split('T')[0];
+
+  const handleUnregister = async (registrationId: string) => {
+    Alert.alert('Se désinscrire', 'Confirmer la désinscription ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Confirmer', style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.from('registrations').delete().eq('id', registrationId);
+          if (error) Alert.alert('Erreur', error.message);
+          else refetch();
+        },
+      },
+    ]);
+  };
 
   // Past competitions = registrations whose comp date < today
   const pastRegistrations = registrations.filter(
@@ -91,7 +108,7 @@ export default function CompetitionsScreen() {
             <Text style={styles.title}>COMPÉTITIONS</Text>
           </View>
           <Pressable style={styles.calBtn} onPress={() => router.push('/calendar')}>
-            <Text style={styles.calIcon}>📅</Text>
+            <Ionicons name="calendar-outline" size={18} color={t.bone} />
           </Pressable>
         </View>
 
@@ -133,7 +150,12 @@ export default function CompetitionsScreen() {
                           {c.status === 'soon' && <Tag text="BIENTÔT" color={t.textDim} t={t} />}
                         </View>
                         <Text style={styles.cardName}>{c.name.toUpperCase()}</Text>
-                        {c.location && <Text style={styles.cardLoc}>📍 {c.location}</Text>}
+                        {c.location && (
+                          <View style={styles.locRow}>
+                            <Ionicons name="location-outline" size={11} color={t.textDim} />
+                            <Text style={styles.cardLoc}>{c.location}</Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                     <View style={styles.statsRow}>
@@ -173,26 +195,32 @@ export default function CompetitionsScreen() {
                                 styles.statusText,
                                 { color: r.status === 'confirmé' ? '#22C55E' : '#F97316' },
                               ]}>
-                                {r.status === 'confirmé' ? '✓ CONFIRMÉ' : '⏳ EN ATTENTE'}
+                                {r.status === 'confirmé' ? 'CONFIRMÉ' : 'EN ATTENTE'}
                               </Text>
                             </View>
                           </View>
                           <Text style={styles.cardName}>{comp.name.toUpperCase()}</Text>
-                          {comp.location && <Text style={styles.cardLoc}>📍 {comp.location}</Text>}
+                          {comp.location && (
+                            <View style={styles.locRow}>
+                              <Ionicons name="location-outline" size={11} color={t.textDim} />
+                              <Text style={styles.cardLoc}>{comp.location}</Text>
+                            </View>
+                          )}
                           {r.weight_class && <Text style={styles.cardCat}>{r.weight_class}</Text>}
                         </View>
                       </View>
 
                       <View style={styles.covRow}>
-                        <Text style={styles.covLabel}>🚗 COVOIT</Text>
+                        <Ionicons name="car-outline" size={14} color={t.textMute} />
+                        <Text style={styles.covLabel}>COVOIT</Text>
                         <Text style={styles.covNone}>Aucun covoiturage</Text>
-                        <Pressable onPress={() => router.push('/covoiturage' as never)}>
+                        <Pressable onPress={() => router.navigate('/(tabs)/covoiturage')}>
                           <Text style={styles.covFind}>TROUVER →</Text>
                         </Pressable>
                       </View>
 
                       <View style={styles.cardActions}>
-                        <Pressable style={styles.unregBtn}>
+                        <Pressable style={styles.unregBtn} onPress={() => handleUnregister(r.id)}>
                           <Text style={styles.unregText}>SE DÉSINSCRIRE</Text>
                         </Pressable>
                       </View>
@@ -289,6 +317,7 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.display, fontSize: 18, color: t.bone, fontWeight: '900',
       lineHeight: 20, letterSpacing: 0.5, marginBottom: 4,
     },
+    locRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     cardLoc: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim },
     cardCat: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1, marginTop: 4 },
     statsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: t.hairline },

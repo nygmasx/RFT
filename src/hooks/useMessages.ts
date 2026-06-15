@@ -1,57 +1,42 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Message } from '@/lib/database.types';
 
 export function useMessages(channelId: string) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchMessages = async () => {
+    if (!channelId) return;
+    try {
+      const rows = await api.get<Message[]>(`/api/messages/${channelId}`);
+      setMessages(rows ?? []);
+    } catch (e: any) {
+      console.error('[useMessages]', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!channelId) return;
-
-    // Initial fetch
-    supabase
-      .from('messages')
-      .select('*, profiles(first_name, last_name)')
-      .eq('channel_id', channelId)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        setMessages((data as Message[]) ?? []);
-        setLoading(false);
-      });
-
-    // Realtime subscription
-    const channel = supabase
-      .channel(`messages:${channelId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` },
-        (payload) => {
-          // Fetch full message with profile
-          supabase
-            .from('messages')
-            .select('*, profiles(first_name, last_name)')
-            .eq('id', payload.new.id)
-            .single()
-            .then(({ data }) => {
-              if (data) setMessages(prev => [...prev, data as Message]);
-            });
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    fetchMessages();
+    // Poll every 3s for new messages
+    pollRef.current = setInterval(fetchMessages, 3000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [channelId]);
 
   const sendMessage = async (body: string) => {
-    if (!user) return;
-    await supabase.from('messages').insert({
-      channel_id: channelId,
-      user_id: user.id,
-      body,
-    });
+    if (!user || !body.trim()) return;
+    try {
+      const msg = await api.post<Message>(`/api/messages/${channelId}`, { body });
+      setMessages((prev) => [...prev, msg]);
+    } catch (e: any) {
+      console.error('[sendMessage]', e.message);
+    }
   };
 
   return { messages, loading, sendMessage, currentUserId: user?.id };

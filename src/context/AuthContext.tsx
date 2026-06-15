@@ -1,120 +1,96 @@
-import { Session, User } from '@supabase/supabase-js';
 import { useRouter, useSegments } from 'expo-router';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { authClient } from '@/lib/auth-client';
 
-import { supabase } from '@/lib/supabase';
-
-type ProfileStatus = 'pending' | 'approved' | 'rejected' | null;
+type UserProfile = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  role: 'member' | 'coach' | 'admin';
+  avatarUrl?: string | null;
+  category?: string | null;
+  weightClass?: string | null;
+  phone?: string | null;
+};
 
 type AuthContextType = {
-  session: Session | null;
-  user: User | null;
-  profileStatus: ProfileStatus;
+  user: UserProfile | null;
   loading: boolean;
+  profileStatus: 'pending' | 'approved' | 'rejected' | null;
   signOut: () => Promise<void>;
   refreshProfileStatus: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
   user: null,
-  profileStatus: null,
   loading: true,
+  profileStatus: null,
   signOut: async () => {},
   refreshProfileStatus: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profileStatus, setProfileStatus] = useState<ProfileStatus>(null);
+  const [user, setUser]       = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const router   = useRouter();
   const segments = useSegments();
 
-  const fetchProfileStatus = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('status')
-      .eq('id', userId)
-      .single();
-    return (data?.status as ProfileStatus) ?? null;
-  };
-
-  const refreshProfileStatus = useCallback(async () => {
-    if (!session?.user) return;
-    const status = await fetchProfileStatus(session.user.id);
-    setProfileStatus(status);
-  }, [session]);
-
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        const status = await fetchProfileStatus(session.user.id);
-        setProfileStatus(status);
-      }
+    // Initial session check
+    authClient.getSession().then(({ data }) => {
+      setUser((data?.user as UserProfile) ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        if (session?.user) {
-          const status = await fetchProfileStatus(session.user.id);
-          setProfileStatus(status);
-        } else {
-          setProfileStatus(null);
-        }
-        setLoading(false);
-      }
-    );
+    // Listen to auth state changes
+    const { stop } = authClient.onSessionChange((session) => {
+      setUser((session?.user as UserProfile) ?? null);
+    });
 
-    return () => subscription.unsubscribe();
+    return () => stop?.();
   }, []);
 
-  // Redirection selon l'état
+  // Redirect logic
   useEffect(() => {
     if (loading) return;
-
     const inAuth = segments[0] === '(auth)';
-    const currentScreen = segments[1];
+    const current = segments[1];
 
-    if (!session) {
-      if (!inAuth || currentScreen === 'pending') {
-        router.replace('/(auth)/login');
-      }
+    if (!user) {
+      if (!inAuth || current === 'pending') router.replace('/(auth)/login');
       return;
     }
 
-    const isCoach = session.user.app_metadata?.role === 'coach';
+    const isCoach = user.role === 'coach' || user.role === 'admin';
 
-    if (!isCoach && (profileStatus === 'pending' || profileStatus === null)) {
-      if (currentScreen !== 'pending') {
-        router.replace('/(auth)/pending');
-      }
+    if (!isCoach && (user.status === 'pending')) {
+      if (current !== 'pending') router.replace('/(auth)/pending');
       return;
     }
 
-    if (profileStatus === 'approved' && inAuth) {
+    if ((isCoach || user.status === 'approved') && inAuth) {
       router.replace('/(tabs)/accueil');
     }
-  }, [session, profileStatus, loading, segments]);
+  }, [user, loading, segments]);
+
+  const refreshProfileStatus = async () => {
+    const { data } = await authClient.getSession();
+    setUser((data?.user as UserProfile) ?? null);
+  };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfileStatus(null);
+    await authClient.signOut();
+    setUser(null);
     router.replace('/(auth)/login');
   };
 
+  const profileStatus = user?.status ?? null;
+
   return (
-    <AuthContext.Provider value={{
-      session,
-      user: session?.user ?? null,
-      profileStatus,
-      loading,
-      signOut,
-      refreshProfileStatus,
-    }}>
+    <AuthContext.Provider value={{ user, loading, profileStatus, signOut, refreshProfileStatus }}>
       {children}
     </AuthContext.Provider>
   );

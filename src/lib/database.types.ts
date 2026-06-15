@@ -16,12 +16,12 @@ export interface Profile {
 
 export interface BeltRecord {
   id: string;
-  user_id: string;
+  userId: string;
   color: 'blanche' | 'bleue' | 'violette' | 'marron' | 'noire';
   stripes: number;
-  promoted_by: string | null;
-  promoted_date: string | null;
-  created_at: string;
+  promotedBy: string | null;
+  promotedDate: string | null;
+  createdAt: string;
 }
 
 export interface Channel {
@@ -102,12 +102,12 @@ export interface Carpool {
 
 export interface PalmaresEntry {
   id: string;
-  user_id: string;
-  competition_name: string;
-  comp_date: string;
-  weight_class: string | null;
-  comp_type: 'GI' | 'NO-GI' | null;
+  userId: string;
+  competitionName: string;
+  compDate: string;
+  weightClass: string | null;
+  compType: 'GI' | 'NO-GI' | null;
   place: number;
   notes: string | null;
-  created_at: string;
+  createdAt: string;
 }

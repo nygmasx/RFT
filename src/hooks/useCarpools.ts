@@ -1,22 +1,37 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { Carpool } from '@/lib/database.types';
 
 export function useCarpools() {
-  const [data, setData] = useState<Carpool[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [data, setData]                               = useState<Carpool[]>([]);
+  const [myPassengerCarpoolIds, setMyPassengerIds]    = useState<Set<string>>(new Set());
+  const [loading, setLoading]                         = useState(true);
 
-  useEffect(() => {
-    supabase
-      .from('carpools')
-      .select('*, profiles(first_name, last_name), competitions(name, comp_date)')
-      .gte('departure_at', new Date().toISOString())
-      .order('departure_at', { ascending: true })
-      .then(({ data }) => {
-        setData((data as Carpool[]) ?? []);
+  const refetch = useCallback(() => {
+    setLoading(true);
+    api.get<{ carpools: Carpool[]; myPassengerCarpoolIds: string[]; currentUserId: string }>('/api/carpools')
+      .then(({ carpools, myPassengerCarpoolIds }) => {
+        setData(carpools ?? []);
+        setMyPassengerIds(new Set(myPassengerCarpoolIds));
         setLoading(false);
-      });
+      })
+      .catch((e) => { console.error('[useCarpools]', e.message); setLoading(false); });
   }, []);
 
-  return { data, loading };
+  useFocusEffect(refetch);
+
+  const joinCarpool = async (carpoolId: string) => {
+    try {
+      await api.post(`/api/carpools/${carpoolId}/join`, {});
+      refetch();
+    } catch (e: any) {
+      console.error('[joinCarpool]', e.message);
+      throw e;
+    }
+  };
+
+  return { data, loading, myPassengerCarpoolIds, currentUserId: user?.id, joinCarpool, refetch };
 }

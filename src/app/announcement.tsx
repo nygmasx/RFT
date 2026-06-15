@@ -1,23 +1,44 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
-import { ANNOUNCEMENTS } from '@/data/rft-data';
+import { Announcement } from '@/lib/database.types';
+import { supabase } from '@/lib/supabase';
+
+const DEFAULT_REACTIONS = [
+  { emoji: '✊', count: 0 },
+  { emoji: '🔥', count: 0 },
+  { emoji: '👍', count: 0 },
+];
 
 export default function AnnouncementScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const announcement = ANNOUNCEMENTS.find((a) => a.id === id) ?? ANNOUNCEMENTS[0];
 
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [loading, setLoading] = useState(true);
   const [reactedIndices, setReactedIndices] = useState<Set<number>>(new Set());
   const [reply, setReply] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    supabase
+      .from('announcements')
+      .select('*, profiles(first_name, last_name)')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        setAnnouncement(data ?? null);
+        setLoading(false);
+      });
+  }, [id]);
 
   const toggleReaction = (i: number) => {
     setReactedIndices((prev) => {
@@ -28,12 +49,36 @@ export default function AnnouncementScreen() {
     });
   };
 
-  const authorInitials = announcement.author
+  if (loading) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={t.crimson} />
+      </View>
+    );
+  }
+
+  if (!announcement) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ color: t.textMute, fontFamily: FONTS.body }}>Annonce introuvable.</Text>
+      </View>
+    );
+  }
+
+  const authorName = announcement.profiles
+    ? `${announcement.profiles.first_name} ${announcement.profiles.last_name}`
+    : 'Coach';
+
+  const authorInitials = authorName
     .split(' ')
     .map((s) => s[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  const authorDate = new Date(announcement.created_at).toLocaleString('fr-FR', {
+    weekday: 'short', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 
   return (
     <View style={styles.container}>
@@ -56,12 +101,14 @@ export default function AnnouncementScreen() {
       >
         {/* Tag */}
         <View style={styles.tagRow}>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{announcement.tag}</Text>
-          </View>
+          {announcement.tag && (
+            <View style={styles.tag}>
+              <Text style={styles.tagText}>{announcement.tag}</Text>
+            </View>
+          )}
           {announcement.pinned && (
             <View style={[styles.tag, styles.tagOutline]}>
-              <Text style={[styles.tagText, { color: t.textDim }]}>📌 ÉPINGLÉ</Text>
+              <Text style={[styles.tagText, { color: t.textDim }]}>ÉPINGLÉ</Text>
             </View>
           )}
         </View>
@@ -76,21 +123,21 @@ export default function AnnouncementScreen() {
           </View>
           <View style={styles.authorInfo}>
             <View style={styles.authorRow}>
-              <Text style={styles.authorName}>{announcement.author}</Text>
+              <Text style={styles.authorName}>{authorName}</Text>
               <View style={styles.coachBadge}>
                 <Text style={styles.coachBadgeText}>COACH</Text>
               </View>
             </View>
-            <Text style={styles.authorDate}>{announcement.date}</Text>
+            <Text style={styles.authorDate}>{authorDate}</Text>
           </View>
         </View>
 
         {/* Body */}
         <Text style={styles.body}>{announcement.body}</Text>
 
-        {/* Reactions */}
+        {/* Reactions (local state) */}
         <View style={styles.reactionBar}>
-          {announcement.reactions.map((r, i) => (
+          {DEFAULT_REACTIONS.map((r, i) => (
             <Pressable
               key={i}
               style={[styles.reactionBtn, reactedIndices.has(i) && styles.reactionBtnActive]}
@@ -102,63 +149,6 @@ export default function AnnouncementScreen() {
               </Text>
             </Pressable>
           ))}
-        </View>
-
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Replies header */}
-        <View style={styles.repliesHeader}>
-          <Text style={styles.repliesLabel}>RÉPONSES ({announcement.replies})</Text>
-          <Pressable>
-            <Text style={styles.replyAction}>Répondre</Text>
-          </Pressable>
-        </View>
-
-        {/* Reply bubbles */}
-        <View style={styles.replyBubble}>
-          <View style={styles.replyAvatar}>
-            <Text style={styles.replyAvatarText}>D</Text>
-          </View>
-          <View style={styles.replyContent}>
-            <View style={styles.replyMeta}>
-              <Text style={styles.replyAuthor}>Driss M.</Text>
-              <Text style={styles.replyTime}>10:22</Text>
-            </View>
-            <View style={styles.replyBubbleInner}>
-              <Text style={styles.replyText}>Je confirme ! À samedi 💪</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.replyBubble}>
-          <View style={styles.replyAvatar}>
-            <Text style={styles.replyAvatarText}>L</Text>
-          </View>
-          <View style={styles.replyContent}>
-            <View style={styles.replyMeta}>
-              <Text style={styles.replyAuthor}>Léa P.</Text>
-              <Text style={styles.replyTime}>11:05</Text>
-            </View>
-            <View style={styles.replyBubbleInner}>
-              <Text style={styles.replyText}>Présente aussi, merci coach !</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.replyBubble}>
-          <View style={styles.replyAvatar}>
-            <Text style={styles.replyAvatarText}>K</Text>
-          </View>
-          <View style={styles.replyContent}>
-            <View style={styles.replyMeta}>
-              <Text style={styles.replyAuthor}>Karim B.</Text>
-              <Text style={styles.replyTime}>11:47</Text>
-            </View>
-            <View style={styles.replyBubbleInner}>
-              <Text style={styles.replyText}>Top ! Est-ce qu'on peut venir aussi en No-Gi ou seulement GI ?</Text>
-            </View>
-          </View>
         </View>
 
         <View style={{ height: 100 }} />
@@ -258,30 +248,6 @@ function makeStyles(t: Theme) {
     },
     reactionEmoji: { fontSize: 16 },
     reactionCount: { fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, fontWeight: '600' },
-    divider: { height: 1, backgroundColor: t.hairline, marginBottom: 20 },
-    repliesHeader: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      marginBottom: 16,
-    },
-    repliesLabel: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2 },
-    replyAction: { fontFamily: FONTS.mono, fontSize: 10, color: t.crimson, letterSpacing: 1.5 },
-    replyBubble: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-    replyAvatar: {
-      width: 30, height: 30, borderRadius: 3, backgroundColor: t.elevated,
-      alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
-    },
-    replyAvatarText: { fontFamily: FONTS.display, fontSize: 13, color: t.bone, fontWeight: '900' },
-    replyContent: { flex: 1 },
-    replyMeta: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 4 },
-    replyAuthor: { fontFamily: FONTS.body, fontSize: 12, color: t.bone, fontWeight: '700' },
-    replyTime: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1 },
-    replyBubbleInner: {
-      backgroundColor: t.surface, paddingHorizontal: 12, paddingVertical: 8,
-      borderRadius: 2, borderTopLeftRadius: 0, borderTopRightRadius: 10,
-      borderBottomRightRadius: 10, borderBottomLeftRadius: 10,
-      borderWidth: 1, borderColor: t.hairline,
-    },
-    replyText: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, lineHeight: 19 },
     composer: {
       flexDirection: 'row', alignItems: 'flex-end', gap: 10,
       paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,

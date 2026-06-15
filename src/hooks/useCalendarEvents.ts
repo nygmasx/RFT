@@ -1,22 +1,19 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { api } from '@/lib/api';
 import { CalendarEvent } from '@/lib/database.types';
 
 export function useCalendarEvents() {
-  const [data, setData] = useState<CalendarEvent[]>([]);
+  const [data, setData]       = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    supabase
-      .from('calendar_events')
-      .select('*')
-      .gte('event_date', new Date().toISOString().split('T')[0])
-      .order('event_date', { ascending: true })
-      .then(({ data }) => {
-        setData(data ?? []);
-        setLoading(false);
-      });
+  const fetchEvents = useCallback(() => {
+    api.get<CalendarEvent[]>('/api/calendar')
+      .then((rows) => { setData(rows ?? []); setLoading(false); })
+      .catch((e) => { console.error('[useCalendarEvents]', e.message); setLoading(false); });
   }, []);
 
-  return { data, loading };
+  useFocusEffect(fetchEvents);
+
+  return { data, loading, refetch: fetchEvents };
 }

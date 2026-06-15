@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useMyCarpool } from '@/hooks/useMyCarpool';
@@ -63,9 +65,10 @@ export default function MesCovoituragesScreen() {
               {upcoming.map((c) => (
                 <View key={c.id} style={[styles.carpoolCard, styles.carpoolUpcoming]}>
                   <View style={styles.cardTopRow}>
-                    <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.crimson : t.elevated }]}>
+                    <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.crimson : t.elevated, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                      <Ionicons name={c.role === 'driver' ? 'car-outline' : 'person-outline'} size={12} color={t.bone} />
                       <Text style={styles.roleBadgeText}>
-                        {c.role === 'driver' ? '🚗 CONDUCTEUR' : '🎒 PASSAGER'}
+                        {c.role === 'driver' ? 'CONDUCTEUR' : 'PASSAGER'}
                       </Text>
                     </View>
                     <View style={styles.upcomingPill}>
@@ -75,9 +78,15 @@ export default function MesCovoituragesScreen() {
                   <Text style={styles.carpoolEvent}>{c.event}</Text>
                   <Text style={styles.carpoolRoute}>{c.departure_city}</Text>
                   <View style={styles.carpoolMeta}>
-                    <Text style={styles.carpoolDate}>📅 {formatDate(c.departure_at)}</Text>
+                    <View style={styles.metaItem}>
+                      <Ionicons name="calendar-outline" size={11} color={t.textMute} />
+                      <Text style={styles.carpoolDate}>{formatDate(c.departure_at)}</Text>
+                    </View>
                     {c.role === 'driver' && (
-                      <Text style={styles.carpoolPassengers}>👥 {c.seats_taken} passagers</Text>
+                      <View style={styles.metaItem}>
+                        <Ionicons name="people-outline" size={11} color={t.textMute} />
+                        <Text style={styles.carpoolPassengers}>{c.seats_taken} passagers</Text>
+                      </View>
                     )}
                   </View>
                 </View>
@@ -92,19 +101,26 @@ export default function MesCovoituragesScreen() {
               {completed.map((c, i) => (
                 <View key={c.id} style={[styles.carpoolCard, i > 0 && { marginTop: 8 }]}>
                   <View style={styles.cardTopRow}>
-                    <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.elevated : 'rgba(59,130,246,0.15)' }]}>
+                    <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.elevated : 'rgba(59,130,246,0.15)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                      <Ionicons name={c.role === 'driver' ? 'car-outline' : 'person-outline'} size={12} color={c.role === 'driver' ? t.textDim : '#3B82F6'} />
                       <Text style={[styles.roleBadgeText, { color: c.role === 'driver' ? t.textDim : '#3B82F6' }]}>
-                        {c.role === 'driver' ? '🚗 CONDUCTEUR' : '🎒 PASSAGER'}
+                        {c.role === 'driver' ? 'CONDUCTEUR' : 'PASSAGER'}
                       </Text>
                     </View>
-                    <Text style={styles.checkmark}>✅</Text>
+                    <Ionicons name="checkmark-circle" size={18} color={t.crimson} />
                   </View>
                   <Text style={styles.carpoolEvent}>{c.event}</Text>
                   <Text style={styles.carpoolRoute}>{c.departure_city}</Text>
                   <View style={styles.carpoolMeta}>
-                    <Text style={styles.carpoolDate}>📅 {formatDate(c.departure_at)}</Text>
+                    <View style={styles.metaItem}>
+                      <Ionicons name="calendar-outline" size={11} color={t.textMute} />
+                      <Text style={styles.carpoolDate}>{formatDate(c.departure_at)}</Text>
+                    </View>
                     {c.role === 'driver' && (
-                      <Text style={styles.carpoolPassengers}>👥 {c.seats_taken} passagers</Text>
+                      <View style={styles.metaItem}>
+                        <Ionicons name="people-outline" size={11} color={t.textMute} />
+                        <Text style={styles.carpoolPassengers}>{c.seats_taken} passagers</Text>
+                      </View>
                     )}
                   </View>
                 </View>
@@ -169,10 +185,10 @@ function makeStyles(t: Theme) {
     roleBadgeText: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.bone, letterSpacing: 1, fontWeight: '700' },
     upcomingPill: { backgroundColor: t.crimson, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 2 },
     upcomingText: { fontFamily: FONTS.mono, fontSize: 8, color: t.bone, letterSpacing: 1.5, fontWeight: '700' },
-    checkmark: { fontSize: 14 },
     carpoolEvent: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '700' },
     carpoolRoute: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, letterSpacing: 1, marginTop: 3 },
     carpoolMeta: { flexDirection: 'row', gap: 14, marginTop: 6 },
+    metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     carpoolDate: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 0.5 },
     carpoolPassengers: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 0.5 },
 

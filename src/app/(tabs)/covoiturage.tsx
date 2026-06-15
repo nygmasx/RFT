@@ -42,7 +42,7 @@ export default function CovoiturageScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const { data: carpools, loading } = useCarpools();
+  const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool } = useCarpools();
 
   return (
     <View style={styles.container}>
@@ -95,7 +95,7 @@ export default function CovoiturageScreen() {
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          {carpools.map((r, i) => {
+          {carpools.map((r) => {
             const driverName = r.profiles
               ? `${r.profiles.first_name} ${r.profiles.last_name}`
               : 'Conducteur';
@@ -103,8 +103,35 @@ export default function CovoiturageScreen() {
             const available = r.seats_total - r.seats_taken;
             const isFull = available <= 0;
 
+            const isDriver = r.driver_id === currentUserId;
+            const isPassenger = myPassengerCarpoolIds.has(r.id);
+
+            let btnLabel: string;
+            let btnDisabled = false;
+            let btnStyle = styles.reserveBtn;
+            let btnTextStyle = styles.reserveText;
+
+            if (isDriver) {
+              btnLabel = 'MON TRAJET';
+              btnDisabled = true;
+              btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnFull };
+              btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
+            } else if (isPassenger) {
+              btnLabel = 'INSCRIT';
+              btnDisabled = true;
+              btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnFull };
+              btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
+            } else if (isFull) {
+              btnLabel = 'COMPLET';
+              btnDisabled = true;
+              btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnFull };
+              btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
+            } else {
+              btnLabel = 'REJOINDRE';
+            }
+
             return (
-              <View key={i} style={styles.card}>
+              <View key={r.id} style={styles.card}>
                 <View style={styles.driverRow}>
                   <View style={styles.driverAvatar}>
                     <Text style={styles.driverInitials}>{initials(driverName)}</Text>
@@ -135,10 +162,12 @@ export default function CovoiturageScreen() {
                   </View>
                 </View>
 
-                <Pressable style={[styles.reserveBtn, isFull && styles.reserveBtnFull]}>
-                  <Text style={[styles.reserveText, isFull && styles.reserveTextFull]}>
-                    {isFull ? 'COMPLET' : 'RÉSERVER UNE PLACE'}
-                  </Text>
+                <Pressable
+                  style={btnStyle}
+                  disabled={btnDisabled}
+                  onPress={() => !btnDisabled && joinCarpool(r.id)}
+                >
+                  <Text style={btnTextStyle}>{btnLabel}</Text>
                 </Pressable>
               </View>
             );

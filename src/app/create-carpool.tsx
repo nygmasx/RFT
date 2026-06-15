@@ -1,15 +1,17 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { useCompetitions } from '@/hooks/useCompetitions';
-import { supabase } from '@/lib/supabase';
+import { useCompetitions, CompetitionWithSource } from '@/hooks/useCompetitions';
+import { api } from '@/lib/api';
 
 export default function CreateCarpoolScreen() {
   const { theme: t } = useTheme();
@@ -45,19 +47,23 @@ export default function CreateCarpoolScreen() {
 
     const costNum = parseFloat(cost.replace(',', '.')) || 0;
 
-    await supabase.from('carpools').insert({
-      driver_id: user.id,
-      competition_id: selectedEvent,
-      departure_city: city.trim(),
-      departure_at: departureAt,
-      seats_total: seats,
-      seats_taken: 0,
-      cost_per_seat: costNum,
-      notes: notes.trim() || null,
-    });
+    const competitionId = selectedComp?._fromCalendar ? null : selectedEvent;
 
-    setSaving(false);
-    router.back();
+    try {
+      await api.post('/api/carpools', {
+        competition_id:  competitionId,
+        departure_city:  city.trim(),
+        departure_at:    departureAt,
+        seats_total:     seats,
+        cost_per_seat:   costNum,
+        notes:           notes.trim() || null,
+      });
+      setSaving(false);
+      router.back();
+    } catch (e: any) {
+      setSaving(false);
+      Alert.alert('Erreur', e.message);
+    }
   };
 
   const canSubmit = !!selectedEvent && !!city.trim() && !!date.trim() && !!time.trim() && !saving;
@@ -115,7 +121,7 @@ export default function CreateCarpoolScreen() {
                     {c.location && <Text style={styles.eventOptionLoc}>{c.location}</Text>}
                   </View>
                   {selectedEvent === c.id && (
-                    <Text style={styles.eventOptionCheck}>✓</Text>
+                    <Ionicons name="checkmark" size={16} color={t.crimson} />
                   )}
                 </Pressable>
               );
@@ -277,9 +283,6 @@ function makeStyles(t: Theme) {
     },
     eventOptionLoc: {
       fontFamily: FONTS.body, fontSize: 11, color: t.textDim, marginTop: 2,
-    },
-    eventOptionCheck: {
-      fontFamily: FONTS.display, fontSize: 16, color: t.crimson, fontWeight: '900',
     },
     textInput: {
       height: 44, backgroundColor: t.surface,

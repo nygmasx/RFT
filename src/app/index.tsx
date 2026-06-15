@@ -1,14 +1,38 @@
 import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 
 export default function WelcomeScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const { user, profileStatus, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.replace('/(auth)/login');
+      return;
+    }
+    const isCoach = user.app_metadata?.role === 'coach';
+    if (isCoach || profileStatus === 'approved') {
+      router.replace('/(tabs)/accueil');
+    } else if (profileStatus === 'pending' || profileStatus === null) {
+      router.replace('/(auth)/pending');
+    }
+  }, [user, profileStatus, loading]);
+
+  if (loading || user) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={t.crimson} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

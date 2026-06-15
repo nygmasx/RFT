@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -24,10 +26,10 @@ export default function AddResultScreen() {
   const { user } = useAuth();
 
   const PLACE_OPTIONS = [
-    { place: 1 as Place, emoji: '🥇', label: '1ER PLACE', selectedBg: '#D4A436' },
-    { place: 2 as Place, emoji: '🥈', label: '2E PLACE',  selectedBg: '#BFC4C7' },
-    { place: 3 as Place, emoji: '🥉', label: '3E PLACE',  selectedBg: '#C07A3A' },
-    { place: 4 as Place, emoji: '🎖', label: 'TOP 4 / 5E+', selectedBg: t.elevated },
+    { place: 1 as Place, iconColor: '#D4A436', label: '1ER PLACE', selectedBg: '#D4A436' },
+    { place: 2 as Place, iconColor: '#BFC4C7', label: '2E PLACE',  selectedBg: '#BFC4C7' },
+    { place: 3 as Place, iconColor: '#C07A3A', label: '3E PLACE',  selectedBg: '#C07A3A' },
+    { place: 4 as Place, iconColor: t.textDim,  label: 'TOP 4 / 5E+', selectedBg: t.elevated },
   ];
 
   const [compName, setCompName] = useState('');
@@ -158,7 +160,7 @@ export default function AddResultScreen() {
                 ]}
                 onPress={() => setPlace(opt.place)}
               >
-                <Text style={styles.placeEmoji}>{opt.emoji}</Text>
+                <Ionicons name="medal" size={28} color={opt.iconColor} />
                 <Text style={[styles.placeLabel, isSelected && { color: t.bone, fontWeight: '900' }]}>
                   {opt.label}
                 </Text>
@@ -258,7 +260,6 @@ function makeStyles(t: Theme) {
       width: '47%', paddingVertical: 18, alignItems: 'center', gap: 6,
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
     },
-    placeEmoji: { fontSize: 28 },
     placeLabel: {
       fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, letterSpacing: 1, fontWeight: '600',
     },

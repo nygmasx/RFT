@@ -63,9 +63,9 @@ export default function PalmaresScreen() {
 
   const filteredResults = activeYear === 'Toutes'
     ? palmares
-    : palmares.filter((r) => r.comp_date.startsWith(activeYear));
+    : palmares.filter((r) => r.compDate.startsWith(activeYear));
 
-  const allYears = Array.from(new Set(palmares.map((r) => r.comp_date.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
+  const allYears = Array.from(new Set(palmares.map((r) => r.compDate.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
   const yearsToShow = activeYear === 'Toutes' ? allYears : [activeYear];
 
   const gold   = palmares.filter((r) => r.place === 1).length;
@@ -81,7 +81,7 @@ export default function PalmaresScreen() {
   ];
 
   const authorName = profile
-    ? `${profile.first_name.toUpperCase()} ${profile.last_name.toUpperCase()}`
+    ? `${profile.firstName?.toUpperCase() ?? ''} ${profile.lastName?.toUpperCase() ?? ''}`.trim() || '—'
     : '—';
 
   return (
@@ -138,7 +138,7 @@ export default function PalmaresScreen() {
 
           {/* Results by year */}
           {yearsToShow.map((yr) => {
-            const items = filteredResults.filter((r) => r.comp_date.startsWith(yr));
+            const items = filteredResults.filter((r) => r.compDate.startsWith(yr));
             if (!items.length) return null;
             return (
               <View key={yr}>
@@ -151,10 +151,10 @@ export default function PalmaresScreen() {
                   <Pressable key={i} style={[styles.resultRow, i > 0 && styles.resultBorder]}>
                     <MedalDisc place={r.place} size={36} t={t} />
                     <View style={styles.resultInfo}>
-                      <Text style={styles.resultName}>{r.competition_name}</Text>
-                      <Text style={styles.resultMeta}>{r.comp_date} · {r.weight_class ?? ''}</Text>
+                      <Text style={styles.resultName}>{r.competitionName}</Text>
+                      <Text style={styles.resultMeta}>{r.compDate} · {r.weightClass ?? ''}</Text>
                     </View>
-                    {r.comp_type && <Tag text={r.comp_type} t={t} />}
+                    {r.compType && <Tag text={r.compType} t={t} />}
                     <Text style={styles.chevron}>›</Text>
                   </Pressable>
                 ))}

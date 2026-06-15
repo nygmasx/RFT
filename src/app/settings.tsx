@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -89,22 +90,17 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>MON COMPTE</Text>
         <View style={styles.card}>
           <Pressable style={[styles.row, styles.rowBorder]} onPress={() => router.push('/edit-profile')}>
-            <Text style={styles.rowIcon}>👤</Text>
+            <Ionicons name="person-outline" size={18} color={t.textDim} />
             <Text style={styles.rowLabel}>Modifier le profil</Text>
             <Text style={styles.rowArrow}>›</Text>
           </Pressable>
-          <Pressable style={[styles.row, styles.rowBorder]} onPress={() => router.push('/edit-belt')}>
-            <Text style={styles.rowIcon}>🎖</Text>
-            <Text style={styles.rowLabel}>Mon grade BJJ</Text>
-            <Text style={styles.rowArrow}>›</Text>
-          </Pressable>
           <Pressable style={[styles.row, styles.rowBorder]}>
-            <Text style={styles.rowIcon}>🔑</Text>
+            <Ionicons name="key-outline" size={18} color={t.textDim} />
             <Text style={styles.rowLabel}>Changer le mot de passe</Text>
             <Text style={styles.rowArrow}>›</Text>
           </Pressable>
           <View style={styles.row}>
-            <Text style={styles.rowIcon}>📱</Text>
+            <Ionicons name="phone-portrait-outline" size={18} color={t.textDim} />
             <Text style={[styles.rowLabel, { color: t.textDim }]}>Téléphone : +33 6 12 34 56 78</Text>
           </View>
         </View>
@@ -152,13 +148,13 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>CLUB</Text>
         <View style={styles.card}>
           <View style={[styles.row, styles.rowBorder]}>
-            <Text style={styles.rowIcon}>🔗</Text>
+            <Ionicons name="link-outline" size={18} color={t.textDim} />
             <Text style={[styles.rowLabel, { flex: 1 }]}>Code d'invitation du club</Text>
             <Text style={styles.clubCode}>RONIN-2026</Text>
-            <Text style={styles.rowArrow}>📋</Text>
+            <Ionicons name="copy-outline" size={17} color={t.textMute} />
           </View>
           <Pressable style={styles.row}>
-            <Text style={styles.rowIcon}>⚠️</Text>
+            <Ionicons name="warning-outline" size={18} color={t.crimson} />
             <Text style={[styles.rowLabel, { color: t.crimson }]}>Quitter le club</Text>
           </Pressable>
         </View>
@@ -167,17 +163,17 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>ASSISTANCE</Text>
         <View style={styles.card}>
           <Pressable style={[styles.row, styles.rowBorder]}>
-            <Text style={styles.rowIcon}>🐛</Text>
+            <Ionicons name="bug-outline" size={18} color={t.textDim} />
             <Text style={styles.rowLabel}>Signaler un problème</Text>
             <Text style={styles.rowArrow}>›</Text>
           </Pressable>
           <Pressable style={[styles.row, styles.rowBorder]}>
-            <Text style={styles.rowIcon}>📖</Text>
+            <Ionicons name="document-text-outline" size={18} color={t.textDim} />
             <Text style={styles.rowLabel}>Conditions d'utilisation</Text>
             <Text style={styles.rowArrow}>›</Text>
           </Pressable>
           <Pressable style={styles.row}>
-            <Text style={styles.rowIcon}>🔏</Text>
+            <Ionicons name="shield-checkmark-outline" size={18} color={t.textDim} />
             <Text style={styles.rowLabel}>Politique de confidentialité</Text>
             <Text style={styles.rowArrow}>›</Text>
           </Pressable>
@@ -187,11 +183,11 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>SESSION</Text>
         <View style={styles.card}>
           <Pressable style={[styles.row, styles.rowBorder]} onPress={signOut}>
-            <Text style={styles.rowIcon}>↩</Text>
+            <Ionicons name="log-out-outline" size={18} color={t.textDim} />
             <Text style={styles.rowLabel}>Se déconnecter</Text>
           </Pressable>
           <Pressable style={styles.row}>
-            <Text style={styles.rowIcon}>🗑</Text>
+            <Ionicons name="trash-outline" size={18} color={t.crimson} />
             <Text style={[styles.rowLabel, { color: t.crimson }]}>Supprimer mon compte</Text>
           </Pressable>
         </View>
@@ -199,7 +195,11 @@ export default function SettingsScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>RONIN FIGHT TEAM · v1.0 (BETA)</Text>
-          <Text style={styles.footerSub}>Fabriqué avec ❤️ pour le tatami</Text>
+          <View style={styles.footerSub}>
+            <Text style={styles.footerSubText}>Fabriqué avec </Text>
+            <Ionicons name="heart" size={12} color={t.crimson} />
+            <Text style={styles.footerSubText}> pour le tatami</Text>
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -235,8 +235,7 @@ function makeStyles(t: Theme) {
       flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, gap: 10,
     },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: t.hairline },
-    rowIcon: { fontSize: 16 },
-    rowLabel: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '500' },
+    rowLabel: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '500', flex: 1 },
     rowArrow: { fontSize: 18, color: t.textMute },
     rowValue: { fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, letterSpacing: 0.5 },
     clubCode: { fontFamily: FONTS.mono, fontSize: 12, color: t.crimson, fontWeight: '700', letterSpacing: 1 },
@@ -262,6 +261,7 @@ function makeStyles(t: Theme) {
 
     footer: { alignItems: 'center', marginTop: 16, gap: 6 },
     footerText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5 },
-    footerSub: { fontFamily: FONTS.body, fontSize: 12, color: t.textMute },
+    footerSub: { flexDirection: 'row', alignItems: 'center' },
+    footerSubText: { fontFamily: FONTS.body, fontSize: 12, color: t.textMute },
   });
 }

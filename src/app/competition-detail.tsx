@@ -1,10 +1,15 @@
-import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FONTS, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { Competition } from '@/lib/database.types';
+import { api } from '@/lib/api';
 
 function Tag({ text, filled, color, t }: { text: string; filled?: boolean; color?: string; t: Theme }) {
   const c = color ?? t.crimson;
@@ -22,16 +27,108 @@ function tagSt(t: Theme) {
   });
 }
 
-const ATTENDEES = ['DM', 'KB', 'YL', 'SP', 'TR', 'JV'];
-
-const CARPOOLS = [
-  { route: 'Creil → Paris',       dep: '07:15', driver: 'Karim B.',       filled: 2, total: 3, price: '6€',     full: false },
-  { route: 'Compiègne → Paris',   dep: '06:50', driver: 'Yannick (Coach)', filled: 4, total: 4, price: 'OFFERT', full: true  },
-];
+interface CarpoolItem {
+  id: string;
+  departure_city: string;
+  departure_at: string;
+  seats_taken: number;
+  seats_total: number;
+  cost_per_seat: number;
+  driverName: string;
+}
 
 export default function CompetitionDetailScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const { user } = useAuth();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
+  const [competition, setCompetition] = useState<Competition | null>(null);
+  const [registrationId, setRegistrationId] = useState<string | null>(null);
+  const [loadingComp, setLoadingComp] = useState(true);
+  const [registering, setRegistering] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [carpools, setCarpools] = useState<CarpoolItem[]>([]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    api.get<Competition>(`/api/competitions/${id}`)
+      .then((data) => { setCompetition(data ?? null); setLoadingComp(false); })
+      .catch(() => setLoadingComp(false));
+
+    api.get<{ carpools: any[] }>('/api/carpools')
+      .then(({ carpools }) => {
+        setCarpools(
+          (carpools ?? [])
+            .filter((c: any) => c.competitionId === id)
+            .map((c: any) => ({
+              id:             c.id,
+              departure_city: c.departureCity,
+              departure_at:   c.departureAt,
+              seats_taken:    c.seatsTaken,
+              seats_total:    c.seatsTotal,
+              cost_per_seat:  Number(c.costPerSeat ?? 0),
+              driverName:     c.profiles ? `${c.profiles.first_name} ${c.profiles.last_name}` : 'Inconnu',
+            }))
+        );
+      })
+      .catch(() => {});
+
+    // Check if already registered
+    api.get<{ registrations: Array<{ id: string; competitionId: string }> }>('/api/competitions')
+      .then(({ registrations }) => {
+        const reg = registrations.find((r) => r.competitionId === id);
+        setRegistrationId(reg?.id ?? null);
+      })
+      .catch(() => {});
+  }, [id, user]);
+
+  const handleRegister = async () => {
+    if (!user || !id || registering) return;
+    setRegistering(true);
+    setStatusMsg(null);
+
+    if (registrationId) {
+      try {
+        await api.delete(`/api/competitions/registrations/${registrationId}`);
+        setRegistrationId(null);
+        setStatusMsg('Désinscription effectuée.');
+      } catch {
+        setStatusMsg('Erreur lors de la désinscription.');
+      }
+    } else {
+      try {
+        const reg = await api.post<{ id: string }>(`/api/competitions/${id}/register`, {});
+        setRegistrationId(reg.id);
+        setStatusMsg('Inscription enregistrée !');
+      } catch {
+        setStatusMsg('Erreur lors de l\'inscription.');
+      }
+    }
+
+    setRegistering(false);
+  };
+
+  if (loadingComp) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={t.crimson} />
+      </View>
+    );
+  }
+
+  const comp = competition;
+  const isRegistered = !!registrationId;
+
+  function formatCompDate(iso: string) {
+    const d = new Date(iso);
+    const day = d.toLocaleString('fr-FR', { weekday: 'short' }).toUpperCase();
+    const date = String(d.getDate()).padStart(2, '0');
+    const month = d.toLocaleString('fr-FR', { month: 'short' }).toUpperCase();
+    const year = d.getFullYear();
+    return `${day} ${date} ${month} ${year}`;
+  }
 
   return (
     <View style={styles.container}>
@@ -45,95 +142,103 @@ export default function CompetitionDetailScreen() {
           </Pressable>
           <View style={styles.heroActions}>
             <Pressable style={styles.heroActionBtn}>
-              <Text style={styles.heroActionIcon}>📍</Text>
+              <Ionicons name="location-outline" size={16} color={t.bone} />
             </Pressable>
             <Pressable style={styles.heroActionBtn}>
-              <Text style={styles.heroActionIcon}>🔖</Text>
+              <Ionicons name="bookmark-outline" size={16} color={t.bone} />
             </Pressable>
           </View>
         </SafeAreaView>
         <View style={styles.heroContent}>
           <View style={styles.heroTags}>
-            <Tag text="OUVERT" filled t={t} />
-            <Tag text="GI · IBJJF" color={t.bone} t={t} />
+            {comp?.status && <Tag text={comp.status.toUpperCase()} filled t={t} />}
+            {comp?.comp_type && <Tag text={comp.comp_type} color={t.bone} t={t} />}
           </View>
-          <Text style={styles.heroTitle}>{'OPEN BJJ\nDE PARIS 2026'}</Text>
+          <Text style={styles.heroTitle}>{comp?.name.toUpperCase() ?? ''}</Text>
         </View>
       </View>
 
       {/* Quick facts */}
       <View style={styles.facts}>
         {[
-          ['DIM 01 JUIN', '07:30'],
-          ['HALLE CARPENTIER', 'PARIS'],
-          ['PESÉE', '08:00'],
+          [comp ? formatCompDate(comp.comp_date) : '—', ''],
+          [comp?.location ?? '—', ''],
+          ['INSCRIPTION', comp?.status.toUpperCase() ?? '—'],
         ].map(([a, b], i) => (
           <View key={i} style={[styles.factCell, i < 2 && styles.factBorder]}>
             <Text style={styles.factLabel}>{a}</Text>
-            <Text style={styles.factValue}>{b}</Text>
+            {b ? <Text style={styles.factValue}>{b}</Text> : null}
           </View>
         ))}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Brief */}
-        <Text style={styles.sectionLabel}>BRIEF</Text>
-        <Text style={styles.brief}>
-          Rendez-vous au club à{' '}
-          <Text style={{ color: t.crimson, fontWeight: '700' }}>06:45</Text>
-          {' '}pour les départs en covoiturage. Pesée individuelle, kimono blanc ou bleu réglementaire. Coach Yannick coache.
-        </Text>
-
-        {/* Inscrits */}
-        <View style={styles.inscCard}>
-          <View style={styles.inscHeader}>
-            <Text style={styles.sectionLabel}>INSCRITS DU CLUB</Text>
-            <Text style={styles.inscCount}>14</Text>
-          </View>
-          <View style={styles.avatarRow}>
-            {ATTENDEES.map((n, i) => (
-              <View key={i} style={[styles.attendeeAvatar, i > 0 && styles.attendeeOverlap]}>
-                <Text style={styles.attendeeInitials}>{n}</Text>
-              </View>
-            ))}
-            <View style={[styles.attendeeAvatar, styles.attendeeOverlap, styles.attendeeMore]}>
-              <Text style={styles.attendeeMoreText}>+8</Text>
-            </View>
-            <Text style={styles.attendeeNames}>Driss, Karim, Yannis…</Text>
-          </View>
-        </View>
+        {comp?.registration_deadline && (
+          <>
+            <Text style={styles.sectionLabel}>CLÔTURE DES INSCRIPTIONS</Text>
+            <Text style={styles.brief}>{comp.registration_deadline}</Text>
+          </>
+        )}
 
         {/* Covoiturages */}
-        <View style={styles.covHeader}>
-          <Text style={styles.sectionLabel}>COVOITURAGES — 3</Text>
-          <Text style={styles.covPropose}>+ PROPOSER</Text>
-        </View>
-
-        {CARPOOLS.map((r, i) => (
-          <View key={i} style={[styles.covCard, r.full && { opacity: 0.6 }]}>
-            <View style={styles.covCardIcon}>
-              <Text style={{ fontSize: 18 }}>🚗</Text>
-            </View>
-            <View style={styles.covInfo}>
-              <Text style={styles.covRoute}>{r.route}</Text>
-              <Text style={styles.covMeta}>Départ {r.dep} · {r.driver}</Text>
-            </View>
-            <View style={styles.covSeats}>
-              <Text style={styles.covSeatCount}>{r.filled}/{r.total}</Text>
-              <Text style={[styles.covSeatLabel, r.full && { color: t.textMute }]}>
-                {r.full ? 'COMPLET' : r.price}
-              </Text>
-            </View>
+        <>
+          <View style={styles.covHeader}>
+            <Text style={styles.sectionLabel}>
+              COVOITURAGES{carpools.length > 0 ? ` — ${carpools.length}` : ''}
+            </Text>
+            <Pressable onPress={() => router.push('/create-carpool')}>
+              <Text style={styles.covPropose}>+ PROPOSER</Text>
+            </Pressable>
           </View>
-        ))}
+
+          {carpools.length === 0 ? (
+            <Text style={styles.covEmpty}>Aucun covoiturage proposé</Text>
+          ) : carpools.map((c) => {
+            const full = c.seats_taken >= c.seats_total;
+            const dep = new Date(c.departure_at);
+            const depStr = dep.toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).toUpperCase();
+            return (
+              <View key={c.id} style={[styles.covCard, full && { opacity: 0.6 }]}>
+                <View style={styles.covCardIcon}>
+                  <Ionicons name="car-outline" size={20} color={t.textDim} />
+                </View>
+                <View style={styles.covInfo}>
+                  <Text style={styles.covRoute}>{c.departure_city}</Text>
+                  <Text style={styles.covMeta}>Départ {depStr} · {c.driverName}</Text>
+                </View>
+                <View style={styles.covSeats}>
+                  <Text style={styles.covSeatCount}>{c.seats_taken}/{c.seats_total}</Text>
+                  <Text style={[styles.covSeatLabel, full && { color: t.textMute }]}>
+                    {full ? 'COMPLET' : c.cost_per_seat > 0 ? `${c.cost_per_seat}€` : 'GRATUIT'}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </>
+
+        {statusMsg && (
+          <Text style={[styles.statusMsg, isRegistered && { color: '#22C55E' }]}>{statusMsg}</Text>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Bottom CTA */}
       <SafeAreaView edges={['bottom']} style={styles.cta}>
-        <Pressable style={styles.ctaPrimary}>
-          <Text style={styles.ctaPrimaryText}>JE M'INSCRIS</Text>
+        <Pressable
+          style={[styles.ctaPrimary, isRegistered && styles.ctaPrimaryRegistered]}
+          onPress={handleRegister}
+          disabled={registering}
+        >
+          {registering ? (
+            <ActivityIndicator color={t.bone} />
+          ) : (
+            <Text style={styles.ctaPrimaryText}>
+              {isRegistered ? 'SE DÉSINSCRIRE' : 'JE M\'INSCRIS'}
+            </Text>
+          )}
         </Pressable>
         <Pressable style={styles.ctaSecondary}>
           <Text style={styles.ctaSecondaryText}>PARTAGER</Text>
@@ -186,29 +291,11 @@ function makeStyles(t: Theme) {
     scroll: { paddingHorizontal: 20, paddingTop: 16 },
     sectionLabel: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2, marginBottom: 8 },
     brief: { fontFamily: FONTS.body, fontSize: 13, color: t.text, lineHeight: 20, marginBottom: 18 },
-    inscCard: {
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, padding: 12, marginBottom: 22,
-    },
-    inscHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    inscCount: {
-      fontFamily: FONTS.display, fontSize: 18, color: t.crimson, fontWeight: '900',
-    },
-    avatarRow: { flexDirection: 'row', alignItems: 'center' },
-    attendeeAvatar: {
-      width: 28, height: 28, borderRadius: 14, backgroundColor: t.elevated,
-      borderWidth: 2, borderColor: t.surface,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    attendeeOverlap: { marginLeft: -8 },
-    attendeeInitials: { fontFamily: FONTS.display, fontSize: 9, color: t.bone, fontWeight: '900' },
-    attendeeMore: { backgroundColor: t.crimson },
-    attendeeMoreText: { fontFamily: FONTS.body, fontSize: 9.5, color: t.bone, fontWeight: '700' },
-    attendeeNames: { fontFamily: FONTS.body, fontSize: 11, color: t.textDim, marginLeft: 'auto' },
     covHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
     },
     covPropose: { fontFamily: FONTS.mono, fontSize: 10, color: t.crimson, letterSpacing: 1.5 },
+    covEmpty: { fontFamily: FONTS.body, fontSize: 13, color: t.textMute, marginBottom: 18 },
     covCard: {
       flexDirection: 'row', gap: 12, alignItems: 'center',
       padding: 12, backgroundColor: t.surface,
@@ -226,6 +313,10 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.display, fontSize: 14, color: t.bone, fontWeight: '900',
     },
     covSeatLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 1.5 },
+    statusMsg: {
+      fontFamily: FONTS.body, fontSize: 13, color: '#FF4444',
+      textAlign: 'center', marginTop: 12,
+    },
     cta: {
       flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14,
       backgroundColor: t.ink,
@@ -233,6 +324,9 @@ function makeStyles(t: Theme) {
     ctaPrimary: {
       flex: 1, height: 50, backgroundColor: t.crimson, borderRadius: 2,
       alignItems: 'center', justifyContent: 'center',
+    },
+    ctaPrimaryRegistered: {
+      backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong,
     },
     ctaPrimaryText: {
       fontFamily: FONTS.display, fontSize: 16, fontWeight: '900',

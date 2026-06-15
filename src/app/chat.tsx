@@ -1,7 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
@@ -101,6 +103,7 @@ export default function ChatScreen() {
   const [messageText, setMessageText] = useState('');
 
   const { messages, loading, sendMessage, currentUserId } = useMessages(channel);
+  const flatListRef = useRef<FlatList<Message>>(null);
 
   const channelName = name ?? 'Salon';
 
@@ -116,6 +119,56 @@ export default function ChatScreen() {
     await sendMessage(body);
   };
 
+  const headerComponent = (
+    <>
+      <View style={styles.dateLine}>
+        <Text style={styles.dateStamp}>AUJOURD'HUI</Text>
+      </View>
+
+      {/* Private channel notice */}
+      {isCoachs && (
+        <View style={styles.privateNotice}>
+          <Ionicons name="lock-closed" size={14} color={t.textDim} />
+          <Text style={styles.privateText}>SALON PRIVÉ — accès restreint aux coachs</Text>
+        </View>
+      )}
+
+      {/* Annonces pinned notice */}
+      {isAnnonces && (
+        <View style={styles.pinned}>
+          <Text style={styles.pinnedLabel}>ÉPINGLÉ · ANNONCES DOJO</Text>
+          <Text style={styles.pinnedText}>
+            Retrouvez ici toutes les annonces officielles du club.
+          </Text>
+        </View>
+      )}
+
+      {loading && <ActivityIndicator color={t.crimson} style={{ marginTop: 20 }} />}
+    </>
+  );
+
+  const footerComponent = (
+    <>
+      {/* Carpool system card for parents-enfants */}
+      {isParentsEnfants && (
+        <View style={styles.covCard}>
+          <View style={styles.covHeader}>
+            <Ionicons name="car-outline" size={14} color={t.crimson} />
+            <Text style={styles.covLabel}>COVOITURAGE PROPOSÉ</Text>
+          </View>
+          <Text style={styles.covTitle}>Voir les covoiturages disponibles</Text>
+          <Text style={styles.covSub}>Consultez la section covoiturage pour les trajets</Text>
+          <View style={styles.covActions}>
+            <Pressable style={styles.covBtnPrimary} onPress={() => router.navigate('/(tabs)/covoiturage')}>
+              <Text style={styles.covBtnPrimaryText}>VOIR COVOITURAGES</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+      <View style={{ height: 80 }} />
+    </>
+  );
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
@@ -124,12 +177,15 @@ export default function ChatScreen() {
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <View style={[styles.chanAvatar, isAnnonces && styles.chanAvatarAnnonces]}>
-            <Text style={styles.chanInitial}>{isAnnonces ? '☀' : channelName[0]}</Text>
+            {isAnnonces
+              ? <Ionicons name="sunny" size={18} color={t.bone} />
+              : <Text style={styles.chanInitial}>{channelName[0]}</Text>
+            }
           </View>
           <View style={styles.chanInfo}>
             <Text style={styles.chanName} numberOfLines={1}>{channelName}</Text>
             <Text style={styles.chanMeta}>
-              SALON{isCoachs ? ' · PRIVÉ 🔒' : ''}
+              SALON{isCoachs ? ' · PRIVÉ' : ''}
             </Text>
           </View>
           <Pressable>
@@ -138,65 +194,34 @@ export default function ChatScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Private channel notice */}
-      {isCoachs && (
-        <View style={styles.privateNotice}>
-          <Text style={styles.privateIcon}>🔒</Text>
-          <Text style={styles.privateText}>SALON PRIVÉ — accès restreint aux coachs</Text>
-        </View>
-      )}
-
-      {/* Annonces pinned notice */}
-      {isAnnonces && (
-        <View style={styles.pinned}>
-          <Text style={styles.pinnedLabel}>📌  ÉPINGLÉ · ANNONCES DOJO</Text>
-          <Text style={styles.pinnedText}>
-            Retrouvez ici toutes les annonces officielles du club.
-          </Text>
-        </View>
-      )}
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <Msg
+            msg={item}
+            isMe={item.user_id === currentUserId}
+            t={t}
+            msgStyles={msgStyles}
+          />
+        )}
         contentContainerStyle={styles.messages}
-      >
-        <View style={styles.dateLine}>
-          <Text style={styles.dateStamp}>AUJOURD'HUI</Text>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color={t.crimson} style={{ marginTop: 20 }} />
-        ) : (
-          messages.map((msg) => (
-            <Msg
-              key={msg.id}
-              msg={msg}
-              isMe={msg.user_id === currentUserId}
-              t={t}
-              msgStyles={msgStyles}
-            />
-          ))
-        )}
-
-        {/* Carpool system card for parents-enfants */}
-        {isParentsEnfants && (
-          <View style={styles.covCard}>
-            <View style={styles.covHeader}>
-              <Text style={styles.covIcon}>🚗</Text>
-              <Text style={styles.covLabel}>COVOITURAGE PROPOSÉ</Text>
-            </View>
-            <Text style={styles.covTitle}>Voir les covoiturages disponibles</Text>
-            <Text style={styles.covSub}>Consultez la section covoiturage pour les trajets</Text>
-            <View style={styles.covActions}>
-              <Pressable style={styles.covBtnPrimary} onPress={() => router.push('/covoiturage' as any)}>
-                <Text style={styles.covBtnPrimaryText}>VOIR COVOITURAGES</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        <View style={{ height: 80 }} />
-      </ScrollView>
+        ListHeaderComponent={headerComponent}
+        ListFooterComponent={footerComponent}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => {
+          if (messages.length > 0) {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }
+        }}
+        onLayout={() => {
+          if (messages.length > 0) {
+            flatListRef.current?.scrollToEnd({ animated: false });
+          }
+        }}
+        ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+      />
 
       {/* Composer */}
       {!isReadOnly ? (
@@ -210,6 +235,8 @@ export default function ChatScreen() {
             placeholderTextColor={t.textMute}
             value={messageText}
             onChangeText={setMessageText}
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
           />
           <Pressable
             style={[styles.sendBtn, !messageText.trim() && styles.sendBtnDisabled]}
@@ -220,7 +247,7 @@ export default function ChatScreen() {
         </SafeAreaView>
       ) : (
         <SafeAreaView edges={['bottom']} style={styles.readOnlyBar}>
-          <Text style={styles.readOnlyText}>📢 Ce salon est en lecture seule</Text>
+          <Text style={styles.readOnlyText}>Ce salon est en lecture seule</Text>
         </SafeAreaView>
       )}
     </View>
@@ -253,7 +280,6 @@ function makeStyles(t: Theme) {
       backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: t.hairlineStrong,
       borderRadius: 3,
     },
-    privateIcon: { fontSize: 14 },
     privateText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, letterSpacing: 1 },
     pinned: {
       marginHorizontal: 16, marginTop: 12, marginBottom: 6, padding: 10,
@@ -262,7 +288,7 @@ function makeStyles(t: Theme) {
     },
     pinnedLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 1.5, marginBottom: 4 },
     pinnedText: { fontFamily: FONTS.body, fontSize: 12.5, color: t.bone, lineHeight: 18 },
-    messages: { paddingHorizontal: 16, paddingTop: 8, gap: 14 },
+    messages: { paddingHorizontal: 16, paddingTop: 8 },
     dateLine: { alignItems: 'center', marginVertical: 8 },
     dateStamp: {
       fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 2,
@@ -272,9 +298,9 @@ function makeStyles(t: Theme) {
     covCard: {
       padding: 12, backgroundColor: t.surface,
       borderWidth: 1, borderColor: t.hairlineStrong, borderStyle: 'dashed', borderRadius: 3,
+      marginTop: 14,
     },
     covHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-    covIcon: { fontSize: 14 },
     covLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.crimson, letterSpacing: 1.5 },
     covTitle: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '600' },
     covSub: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim, marginTop: 2 },

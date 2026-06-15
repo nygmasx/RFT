@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
@@ -26,7 +27,9 @@ export default function PendingScreen() {
         <View style={s.logoBlock}>
           <View style={s.sunMark}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <View key={i} style={[s.ray, { transform: [{ rotate: `${i * 45}deg` }] }]} />
+              <View key={i} style={[s.rayWrap, { transform: [{ rotate: `${i * 45}deg` }] }]}>
+                <View style={s.ray} />
+              </View>
             ))}
             <View style={s.sunCore} />
           </View>
@@ -46,8 +49,14 @@ export default function PendingScreen() {
           </Text>
 
           <View style={s.infoCard}>
-            <Text style={s.infoRow}>📍  Ronin Fight Team · Montataire, Oise</Text>
-            <Text style={s.infoRow}>📧  contact@roninbjj.fr</Text>
+            <View style={s.infoRow}>
+              <Ionicons name="location-outline" size={14} color={s.infoRowText.color as string} />
+              <Text style={s.infoRowText}>Ronin Fight Team · Montataire, Oise</Text>
+            </View>
+            <View style={s.infoRow}>
+              <Ionicons name="mail-outline" size={14} color={s.infoRowText.color as string} />
+              <Text style={s.infoRowText}>contact@roninbjj.fr</Text>
+            </View>
           </View>
         </View>
 
@@ -80,11 +89,11 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
 
   logoBlock: { alignItems: 'center', gap: 10 },
   sunMark: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
-  ray: {
-    position: 'absolute', width: 3, height: 24,
-    backgroundColor: t.crimson, borderRadius: 2,
-    top: 0, left: 28.5, transformOrigin: '50% 30px',
+  rayWrap: {
+    position: 'absolute', width: 60, height: 60,
+    alignItems: 'center', justifyContent: 'flex-start',
   },
+  ray: { width: 3, height: 15, backgroundColor: t.crimson, borderRadius: 2 },
   sunCore: { width: 18, height: 18, borderRadius: 9, backgroundColor: t.crimson },
   clubName: { fontSize: 18, fontWeight: '900', color: t.bone, letterSpacing: 3 },
 
@@ -100,7 +109,8 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
     borderRadius: 4, padding: 16, gap: 8, width: '100%',
   },
-  infoRow: { fontSize: 13, color: t.textDim },
+  infoRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  infoRowText: { fontSize: 13, color: t.textDim },
 
   actions: { gap: 12 },
   btnCheck: {

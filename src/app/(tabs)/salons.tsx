@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useChannels } from '@/hooks/useChannels';
@@ -34,7 +36,7 @@ export default function SalonsScreen() {
 
         <View style={styles.searchWrap}>
           <View style={styles.search}>
-            <Text style={styles.searchIcon}>🔍</Text>
+            <Ionicons name="search-outline" size={14} color={t.textMute} />
             <TextInput
               style={styles.searchInput}
               placeholder="Rechercher un salon, un message…"
@@ -61,12 +63,13 @@ export default function SalonsScreen() {
                 onPress={() => router.push({ pathname: '/chat', params: { channel: c.id, name: c.name } })}
               >
                 <View style={[styles.avatar, isTop && styles.avatarTop]}>
-                  <Text style={[styles.avatarText, isTop && styles.avatarTextTop]}>
-                    {isTop ? '☀' : c.name[0]}
-                  </Text>
+                  {isTop
+                    ? <Ionicons name="sunny" size={18} color={t.bone} />
+                    : <Text style={styles.avatarText}>{c.name[0]}</Text>
+                  }
                   {c.is_locked && !isTop && (
                     <View style={styles.lockBadge}>
-                      <Text style={styles.lockIcon}>🔒</Text>
+                      <Ionicons name="lock-closed" size={7} color={t.textMute} />
                     </View>
                   )}
                 </View>
@@ -76,7 +79,7 @@ export default function SalonsScreen() {
                     <View style={styles.nameRow}>
                       <Text style={styles.chanName} numberOfLines={1}>{c.name}</Text>
                       {c.is_locked && (
-                        <Text style={styles.lockInline}>🔒</Text>
+                        <Ionicons name="lock-closed" size={10} color={t.textMute} />
                       )}
                     </View>
                   </View>

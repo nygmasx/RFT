@@ -1,13 +1,18 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FONTS, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { CALENDAR_EVENTS, CalendarEvent } from '@/data/rft-data';
+import { useCalendarEvents } from '@/hooks/useCalendarEvents';
+import { CalendarEvent } from '@/lib/database.types';
+import { supabase } from '@/lib/supabase';
 
 const MONTH_NAMES = [
   'JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN',
@@ -15,6 +20,16 @@ const MONTH_NAMES = [
 ];
 
 const DAY_HEADERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+type EventType = CalendarEvent['type'];
+
+const EVT_COLORS: Record<EventType, string> = {
+  cours: '#3B82F6', stage: '#C9A24B', compet: '#C8362D',
+};
+const EVT_LABELS: Record<EventType, string> = {
+  cours: 'COURS', stage: 'STAGE', compet: 'COMPÉT.',
+};
+const EVT_TYPES: EventType[] = ['cours', 'stage', 'compet'];
 
 function getCalendarDays(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1);
@@ -27,18 +42,6 @@ function getCalendarDays(year: number, month: number): (number | null)[] {
   return days;
 }
 
-function eventColor(type: CalendarEvent['type'], t: Theme): string {
-  if (type === 'compet') return t.crimson;
-  if (type === 'stage') return '#C9A24B';
-  return '#3B82F6';
-}
-
-function eventTypeLabel(type: CalendarEvent['type']): string {
-  if (type === 'compet') return 'COMPÉT.';
-  if (type === 'stage') return 'STAGE';
-  return 'COURS';
-}
-
 function padTwo(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
@@ -49,18 +52,34 @@ function dateKey(year: number, month: number, day: number): string {
 
 export default function CalendarScreen() {
   const { theme: t } = useTheme();
+  const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(4); // 4 = May (0-indexed)
-  const [selectedDay, setSelectedDay] = useState<number | null>(28); // default May 28
+  const isCoach = user?.app_metadata?.role === 'coach';
+
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
+
+  const { data: calendarEvents, refetch } = useCalendarEvents();
+
+  // Create form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDate, setNewDate] = useState('');
+  const [newType, setNewType] = useState<EventType>('cours');
+  const [newTime, setNewTime] = useState('');
+  const [newPlace, setNewPlace] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const days = getCalendarDays(year, month);
 
   const eventsForDay = (day: number | null): CalendarEvent[] => {
     if (day === null) return [];
     const key = dateKey(year, month, day);
-    return CALENDAR_EVENTS.filter((e) => e.date === key);
+    return calendarEvents.filter((e) => e.event_date === key);
   };
 
   const selectedEvents = selectedDay !== null ? eventsForDay(selectedDay) : [];
@@ -77,6 +96,31 @@ export default function CalendarScreen() {
     setSelectedDay(null);
   };
 
+  const openCreate = () => {
+    const prefilledDate = selectedDay !== null ? dateKey(year, month, selectedDay) : '';
+    setNewDate(prefilledDate);
+    setNewTitle(''); setNewType('cours'); setNewTime(''); setNewPlace('');
+    setSaveError('');
+    setShowCreate(true);
+  };
+
+  const handleSave = async () => {
+    if (!newTitle.trim() || !newDate.trim()) { setSaveError('Titre et date requis.'); return; }
+    setSaving(true);
+    setSaveError('');
+    const { error } = await supabase.from('calendar_events').insert({
+      title: newTitle.trim(),
+      event_date: newDate.trim(),
+      type: newType,
+      event_time: newTime.trim() || null,
+      place: newPlace.trim() || null,
+    });
+    setSaving(false);
+    if (error) { setSaveError(error.message); return; }
+    setShowCreate(false);
+    refetch();
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
@@ -85,7 +129,13 @@ export default function CalendarScreen() {
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.headerLabel}>CALENDRIER</Text>
-          <View style={styles.headerSpacer} />
+          {isCoach ? (
+            <Pressable style={styles.addBtn} onPress={openCreate}>
+              <Text style={styles.addBtnText}>＋</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
       </SafeAreaView>
 
@@ -95,9 +145,7 @@ export default function CalendarScreen() {
           <Pressable onPress={goToPrevMonth} style={styles.navBtn}>
             <Text style={styles.navIcon}>‹</Text>
           </Pressable>
-          <Text style={styles.monthLabel}>
-            {MONTH_NAMES[month]} {year}
-          </Text>
+          <Text style={styles.monthLabel}>{MONTH_NAMES[month]} {year}</Text>
           <Pressable onPress={goToNextMonth} style={styles.navBtn}>
             <Text style={styles.navIcon}>›</Text>
           </Pressable>
@@ -118,7 +166,7 @@ export default function CalendarScreen() {
             const events = eventsForDay(day);
             const isSelected = day !== null && day === selectedDay;
             const hasEvents = events.length > 0;
-            const isToday = day === 27 && month === 4 && year === 2026;
+            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
             return (
               <Pressable
@@ -145,10 +193,7 @@ export default function CalendarScreen() {
                     {hasEvents && (
                       <View style={styles.dots}>
                         {events.slice(0, 3).map((e, ei) => (
-                          <View
-                            key={ei}
-                            style={[styles.dot, { backgroundColor: eventColor(e.type, t) }]}
-                          />
+                          <View key={ei} style={[styles.dot, { backgroundColor: EVT_COLORS[e.type] }]} />
                         ))}
                       </View>
                     )}
@@ -161,21 +206,81 @@ export default function CalendarScreen() {
 
         {/* Legend */}
         <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
-            <Text style={styles.legendText}>COURS</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#C9A24B' }]} />
-            <Text style={styles.legendText}>STAGE</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: t.crimson }]} />
-            <Text style={styles.legendText}>COMPÉT.</Text>
-          </View>
+          {(Object.entries(EVT_LABELS) as [EventType, string][]).map(([type, label]) => (
+            <View key={type} style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: EVT_COLORS[type] }]} />
+              <Text style={styles.legendText}>{label}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* Divider */}
+        {/* Coach: create form */}
+        {isCoach && showCreate && (
+          <View style={styles.createForm}>
+            <View style={styles.createFormHeader}>
+              <Text style={styles.createFormTitle}>NOUVEL ÉVÉNEMENT</Text>
+              <Pressable onPress={() => setShowCreate(false)}>
+                <Ionicons name="close" size={20} color={t.textMute} />
+              </Pressable>
+            </View>
+
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>TITRE</Text>
+              <TextInput style={styles.input} value={newTitle} onChangeText={setNewTitle}
+                placeholder="Cours adultes — No-Gi" placeholderTextColor={t.textMute}
+                selectionColor={t.crimson} />
+            </View>
+            <View style={styles.formDivider} />
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>DATE (AAAA-MM-JJ)</Text>
+              <TextInput style={styles.input} value={newDate} onChangeText={setNewDate}
+                placeholder="2026-07-01" placeholderTextColor={t.textMute}
+                selectionColor={t.crimson} keyboardType="numbers-and-punctuation" />
+            </View>
+            <View style={styles.formDivider} />
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>TYPE</Text>
+              <View style={styles.typeRow}>
+                {EVT_TYPES.map((et) => (
+                  <Pressable
+                    key={et}
+                    style={[styles.typeChip, newType === et && {
+                      backgroundColor: EVT_COLORS[et] + '22',
+                      borderColor: EVT_COLORS[et],
+                    }]}
+                    onPress={() => setNewType(et)}
+                  >
+                    <Text style={[styles.typeChipText, { color: newType === et ? EVT_COLORS[et] : t.textMute }]}>
+                      {EVT_LABELS[et]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            <View style={styles.formDivider} />
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>HEURE</Text>
+              <TextInput style={styles.input} value={newTime} onChangeText={setNewTime}
+                placeholder="19:30" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+            </View>
+            <View style={styles.formDivider} />
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>LIEU</Text>
+              <TextInput style={styles.input} value={newPlace} onChangeText={setNewPlace}
+                placeholder="Tatami 2" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+            </View>
+
+            {!!saveError && <Text style={{ color: t.crimson, fontSize: 12, marginTop: 8 }}>{saveError}</Text>}
+
+            <Pressable style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+              {saving
+                ? <ActivityIndicator color="#FFF" size="small" />
+                : <Text style={styles.saveBtnText}>ENREGISTRER</Text>
+              }
+            </Pressable>
+          </View>
+        )}
+
         <View style={styles.divider} />
 
         {/* Events for selected day */}
@@ -193,18 +298,23 @@ export default function CalendarScreen() {
               <View style={styles.eventList}>
                 {selectedEvents.map((e) => (
                   <View key={e.id} style={styles.eventRow}>
-                    <View style={[styles.eventBorder, { backgroundColor: eventColor(e.type, t) }]} />
+                    <View style={[styles.eventBorder, { backgroundColor: EVT_COLORS[e.type] }]} />
                     <View style={styles.eventContent}>
                       <View style={styles.eventTop}>
-                        <Text style={styles.eventTime}>{e.time}</Text>
-                        <View style={[styles.eventTag, { borderColor: eventColor(e.type, t) }]}>
-                          <Text style={[styles.eventTagText, { color: eventColor(e.type, t) }]}>
-                            {eventTypeLabel(e.type)}
+                        <Text style={styles.eventTime}>{e.event_time ?? ''}</Text>
+                        <View style={[styles.eventTag, { borderColor: EVT_COLORS[e.type] }]}>
+                          <Text style={[styles.eventTagText, { color: EVT_COLORS[e.type] }]}>
+                            {EVT_LABELS[e.type]}
                           </Text>
                         </View>
                       </View>
                       <Text style={styles.eventTitle}>{e.title}</Text>
-                      <Text style={styles.eventPlace}>📍 {e.place}</Text>
+                      {e.place ? (
+                        <View style={styles.eventPlaceRow}>
+                          <Ionicons name="location-outline" size={11} color={t.textDim} />
+                          <Text style={styles.eventPlace}>{e.place}</Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                 ))}
@@ -238,9 +348,15 @@ function makeStyles(t: Theme) {
     headerLabel: {
       flex: 1, textAlign: 'center',
       fontFamily: FONTS.display, fontSize: 14, color: t.bone,
-      fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
+      fontWeight: '900', letterSpacing: 2,
     },
     headerSpacer: { width: 36 },
+    addBtn: {
+      width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: t.crimson, borderRadius: 3,
+    },
+    addBtnText: { fontSize: 20, color: '#FFF', lineHeight: 24 },
+
     scroll: { paddingBottom: 20 },
     monthNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -253,98 +369,79 @@ function makeStyles(t: Theme) {
     navIcon: { fontSize: 24, color: t.bone, lineHeight: 28 },
     monthLabel: {
       fontFamily: FONTS.display, fontSize: 18, color: t.bone,
-      fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
+      fontWeight: '900', letterSpacing: 2,
     },
-    dayHeaders: {
-      flexDirection: 'row', paddingHorizontal: 12, marginBottom: 4,
-    },
-    dayHeaderCell: {
-      flex: 1, alignItems: 'center', paddingVertical: 4,
-    },
-    dayHeaderText: {
-      fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5,
-    },
-    grid: {
-      flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12,
-    },
-    dayCell: {
-      width: `${100 / 7}%`,
-      alignItems: 'center', paddingVertical: 4, minHeight: 48,
-    },
+    dayHeaders: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 4 },
+    dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+    dayHeaderText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 },
+    dayCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4, minHeight: 48 },
     dayNumber: {
       width: 32, height: 32, borderRadius: 16,
       alignItems: 'center', justifyContent: 'center',
     },
-    dayNumberSelected: {
-      backgroundColor: t.crimson,
-    },
-    dayNumberToday: {
-      borderWidth: 1, borderColor: t.crimson,
-    },
-    dayText: {
-      fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '500',
-    },
-    dayTextSelected: {
-      color: t.bone, fontWeight: '700',
-    },
-    dayTextToday: {
-      color: t.crimson, fontWeight: '700',
-    },
-    dots: {
-      flexDirection: 'row', gap: 2, marginTop: 2,
-      justifyContent: 'center', minHeight: 7,
-    },
-    dot: {
-      width: 5, height: 5, borderRadius: 2.5,
-    },
+    dayNumberSelected: { backgroundColor: t.crimson },
+    dayNumberToday: { borderWidth: 1, borderColor: t.crimson },
+    dayText: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '500' },
+    dayTextSelected: { color: t.bone, fontWeight: '700' },
+    dayTextToday: { color: t.crimson, fontWeight: '700' },
+    dots: { flexDirection: 'row', gap: 2, marginTop: 2, justifyContent: 'center', minHeight: 7 },
+    dot: { width: 5, height: 5, borderRadius: 2.5 },
     legend: {
       flexDirection: 'row', gap: 16, paddingHorizontal: 20, paddingVertical: 12,
       justifyContent: 'center',
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendDot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: {
-      fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5,
+    legendText: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5 },
+
+    // Coach create form
+    createForm: {
+      marginHorizontal: 20, marginBottom: 12,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
+      borderRadius: 3, padding: 14,
     },
+    createFormHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
+    },
+    createFormTitle: { fontFamily: FONTS.mono, fontSize: 11, color: t.bone, letterSpacing: 2, fontWeight: '700' },
+    fieldRow: { paddingVertical: 10 },
+    fieldLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1.5, marginBottom: 6 },
+    input: { fontFamily: FONTS.body, fontSize: 15, color: t.bone, fontWeight: '500', paddingVertical: 0 },
+    formDivider: { height: 1, backgroundColor: t.hairline, marginVertical: 2 },
+    typeRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    typeChip: {
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairlineStrong,
+    },
+    typeChipText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+    saveBtn: {
+      backgroundColor: t.crimson, borderRadius: 3, paddingVertical: 13,
+      alignItems: 'center', marginTop: 14,
+    },
+    saveBtnText: { fontFamily: FONTS.mono, fontSize: 12, color: '#FFF', fontWeight: '700', letterSpacing: 1.5 },
+
     divider: { height: 1, backgroundColor: t.hairline, marginHorizontal: 20 },
     daySection: { paddingHorizontal: 20, paddingTop: 16 },
     daySectionLabel: {
       fontFamily: FONTS.display, fontSize: 16, color: t.bone,
-      fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase',
-      marginBottom: 12,
+      fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12,
     },
     eventList: { gap: 10 },
     eventRow: {
       flexDirection: 'row', backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
-      overflow: 'hidden',
+      borderWidth: 1, borderColor: t.hairline, borderRadius: 3, overflow: 'hidden',
     },
     eventBorder: { width: 4 },
     eventContent: { flex: 1, padding: 12 },
     eventTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-    eventTime: {
-      fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, letterSpacing: 1,
-    },
-    eventTag: {
-      paddingHorizontal: 6, paddingVertical: 2,
-      borderWidth: 1, borderRadius: 2,
-    },
-    eventTagText: {
-      fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '600', letterSpacing: 1,
-    },
-    eventTitle: {
-      fontFamily: FONTS.body, fontSize: 13.5, color: t.bone,
-      fontWeight: '600', marginBottom: 3,
-    },
-    eventPlace: {
-      fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim,
-    },
-    emptyDay: {
-      paddingHorizontal: 20, paddingTop: 16,
-      alignItems: 'center',
-    },
-    emptyDayText: {
-      fontFamily: FONTS.body, fontSize: 13, color: t.textMute, fontStyle: 'italic',
-    },
+    eventTime: { fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, letterSpacing: 1 },
+    eventTag: { paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderRadius: 2 },
+    eventTagText: { fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '600', letterSpacing: 1 },
+    eventTitle: { fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '600', marginBottom: 3 },
+    eventPlaceRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+    eventPlace: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim },
+    emptyDay: { paddingHorizontal: 20, paddingTop: 16, alignItems: 'center' },
+    emptyDayText: { fontFamily: FONTS.body, fontSize: 13, color: t.textMute, fontStyle: 'italic' },
   });
 }

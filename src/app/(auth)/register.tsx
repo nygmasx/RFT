@@ -1,4 +1,3 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -8,13 +7,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { useTheme } from '@/context/ThemeContext';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { authClient } from '@/lib/auth-client';
 
 const CATEGORIES = ['Adultes', 'Ados 13-17', 'Enfants 6-12'];
 
 export default function RegisterScreen() {
   const { theme: t } = useTheme();
+  const { refreshProfileStatus } = useAuth();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName]   = useState('');
@@ -29,7 +32,7 @@ export default function RegisterScreen() {
 
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { setError('Permission refusée pour accéder à la galerie.'); return; }
+    if (status !== 'granted') { setError('Permission refusée.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
@@ -47,66 +50,31 @@ export default function RegisterScreen() {
     setError('');
     setLoading(true);
 
-    // 1. Création du compte Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
+    const { error: authError } = await authClient.signUp.email({
+      email:     email.trim().toLowerCase(),
       password,
-      options: {
-        data: { first_name: firstName.trim(), last_name: lastName.trim() },
-      },
-    });
+      name:      `${firstName.trim()} ${lastName.trim()}`,
+      // Additional fields via Better Auth
+      firstName: firstName.trim(),
+      lastName:  lastName.trim(),
+      phone:     phone.trim() || undefined,
+      category,
+      status:    'pending',
+      role:      'member',
+    } as any);
+
+    setLoading(false);
 
     if (authError) {
-      setLoading(false);
       setError(
-        authError.message.includes('already registered')
+        authError.message.includes('already') || authError.message.includes('taken')
           ? 'Cet email est déjà utilisé.'
           : authError.message
       );
       return;
     }
 
-    const userId = authData.user?.id;
-    if (!userId) { setLoading(false); setError('Erreur inattendue.'); return; }
-
-    // 2. Upload de la photo de profil via expo-file-system (évite le bug Blob/ArrayBuffer RN)
-    let avatarUrl: string | null = null;
-    if (avatarUri) {
-      const ext = (avatarUri.split('.').pop() ?? 'jpg').toLowerCase();
-      const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-      const storagePath = `${userId}/avatar.${ext}`;
-      const { data: { session } } = await supabase.auth.getSession();
-      const uploadUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/avatars/${storagePath}`;
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, avatarUri, {
-        httpMethod: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': mimeType,
-          'x-upsert': 'true',
-        },
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      });
-      if (uploadResult.status === 200 || uploadResult.status === 201) {
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(storagePath);
-        avatarUrl = urlData.publicUrl;
-      }
-    }
-
-    // 3. Mise à jour du profil (créé automatiquement par le trigger)
-    await supabase
-      .from('profiles')
-      .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        phone: phone.trim() || null,
-        category,
-        avatar_url: avatarUrl,
-        status: 'pending',
-      })
-      .eq('id', userId);
-
-    setLoading(false);
-    // AuthContext détecte le statut 'pending' et redirige vers /pending
+    await refreshProfileStatus();
   };
 
   const s = styles(t);
@@ -123,7 +91,6 @@ export default function RegisterScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Header */}
             <View style={s.header}>
               <Pressable onPress={() => router.back()} style={s.back}>
                 <Text style={s.backIcon}>‹</Text>
@@ -132,18 +99,16 @@ export default function RegisterScreen() {
               <View style={{ width: 40 }} />
             </View>
 
-            {/* Avatar */}
             <Pressable style={s.avatarBlock} onPress={pickAvatar}>
               {avatarUri
                 ? <Image source={{ uri: avatarUri }} style={s.avatar} />
                 : <View style={s.avatarPlaceholder}>
-                    <Text style={s.avatarIcon}>📷</Text>
+                    <Ionicons name="camera-outline" size={28} color={t.textMute} />
                     <Text style={s.avatarHint}>PHOTO DE PROFIL</Text>
                   </View>
               }
             </Pressable>
 
-            {/* Champs */}
             <View style={s.form}>
               <View style={s.row}>
                 <View style={[s.field, { flex: 1 }]}>
@@ -178,11 +143,7 @@ export default function RegisterScreen() {
                 <Text style={s.label}>CATÉGORIE</Text>
                 <View style={s.chips}>
                   {CATEGORIES.map((c) => (
-                    <Pressable
-                      key={c}
-                      style={[s.chip, category === c && s.chipActive]}
-                      onPress={() => setCategory(c)}
-                    >
+                    <Pressable key={c} style={[s.chip, category === c && s.chipActive]} onPress={() => setCategory(c)}>
                       <Text style={[s.chipText, category === c && s.chipTextActive]}>{c}</Text>
                     </Pressable>
                   ))}
@@ -205,20 +166,14 @@ export default function RegisterScreen() {
 
               {!!error && <Text style={s.errorText}>{error}</Text>}
 
-              <Pressable
-                style={[s.btn, loading && { opacity: 0.6 }]}
-                onPress={handleRegister}
-                disabled={loading}
-              >
+              <Pressable style={[s.btn, loading && { opacity: 0.6 }]} onPress={handleRegister} disabled={loading}>
                 {loading
                   ? <ActivityIndicator color="#FFFFFF" />
                   : <Text style={s.btnText}>ENVOYER MA DEMANDE →</Text>
                 }
               </Pressable>
 
-              <Text style={s.hint}>
-                Ton profil sera vérifié par le coach avant activation.
-              </Text>
+              <Text style={s.hint}>Ton profil sera vérifié par le coach avant activation.</Text>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -230,14 +185,10 @@ export default function RegisterScreen() {
 const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.ink },
   scroll: { paddingHorizontal: 24, paddingBottom: 40 },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 16, marginBottom: 8,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, marginBottom: 8 },
   back: { width: 40, padding: 4 },
   backIcon: { fontSize: 32, color: t.bone, lineHeight: 32 },
   title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '900', color: t.bone, letterSpacing: 2 },
-
   avatarBlock: { alignSelf: 'center', marginBottom: 28 },
   avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, borderColor: t.crimson },
   avatarPlaceholder: {
@@ -245,9 +196,7 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 2, borderColor: t.hairlineStrong,
     borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  avatarIcon: { fontSize: 24 },
   avatarHint: { fontSize: 8, color: t.textMute, letterSpacing: 1 },
-
   form: { gap: 14 },
   row: { flexDirection: 'row', gap: 12 },
   field: { gap: 6 },
@@ -258,20 +207,12 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     fontSize: 15, color: t.bone,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1, borderColor: t.hairlineStrong,
-    backgroundColor: t.surface,
-  },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface },
   chipActive: { backgroundColor: t.crimson, borderColor: t.crimson },
   chipText: { fontSize: 12, fontWeight: '600', color: t.textDim },
   chipTextActive: { color: '#FFFFFF' },
-
   errorText: { fontSize: 12, color: t.crimson, fontWeight: '500' },
-  btn: {
-    backgroundColor: t.crimson, borderRadius: 4,
-    paddingVertical: 15, alignItems: 'center', marginTop: 4,
-  },
+  btn: { backgroundColor: t.crimson, borderRadius: 4, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
   btnText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
   hint: { fontSize: 12, color: t.textMute, textAlign: 'center', lineHeight: 18 },
 });
