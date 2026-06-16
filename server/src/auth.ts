@@ -32,6 +32,7 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins: [
+    'https://roninft.fly.dev',
     'http://localhost:3001',
     'http://localhost:8081',
     'http://192.168.1.53:3001',

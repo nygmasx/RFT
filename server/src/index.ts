@@ -39,6 +39,6 @@ app.route('/api/palmares',      palmaresRouter);
 app.get('/health', (c) => c.json({ ok: true }));
 
 const port = Number(process.env.PORT ?? 3001);
-serve({ fetch: app.fetch, port }, () => {
+serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, () => {
   console.log(`🥋 RFT API → http://localhost:${port}`);
 });
