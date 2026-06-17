@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, asc, and, ne, inArray } from 'drizzle-orm';
+import { eq, asc, and, ne, inArray, notInArray } from 'drizzle-orm';
 import { db } from '../db/client';
 import { messages, users, channelMembers, channels, pushTokens } from '../db/schema';
 import { requireSession } from '../middleware/session';
@@ -64,24 +64,21 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser) {
   let tokens: { token: string }[];
 
   if (channel.isPrivate) {
-    // Private: notify channel members only
+    // Private: notify all channel members (including sender's other devices)
     const members = await db
       .select({ userId: channelMembers.userId })
       .from(channelMembers)
-      .where(and(eq(channelMembers.channelId, channelId), ne(channelMembers.userId, sender.id)));
+      .where(eq(channelMembers.channelId, channelId));
     if (members.length === 0) return;
     tokens = await db
       .select({ token: pushTokens.token })
       .from(pushTokens)
-      .where(and(
-        inArray(pushTokens.userId, members.map((m) => m.userId)),
-      ));
+      .where(inArray(pushTokens.userId, members.map((m) => m.userId)));
   } else {
-    // Public: notify all users with a token except sender
+    // Public: notify all users with a token
     tokens = await db
       .select({ token: pushTokens.token })
-      .from(pushTokens)
-      .where(ne(pushTokens.userId, sender.id));
+      .from(pushTokens);
   }
 
   if (tokens.length === 0) {
