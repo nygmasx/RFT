@@ -12,6 +12,7 @@ import { calendarRouter } from './routes/calendar';
 import { profileRouter } from './routes/profile';
 import { beltRouter } from './routes/belt';
 import { palmaresRouter } from './routes/palmares';
+import { pushRouter } from './routes/push';
 
 const app = new Hono();
 
@@ -35,6 +36,7 @@ app.route('/api/calendar',      calendarRouter);
 app.route('/api/profile',       profileRouter);
 app.route('/api/belt',          beltRouter);
 app.route('/api/palmares',      palmaresRouter);
+app.route('/api/push-tokens',   pushRouter);
 
 app.get('/health', (c) => c.json({ ok: true }));
 

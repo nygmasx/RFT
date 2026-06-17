@@ -4,6 +4,7 @@ import { db } from '../db/client';
 import { users } from '../db/schema';
 import { requireSession } from '../middleware/session';
 import type { AuthUser } from '../auth';
+import { notifyCoaches, notifyUser } from './push';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -56,6 +57,14 @@ app.put('/:id/status', requireSession, async (c) => {
     .set({ status, updatedAt: new Date() })
     .where(eq(users.id, c.req.param('id')))
     .returning();
+
+  // Notify the member of their status change
+  if (status === 'approved') {
+    notifyUser(c.req.param('id'), '✅ Inscription validée', 'Ton compte a été approuvé. Bienvenue chez Ronin Fight Team !');
+  } else if (status === 'rejected') {
+    notifyUser(c.req.param('id'), '❌ Inscription refusée', 'Ton inscription n\'a pas été acceptée. Contacte le coach pour plus d\'infos.');
+  }
+
   return c.json(updated);
 });
 

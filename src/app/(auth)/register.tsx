@@ -86,6 +86,9 @@ export default function RegisterScreen() {
       }).catch(() => {});
     }
 
+    // Notify coaches of new registration
+    await api.post('/api/push-tokens/notify-registration', {}).catch(() => {});
+
     setLoading(false);
     await refreshProfileStatus();
   };

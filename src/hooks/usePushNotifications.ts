@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -49,10 +49,7 @@ export function usePushNotifications(userId: string | undefined) {
 
     registerForPushNotifications().then(async (token) => {
       if (!token) return;
-      await supabase.from('push_tokens').upsert(
-        { user_id: userId, token },
-        { onConflict: 'user_id,token' }
-      );
+      await api.post('/api/push-tokens', { token }).catch(() => {});
     });
   }, [userId]);
 }

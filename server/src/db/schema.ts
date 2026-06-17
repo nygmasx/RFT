@@ -153,6 +153,13 @@ export const beltRecords = pgTable('belt_records', {
   createdAt:    timestamp('created_at').notNull().defaultNow(),
 });
 
+export const pushTokens = pgTable('push_tokens', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token:     text('token').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [{ name: 'push_tokens_user_token_unique', columns: [t.userId, t.token] }]);
+
 export const palmares = pgTable('palmares', {
   id:              uuid('id').primaryKey().defaultRandom(),
   userId:          text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
