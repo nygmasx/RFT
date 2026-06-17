@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -33,21 +34,21 @@ export default function AddResultScreen() {
   ];
 
   const [compName, setCompName] = useState('');
-  const [compDate, setCompDate] = useState('');
+  const [compDate, setCompDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [compType, setCompType] = useState<CompType>('GI');
   const [weightClass, setWeightClass] = useState('-77');
   const [place, setPlace] = useState<Place>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const pad = (n: number) => String(n).padStart(2, '0');
+
   const handleSave = async () => {
-    if (!user || !compName.trim() || !compDate.trim() || place === null) return;
+    if (!user || !compName.trim() || place === null) return;
     setSaving(true);
 
-    // Parse date from dd.mm.yyyy to yyyy-mm-dd
-    let isoDate = compDate;
-    const parts = compDate.split('.');
-    if (parts.length === 3) isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    const isoDate = `${compDate.getFullYear()}-${pad(compDate.getMonth() + 1)}-${pad(compDate.getDate())}`;
 
     try {
       await api.post('/api/palmares', {
@@ -65,7 +66,7 @@ export default function AddResultScreen() {
     setSaving(false);
   };
 
-  const canSave = !!compName.trim() && !!compDate.trim() && place !== null && !saving;
+  const canSave = !!compName.trim() && place !== null && !saving;
 
   return (
     <View style={styles.container}>
@@ -81,6 +82,7 @@ export default function AddResultScreen() {
         </View>
       </SafeAreaView>
 
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         {/* COMPÉTITION */}
@@ -100,14 +102,21 @@ export default function AddResultScreen() {
           <View style={styles.divider} />
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>DATE</Text>
-            <TextInput
-              style={styles.input}
-              value={compDate}
-              onChangeText={setCompDate}
-              placeholder="jj.mm.aaaa"
-              placeholderTextColor={t.textMute}
-              selectionColor={t.crimson}
-            />
+            <Pressable onPress={() => setShowDatePicker(true)}>
+              <Text style={styles.input}>
+                {compDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </Text>
+            </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={compDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                locale="fr-FR"
+                maximumDate={new Date()}
+                onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setCompDate(d); }}
+              />
+            )}
           </View>
         </View>
 
@@ -195,6 +204,7 @@ export default function AddResultScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
