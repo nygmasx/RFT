@@ -28,6 +28,28 @@ app.get('/:id', requireSession, async (c) => {
   return c.json(profile);
 });
 
+// GET /api/profile/:id/avatar — public, serves avatar image for push notifications
+app.get('/:id/avatar', async (c) => {
+  const [profile] = await db
+    .select({ avatarUrl: users.avatarUrl })
+    .from(users)
+    .where(eq(users.id, c.req.param('id')));
+
+  if (!profile?.avatarUrl?.startsWith('data:')) {
+    return c.body(null, 404);
+  }
+
+  const [header, base64] = profile.avatarUrl.split(',');
+  const mimeMatch = header?.match(/data:([^;]+)/);
+  const mime = mimeMatch?.[1] ?? 'image/jpeg';
+  const buffer = Buffer.from(base64, 'base64');
+
+  return c.body(buffer, 200, {
+    'Content-Type': mime,
+    'Cache-Control': 'public, max-age=86400',
+  });
+});
+
 // PUT /api/profile — update own profile
 app.put('/', requireSession, async (c) => {
   const user = c.get('user');

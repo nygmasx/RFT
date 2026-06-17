@@ -87,14 +87,18 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
   }
 
   const senderName = `${sender.firstName ?? ''} ${sender.lastName ?? ''}`.trim() || sender.email;
+  const avatarUrl = sender.avatarUrl
+    ? `${process.env.BETTER_AUTH_URL}/api/profile/${sender.id}/avatar`
+    : undefined;
 
   const msgs = tokens.map((t) => ({
     to: t.token,
     sound: 'default' as const,
-    title: `${senderName}`,
+    title: senderName,
     subtitle: `#${channel.name}`,
     body: messageBody,
     data: { channelId, channelName: channel.name },
+    ...(avatarUrl ? { attachments: [{ url: avatarUrl }] } : {}),
   }));
 
   console.log(`[Push] Sending to ${msgs.length} token(s) for channel ${channel.name}`);
