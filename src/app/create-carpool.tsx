@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -23,9 +24,13 @@ export default function CreateCarpoolScreen() {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [showEventList, setShowEventList] = useState(false);
   const [city, setCity] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [date, setDate] = useState(new Date());
+  const [time, setTime] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [seats, setSeats] = useState(2);
+
+  const pad = (n: number) => String(n).padStart(2, '0');
   const [cost, setCost] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -33,17 +38,12 @@ export default function CreateCarpoolScreen() {
   const selectedComp = upcoming.find((c) => c.id === selectedEvent);
 
   const handleSubmit = async () => {
-    if (!user || !selectedEvent || !city.trim() || !date.trim() || !time.trim()) return;
+    if (!user || !selectedEvent || !city.trim()) return;
     setSaving(true);
 
-    // Parse date from DD/MM/YYYY and time HH:MM to ISO datetime
-    let departureAt = '';
-    const dateParts = date.split('/');
-    if (dateParts.length === 3) {
-      departureAt = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T${time}:00`;
-    } else {
-      departureAt = `${date}T${time}:00`;
-    }
+    const dateStr = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const timeStr = `${pad(time.getHours())}:${pad(time.getMinutes())}`;
+    const departureAt = `${dateStr}T${timeStr}:00`;
 
     const costNum = parseFloat(cost.replace(',', '.')) || 0;
 
@@ -66,7 +66,7 @@ export default function CreateCarpoolScreen() {
     }
   };
 
-  const canSubmit = !!selectedEvent && !!city.trim() && !!date.trim() && !!time.trim() && !saving;
+  const canSubmit = !!selectedEvent && !!city.trim() && !saving;
 
   return (
     <View style={styles.container}>
@@ -80,6 +80,10 @@ export default function CreateCarpoolScreen() {
         </View>
       </SafeAreaView>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
@@ -143,23 +147,36 @@ export default function CreateCarpoolScreen() {
         {/* Date & Heure */}
         <Text style={[styles.fieldLabel, { marginTop: 22 }]}>DATE & HEURE</Text>
         <View style={styles.dateRow}>
-          <TextInput
-            style={[styles.textInput, styles.dateInput]}
-            placeholder="JJ/MM/AAAA"
-            placeholderTextColor={t.textMute}
-            value={date}
-            onChangeText={setDate}
-            keyboardType="numbers-and-punctuation"
-          />
-          <TextInput
-            style={[styles.textInput, styles.timeInput]}
-            placeholder="HH:MM"
-            placeholderTextColor={t.textMute}
-            value={time}
-            onChangeText={setTime}
-            keyboardType="numbers-and-punctuation"
-          />
+          <Pressable style={[styles.textInput, styles.dateInput, { justifyContent: 'center' }]} onPress={() => setShowDatePicker(true)}>
+            <Text style={{ color: t.bone, fontFamily: 'System', fontSize: 14 }}>
+              {date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </Text>
+          </Pressable>
+          <Pressable style={[styles.textInput, styles.timeInput, { justifyContent: 'center' }]} onPress={() => setShowTimePicker(true)}>
+            <Text style={{ color: t.bone, fontFamily: 'System', fontSize: 14 }}>
+              {`${pad(time.getHours())}:${pad(time.getMinutes())}`}
+            </Text>
+          </Pressable>
         </View>
+        {showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            locale="fr-FR"
+            minimumDate={new Date()}
+            onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setDate(d); }}
+          />
+        )}
+        {showTimePicker && (
+          <DateTimePicker
+            value={time}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            is24Hour
+            onChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); if (d) setTime(d); }}
+          />
+        )}
 
         {/* Nombre de places */}
         <Text style={[styles.fieldLabel, { marginTop: 22 }]}>NOMBRE DE PLACES</Text>
@@ -208,6 +225,7 @@ export default function CreateCarpoolScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <SafeAreaView edges={['bottom']} style={styles.ctaWrap}>
         <Pressable
