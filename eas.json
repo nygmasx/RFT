@@ -13,6 +13,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev",
         "EXPO_PUBLIC_SUPABASE_URL": "https://mwxsckkujslipomjsfhc.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Cwawvr06weit6wyDj_hYHw_l_WoBrbA"
       }
@@ -21,6 +22,7 @@
       "autoIncrement": true,
       "channel": "production",
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev",
         "EXPO_PUBLIC_SUPABASE_URL": "https://mwxsckkujslipomjsfhc.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Cwawvr06weit6wyDj_hYHw_l_WoBrbA"
       }
