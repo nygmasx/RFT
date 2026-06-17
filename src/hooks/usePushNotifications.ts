@@ -1,5 +1,6 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -47,9 +48,26 @@ export function usePushNotifications(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return;
 
+    // Register device token
     registerForPushNotifications().then(async (token) => {
       if (!token) return;
       await api.post('/api/push-tokens', { token }).catch(() => {});
     });
+
+    // Handle tap on notification → navigate to chat
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as {
+        channelId?: string;
+        channelName?: string;
+      };
+      if (data?.channelId) {
+        router.push({
+          pathname: '/chat',
+          params: { channel: data.channelId, name: data.channelName ?? 'Salon' },
+        });
+      }
+    });
+
+    return () => sub.remove();
   }, [userId]);
 }

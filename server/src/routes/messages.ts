@@ -49,13 +49,13 @@ app.post('/:channelId', requireSession, async (c) => {
     profiles: { first_name: user.firstName, last_name: user.lastName },
   };
 
-  // Send push notification to channel members (except sender) — fire and forget
-  notifyChannelMembers(channelId, user).catch(() => {});
+  // Send push notification to channel members — fire and forget
+  notifyChannelMembers(channelId, user, body.trim()).catch(() => {});
 
   return c.json(response, 201);
 });
 
-async function notifyChannelMembers(channelId: string, sender: AuthUser) {
+async function notifyChannelMembers(channelId: string, sender: AuthUser, messageBody: string) {
   const [channel] = await db
     .select({ name: channels.name, isPrivate: channels.isPrivate })
     .from(channels).where(eq(channels.id, channelId));
@@ -91,9 +91,10 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser) {
   const msgs = tokens.map((t) => ({
     to: t.token,
     sound: 'default' as const,
-    title: `${senderName} · #${channel.name}`,
-    body: '💬 Nouveau message',
-    data: { channelId },
+    title: `${senderName}`,
+    subtitle: `#${channel.name}`,
+    body: messageBody,
+    data: { channelId, channelName: channel.name },
   }));
 
   console.log(`[Push] Sending to ${msgs.length} token(s) for channel ${channel.name}`);
