@@ -84,24 +84,30 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser) {
       .where(ne(pushTokens.userId, sender.id));
   }
 
-  if (tokens.length === 0) return;
+  if (tokens.length === 0) {
+    console.log('[Push] No tokens found for channel', channelId);
+    return;
+  }
 
   const senderName = `${sender.firstName ?? ''} ${sender.lastName ?? ''}`.trim() || sender.email;
-  const channelLabel = channel.isPrivate ? `#${channel.name}` : `#${channel.name}`;
 
   const msgs = tokens.map((t) => ({
     to: t.token,
     sound: 'default' as const,
-    title: `${senderName} · ${channelLabel}`,
+    title: `${senderName} · #${channel.name}`,
     body: '💬 Nouveau message',
     data: { channelId },
   }));
 
-  await fetch('https://exp.host/--/api/v2/push/send', {
+  console.log(`[Push] Sending to ${msgs.length} token(s) for channel ${channel.name}`);
+
+  const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(msgs),
   });
+  const result = await res.json();
+  console.log('[Push] Expo response:', JSON.stringify(result));
 }
 
 export { app as messagesRouter };
