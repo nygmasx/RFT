@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -81,7 +81,9 @@ export default function ProfilScreen() {
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const { profile, belt, palmares, loading } = useProfile();
+  const { profile, belt, palmares, loading, refetch } = useProfile();
+
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
   const isCoach = user?.role === 'coach' || user?.role === 'admin';
 
   if (loading) {

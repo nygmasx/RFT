@@ -57,10 +57,10 @@ export interface CalendarEvent {
   id: string;
   type: 'cours' | 'compet' | 'stage';
   title: string;
-  event_date: string;
-  event_time: string | null;
+  eventDate: string;
+  eventTime: string | null;
   place: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface Competition {

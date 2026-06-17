@@ -9,7 +9,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
 import { Competition, Registration } from '@/lib/database.types';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 function Tag({ text, color, filled, t }: { text: string; color?: string; filled?: boolean; t: Theme }) {
   const c = color ?? t.crimson;
@@ -86,9 +86,12 @@ export default function CompetitionsScreen() {
       {
         text: 'Confirmer', style: 'destructive',
         onPress: async () => {
-          const { error } = await supabase.from('registrations').delete().eq('id', registrationId);
-          if (error) Alert.alert('Erreur', error.message);
-          else refetch();
+          try {
+            await api.delete(`/api/competitions/registrations/${registrationId}`);
+            refetch();
+          } catch (e: any) {
+            Alert.alert('Erreur', e.message);
+          }
         },
       },
     ]);

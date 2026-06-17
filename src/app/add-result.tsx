@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 type CompType = 'GI' | 'NO-GI' | 'GRAPPLING';
 type AgeCategory = 'Senior' | 'Master 1' | 'Junior';
@@ -47,22 +47,22 @@ export default function AddResultScreen() {
     // Parse date from dd.mm.yyyy to yyyy-mm-dd
     let isoDate = compDate;
     const parts = compDate.split('.');
-    if (parts.length === 3) {
-      isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    if (parts.length === 3) isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+
+    try {
+      await api.post('/api/palmares', {
+        competition_name: compName.trim(),
+        comp_date:        isoDate,
+        weight_class:     weightClass,
+        comp_type:        compType === 'GRAPPLING' ? null : compType,
+        place,
+        notes:            notes.trim() || null,
+      });
+      router.back();
+    } catch (e: any) {
+      alert(e.message);
     }
-
-    await supabase.from('palmares').insert({
-      user_id: user.id,
-      competition_name: compName.trim(),
-      comp_date: isoDate,
-      weight_class: weightClass,
-      comp_type: compType === 'GRAPPLING' ? null : compType,
-      place,
-      notes: notes.trim() || null,
-    });
-
     setSaving(false);
-    router.back();
   };
 
   const canSave = !!compName.trim() && !!compDate.trim() && place !== null && !saving;

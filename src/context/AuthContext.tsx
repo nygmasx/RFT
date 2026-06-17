@@ -1,6 +1,7 @@
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { api } from '@/lib/api';
 
 type UserProfile = {
   id: string;
@@ -38,19 +39,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const segments = useSegments();
 
+  const fetchUser = async (): Promise<UserProfile | null> => {
+    const { data } = await authClient.getSession();
+    console.log('[Auth] session user:', JSON.stringify(data?.user));
+    if (!data?.user) return null;
+    const profile = await api.get<UserProfile>('/api/profile').catch((e) => {
+      console.log('[Auth] profile fetch error:', e.message);
+      return data.user as UserProfile;
+    });
+    console.log('[Auth] profile from DB:', JSON.stringify(profile));
+    return profile;
+  };
+
   useEffect(() => {
-    // Initial session check
-    authClient.getSession().then(({ data }) => {
-      setUser((data?.user as UserProfile) ?? null);
+    fetchUser().then((u) => {
+      setUser(u);
       setLoading(false);
     });
-
-    // Listen to auth state changes
-    const { stop } = authClient.onSessionChange((session) => {
-      setUser((session?.user as UserProfile) ?? null);
-    });
-
-    return () => stop?.();
   }, []);
 
   // Redirect logic
@@ -77,8 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, loading, segments]);
 
   const refreshProfileStatus = async () => {
-    const { data } = await authClient.getSession();
-    setUser((data?.user as UserProfile) ?? null);
+    const u = await fetchUser();
+    setUser(u);
   };
 
   const signOut = async () => {

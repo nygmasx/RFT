@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { authClient } from '@/lib/auth-client';
+import { api } from '@/lib/api';
 
 const CATEGORIES = ['Adultes', 'Ados 13-17', 'Enfants 6-12'];
 
@@ -26,7 +27,8 @@ export default function RegisterScreen() {
   const [password, setPassword]   = useState('');
   const [confirm, setConfirm]     = useState('');
   const [category, setCategory]   = useState('Adultes');
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [avatarUri, setAvatarUri]     = useState<string | null>(null);
+  const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
 
@@ -37,9 +39,13 @@ export default function RegisterScreen() {
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
+      quality: 0.4,
+      base64: true,
     });
-    if (!result.canceled) setAvatarUri(result.assets[0].uri);
+    if (!result.canceled && result.assets[0]) {
+      setAvatarUri(result.assets[0].uri);
+      setAvatarBase64(result.assets[0].base64 ?? null);
+    }
   };
 
   const handleRegister = async () => {
@@ -63,9 +69,8 @@ export default function RegisterScreen() {
       role:      'member',
     } as any);
 
-    setLoading(false);
-
     if (authError) {
+      setLoading(false);
       setError(
         authError.message.includes('already') || authError.message.includes('taken')
           ? 'Cet email est déjà utilisé.'
@@ -74,6 +79,14 @@ export default function RegisterScreen() {
       return;
     }
 
+    // Upload avatar if one was picked
+    if (avatarBase64) {
+      await api.put('/api/profile', {
+        avatarUrl: `data:image/jpeg;base64,${avatarBase64}`,
+      }).catch(() => {});
+    }
+
+    setLoading(false);
     await refreshProfileStatus();
   };
 

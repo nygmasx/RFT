@@ -7,8 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
-import { Announcement } from '@/lib/database.types';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 const DEFAULT_REACTIONS = [
   { emoji: '✊', count: 0 },
@@ -22,22 +21,22 @@ export default function AnnouncementScreen() {
 
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  interface AnnouncementDetail {
+    id: string; title: string; body: string;
+    tag: string | null; pinned: boolean; createdAt: string;
+    profiles: { first_name: string; last_name: string };
+  }
+
+  const [announcement, setAnnouncement] = useState<AnnouncementDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [reactedIndices, setReactedIndices] = useState<Set<number>>(new Set());
   const [reply, setReply] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    supabase
-      .from('announcements')
-      .select('*, profiles(first_name, last_name)')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        setAnnouncement(data ?? null);
-        setLoading(false);
-      });
+    api.get<AnnouncementDetail>(`/api/announcements/${id}`)
+      .then((data) => { setAnnouncement(data); setLoading(false); })
+      .catch(() => setLoading(false));
   }, [id]);
 
   const toggleReaction = (i: number) => {
@@ -76,7 +75,7 @@ export default function AnnouncementScreen() {
     .slice(0, 2)
     .toUpperCase();
 
-  const authorDate = new Date(announcement.created_at).toLocaleString('fr-FR', {
+  const authorDate = new Date(announcement.createdAt).toLocaleString('fr-FR', {
     weekday: 'short', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 

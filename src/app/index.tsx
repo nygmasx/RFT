@@ -18,7 +18,7 @@ export default function WelcomeScreen() {
       router.replace('/(auth)/login');
       return;
     }
-    const isCoach = user.app_metadata?.role === 'coach';
+    const isCoach = user?.role === 'coach' || user?.role === 'admin';
     if (isCoach || profileStatus === 'approved') {
       router.replace('/(tabs)/accueil');
     } else if (profileStatus === 'pending' || profileStatus === null) {

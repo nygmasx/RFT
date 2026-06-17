@@ -23,6 +23,22 @@ app.get('/', requireSession, async (c) => {
   return c.json(rows);
 });
 
+app.get('/:id', requireSession, async (c) => {
+  const [row] = await db
+    .select({
+      id: announcements.id, authorId: announcements.authorId,
+      tag: announcements.tag, title: announcements.title,
+      body: announcements.body, pinned: announcements.pinned,
+      createdAt: announcements.createdAt,
+      profiles: { first_name: users.firstName, last_name: users.lastName },
+    })
+    .from(announcements)
+    .innerJoin(users, eq(announcements.authorId, users.id))
+    .where(eq(announcements.id, c.req.param('id')));
+  if (!row) return c.json({ error: 'Introuvable' }, 404);
+  return c.json(row);
+});
+
 app.post('/', requireCoach, async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ tag?: string; title: string; body: string; pinned?: boolean }>();

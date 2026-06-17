@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 type BeltColor = 'blanche' | 'bleue' | 'violette' | 'marron' | 'noire';
 
@@ -42,7 +42,7 @@ export default function EditBeltScreen() {
   const styles = useMemo(() => makeStyles(t), [t]);
   const { userId } = useLocalSearchParams<{ userId?: string }>();
 
-  const isCoach = user?.app_metadata?.role === 'coach';
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
   const targetUserId = userId ?? user?.id;
 
   const [selectedColor, setSelectedColor] = useState<BeltColor>('blanche');
@@ -55,31 +55,19 @@ export default function EditBeltScreen() {
 
   useEffect(() => {
     if (!targetUserId) return;
-    // Charge le grade existant
-    supabase
-      .from('belt_records')
-      .select('*')
-      .eq('user_id', targetUserId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setSelectedColor(data.color as BeltColor);
-          setPromotedBy(data.promoted_by ?? '');
-          setPromotedDate(data.promoted_date ?? '');
-        }
-      });
+    api.get<{ color: BeltColor; promotedBy: string | null; promotedDate: string | null } | null>(
+      `/api/belt/${targetUserId}`
+    ).then((data) => {
+      if (data) {
+        setSelectedColor(data.color);
+        setPromotedBy(data.promotedBy ?? '');
+        setPromotedDate(data.promotedDate ?? '');
+      }
+    }).catch(() => {});
 
-    // Charge le nom du membre
-    supabase
-      .from('profiles')
-      .select('first_name, last_name')
-      .eq('id', targetUserId)
-      .single()
-      .then(({ data }) => {
-        if (data) setMemberName(`${data.first_name} ${data.last_name}`);
-      });
+    api.get<{ firstName: string; lastName: string }>(`/api/profile/${targetUserId}`)
+      .then((data) => { if (data) setMemberName(`${data.firstName} ${data.lastName}`); })
+      .catch(() => {});
   }, [targetUserId]);
 
   if (!isCoach) {
@@ -94,41 +82,18 @@ export default function EditBeltScreen() {
     if (!targetUserId) return;
     setSaving(true);
     setError('');
-
-    // Check for existing record
-    const { data: existing } = await supabase
-      .from('belt_records')
-      .select('id')
-      .eq('user_id', targetUserId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let err;
-    if (existing?.id) {
-      ({ error: err } = await supabase
-        .from('belt_records')
-        .update({
-          color: selectedColor,
-          promoted_by: promotedBy.trim() || null,
-          promoted_date: promotedDate.trim() || null,
-        })
-        .eq('id', existing.id));
-    } else {
-      ({ error: err } = await supabase
-        .from('belt_records')
-        .insert({
-          user_id: targetUserId,
-          color: selectedColor,
-          promoted_by: promotedBy.trim() || null,
-          promoted_date: promotedDate.trim() || null,
-        }));
+    try {
+      await api.put(`/api/belt/${targetUserId}`, {
+        color:          selectedColor,
+        promoted_by:    promotedBy.trim() || null,
+        promoted_date:  promotedDate.trim() || null,
+      });
+      setSuccess(true);
+      setTimeout(() => router.back(), 800);
+    } catch (e: any) {
+      setError(e.message);
     }
-
     setSaving(false);
-    if (err) { setError(err.message); return; }
-    setSuccess(true);
-    setTimeout(() => router.back(), 800);
   };
 
   return (

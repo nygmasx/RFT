@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { BeltRecord, PalmaresEntry } from '@/lib/database.types';
@@ -26,25 +26,31 @@ export function useProfile() {
   const [palmares, setPalmares] = useState<PalmaresEntry[]>([]);
   const [loading, setLoading]   = useState(true);
 
-  useEffect(() => {
+  const refetch = useCallback(async () => {
     if (!user) return;
-
-    Promise.all([
-      api.get<Profile>('/api/profile'),
-      api.get<BeltRecord | null>(`/api/belt/${user.id}`),
-      api.get<PalmaresEntry[]>(`/api/palmares/${user.id}`),
-    ]).then(([p, b, pal]) => {
+    setLoading(true);
+    try {
+      const [p, b, pal] = await Promise.all([
+        api.get<Profile>('/api/profile'),
+        api.get<BeltRecord | null>(`/api/belt/${user.id}`),
+        api.get<PalmaresEntry[]>(`/api/palmares/${user.id}`),
+      ]);
       setProfile(p);
       setBelt(b);
       setPalmares(pal ?? []);
+    } catch (e: any) {
+      console.error('[useProfile]', e.message);
+    } finally {
       setLoading(false);
-    }).catch((e) => { console.error('[useProfile]', e.message); setLoading(false); });
+    }
   }, [user?.id]);
+
+  useEffect(() => { refetch(); }, [refetch]);
 
   const updateProfile = async (updates: Partial<Profile>) => {
     const updated = await api.put<Profile>('/api/profile', updates);
     setProfile(updated);
   };
 
-  return { profile, belt, palmares, loading, updateProfile };
+  return { profile, belt, palmares, loading, updateProfile, refetch };
 }

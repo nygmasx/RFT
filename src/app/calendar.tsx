@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -12,7 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { CalendarEvent } from '@/lib/database.types';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 const MONTH_NAMES = [
   'JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN',
@@ -55,7 +56,7 @@ export default function CalendarScreen() {
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const isCoach = user?.app_metadata?.role === 'coach';
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
 
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -64,22 +65,26 @@ export default function CalendarScreen() {
 
   const { data: calendarEvents, refetch } = useCalendarEvents();
 
+  const pad = (n: number) => String(n).padStart(2, '0');
+
   // Create form state
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newDate, setNewDate] = useState('');
+  const [newDate, setNewDate] = useState(new Date());
   const [newType, setNewType] = useState<EventType>('cours');
-  const [newTime, setNewTime] = useState('');
+  const [newTime, setNewTime] = useState<Date | null>(null);
   const [newPlace, setNewPlace] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   const days = getCalendarDays(year, month);
 
   const eventsForDay = (day: number | null): CalendarEvent[] => {
     if (day === null) return [];
     const key = dateKey(year, month, day);
-    return calendarEvents.filter((e) => e.event_date === key);
+    return calendarEvents.filter((e) => e.eventDate === key);
   };
 
   const selectedEvents = selectedDay !== null ? eventsForDay(selectedDay) : [];
@@ -97,28 +102,35 @@ export default function CalendarScreen() {
   };
 
   const openCreate = () => {
-    const prefilledDate = selectedDay !== null ? dateKey(year, month, selectedDay) : '';
-    setNewDate(prefilledDate);
-    setNewTitle(''); setNewType('cours'); setNewTime(''); setNewPlace('');
+    const prefilled = selectedDay !== null
+      ? new Date(year, month, selectedDay)
+      : new Date();
+    setNewDate(prefilled);
+    setNewTitle(''); setNewType('cours'); setNewTime(null); setNewPlace('');
     setSaveError('');
     setShowCreate(true);
   };
 
   const handleSave = async () => {
-    if (!newTitle.trim() || !newDate.trim()) { setSaveError('Titre et date requis.'); return; }
+    if (!newTitle.trim()) { setSaveError('Titre requis.'); return; }
     setSaving(true);
     setSaveError('');
-    const { error } = await supabase.from('calendar_events').insert({
-      title: newTitle.trim(),
-      event_date: newDate.trim(),
-      type: newType,
-      event_time: newTime.trim() || null,
-      place: newPlace.trim() || null,
-    });
+    try {
+      const dateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}`;
+      const timeStr = newTime ? `${pad(newTime.getHours())}:${pad(newTime.getMinutes())}` : null;
+      await api.post('/api/calendar', {
+        title: newTitle.trim(),
+        event_date: dateStr,
+        type: newType,
+        event_time: timeStr,
+        place: newPlace.trim() || null,
+      });
+      setShowCreate(false);
+      refetch();
+    } catch (e: any) {
+      setSaveError(e.message);
+    }
     setSaving(false);
-    if (error) { setSaveError(error.message); return; }
-    setShowCreate(false);
-    refetch();
   };
 
   return (
@@ -160,49 +172,49 @@ export default function CalendarScreen() {
           ))}
         </View>
 
-        {/* Calendar grid */}
-        <View style={styles.grid}>
-          {days.map((day, i) => {
-            const events = eventsForDay(day);
-            const isSelected = day !== null && day === selectedDay;
-            const hasEvents = events.length > 0;
-            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-
-            return (
-              <Pressable
-                key={i}
-                style={styles.dayCell}
-                onPress={() => day !== null && setSelectedDay(day)}
-                disabled={day === null}
-              >
-                {day !== null ? (
-                  <>
-                    <View style={[
-                      styles.dayNumber,
-                      isSelected && styles.dayNumberSelected,
-                      isToday && !isSelected && styles.dayNumberToday,
-                    ]}>
-                      <Text style={[
-                        styles.dayText,
-                        isSelected && styles.dayTextSelected,
-                        isToday && !isSelected && styles.dayTextToday,
+        {/* Calendar grid — explicit rows of 7 to avoid float% misalignment */}
+        {Array.from({ length: days.length / 7 }, (_, wi) => (
+          <View key={wi} style={styles.gridRow}>
+            {days.slice(wi * 7, wi * 7 + 7).map((day, ci) => {
+              const events = eventsForDay(day);
+              const isSelected = day !== null && day === selectedDay;
+              const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+              return (
+                <Pressable
+                  key={ci}
+                  style={styles.dayCell}
+                  onPress={() => day !== null && setSelectedDay(day)}
+                  disabled={day === null}
+                >
+                  {day !== null && (
+                    <>
+                      <View style={[
+                        styles.dayNumber,
+                        isSelected && styles.dayNumberSelected,
+                        isToday && !isSelected && styles.dayNumberToday,
                       ]}>
-                        {day}
-                      </Text>
-                    </View>
-                    {hasEvents && (
-                      <View style={styles.dots}>
-                        {events.slice(0, 3).map((e, ei) => (
-                          <View key={ei} style={[styles.dot, { backgroundColor: EVT_COLORS[e.type] }]} />
-                        ))}
+                        <Text style={[
+                          styles.dayText,
+                          isSelected && styles.dayTextSelected,
+                          isToday && !isSelected && styles.dayTextToday,
+                        ]}>
+                          {day}
+                        </Text>
                       </View>
-                    )}
-                  </>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
+                      {events.length > 0 && (
+                        <View style={styles.dots}>
+                          {events.slice(0, 3).map((e, ei) => (
+                            <View key={ei} style={[styles.dot, { backgroundColor: EVT_COLORS[e.type as EventType] }]} />
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
 
         {/* Legend */}
         <View style={styles.legend}>
@@ -232,10 +244,21 @@ export default function CalendarScreen() {
             </View>
             <View style={styles.formDivider} />
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>DATE (AAAA-MM-JJ)</Text>
-              <TextInput style={styles.input} value={newDate} onChangeText={setNewDate}
-                placeholder="2026-07-01" placeholderTextColor={t.textMute}
-                selectionColor={t.crimson} keyboardType="numbers-and-punctuation" />
+              <Text style={styles.fieldLabel}>DATE</Text>
+              <Pressable onPress={() => setShowDatePicker(true)}>
+                <Text style={styles.input}>
+                  {newDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </Text>
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={newDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  locale="fr-FR"
+                  onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setNewDate(d); }}
+                />
+              )}
             </View>
             <View style={styles.formDivider} />
             <View style={styles.fieldRow}>
@@ -259,9 +282,21 @@ export default function CalendarScreen() {
             </View>
             <View style={styles.formDivider} />
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>HEURE</Text>
-              <TextInput style={styles.input} value={newTime} onChangeText={setNewTime}
-                placeholder="19:30" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+              <Text style={styles.fieldLabel}>HEURE (OPTIONNEL)</Text>
+              <Pressable onPress={() => setShowTimePicker(true)}>
+                <Text style={[styles.input, !newTime && { color: t.textMute }]}>
+                  {newTime ? `${pad(newTime.getHours())}:${pad(newTime.getMinutes())}` : 'Sélectionner une heure'}
+                </Text>
+              </Pressable>
+              {showTimePicker && (
+                <DateTimePicker
+                  value={newTime ?? new Date()}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour
+                  onChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); if (d) setNewTime(d); }}
+                />
+              )}
             </View>
             <View style={styles.formDivider} />
             <View style={styles.fieldRow}>
@@ -301,7 +336,7 @@ export default function CalendarScreen() {
                     <View style={[styles.eventBorder, { backgroundColor: EVT_COLORS[e.type] }]} />
                     <View style={styles.eventContent}>
                       <View style={styles.eventTop}>
-                        <Text style={styles.eventTime}>{e.event_time ?? ''}</Text>
+                        <Text style={styles.eventTime}>{e.eventTime ?? ''}</Text>
                         <View style={[styles.eventTag, { borderColor: EVT_COLORS[e.type] }]}>
                           <Text style={[styles.eventTagText, { color: EVT_COLORS[e.type] }]}>
                             {EVT_LABELS[e.type]}
@@ -374,8 +409,8 @@ function makeStyles(t: Theme) {
     dayHeaders: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 4 },
     dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
     dayHeaderText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 },
-    dayCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4, minHeight: 48 },
+    gridRow: { flexDirection: 'row', paddingHorizontal: 12 },
+    dayCell: { flex: 1, alignItems: 'center', paddingVertical: 4, minHeight: 48 },
     dayNumber: {
       width: 32, height: 32, borderRadius: 16,
       alignItems: 'center', justifyContent: 'center',

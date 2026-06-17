@@ -7,7 +7,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/context/ThemeContext';
-import { supabase } from '@/lib/supabase';
 
 export default function VerifyScreen() {
   const { theme: t } = useTheme();
@@ -18,29 +17,11 @@ export default function VerifyScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const handleVerify = async () => {
-    if (code.length !== 6) { setError('Le code doit contenir 6 chiffres.'); return; }
-    setError('');
-    setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: 'email',
-    });
-    setLoading(false);
-    if (error) {
-      setError('Code invalide ou expiré. Réessaie.');
-      setCode('');
-    }
-    // Si succès, AuthContext redirige automatiquement vers les tabs
+    setError('Vérification par code non supportée. Utilise email + mot de passe.');
   };
 
   const handleResend = async () => {
     setError('');
-    await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false },
-    });
-    setError('Nouveau code envoyé.');
   };
 
   const s = styles(t);
