@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -46,8 +47,10 @@ export default function EditBeltScreen() {
   const targetUserId = userId ?? user?.id;
 
   const [selectedColor, setSelectedColor] = useState<BeltColor>('blanche');
-  const [promotedBy, setPromotedBy]       = useState('');
-  const [promotedDate, setPromotedDate]   = useState('');
+  const [promotedBy, setPromotedBy]         = useState('');
+  const [promotedDate, setPromotedDate]     = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const pad = (n: number) => String(n).padStart(2, '0');
   const [memberName, setMemberName]       = useState('');
   const [saving, setSaving]               = useState(false);
   const [success, setSuccess]             = useState(false);
@@ -61,7 +64,7 @@ export default function EditBeltScreen() {
       if (data) {
         setSelectedColor(data.color);
         setPromotedBy(data.promotedBy ?? '');
-        setPromotedDate(data.promotedDate ?? '');
+        setPromotedDate(data.promotedDate ? new Date(data.promotedDate) : null);
       }
     }).catch(() => {});
 
@@ -86,7 +89,7 @@ export default function EditBeltScreen() {
       await api.put(`/api/belt/${targetUserId}`, {
         color:          selectedColor,
         promoted_by:    promotedBy.trim() || null,
-        promoted_date:  promotedDate.trim() || null,
+        promoted_date:  promotedDate ? `${promotedDate.getFullYear()}-${pad(promotedDate.getMonth() + 1)}-${pad(promotedDate.getDate())}` : null,
       });
       setSuccess(true);
       setTimeout(() => router.back(), 800);
@@ -191,14 +194,23 @@ export default function EditBeltScreen() {
           <View style={styles.divider} />
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>DATE DE PROMOTION</Text>
-            <TextInput
-              style={styles.input}
-              value={promotedDate}
-              onChangeText={setPromotedDate}
-              placeholder="jj.mm.aaaa"
-              placeholderTextColor={t.textMute}
-              selectionColor={t.crimson}
-            />
+            <Pressable onPress={() => setShowDatePicker(true)}>
+              <Text style={[styles.input, !promotedDate && { color: t.textMute }]}>
+                {promotedDate
+                  ? promotedDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+                  : 'Sélectionner une date'}
+              </Text>
+            </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={promotedDate ?? new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                locale="fr-FR"
+                maximumDate={new Date()}
+                onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setPromotedDate(d); }}
+              />
+            )}
           </View>
         </View>
 
