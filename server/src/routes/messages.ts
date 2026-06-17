@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and, ne, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { messages, users } from '../db/schema';
+import { messages, users, channelMembers, channels, pushTokens } from '../db/schema';
 import { requireSession } from '../middleware/session';
 import type { AuthUser } from '../auth';
 
@@ -44,10 +44,64 @@ app.post('/:channelId', requireSession, async (c) => {
     .values({ channelId, userId: user.id, body: body.trim() })
     .returning();
 
-  return c.json({
+  const response = {
     ...msg,
     profiles: { first_name: user.firstName, last_name: user.lastName },
-  }, 201);
+  };
+
+  // Send push notification to channel members (except sender) — fire and forget
+  notifyChannelMembers(channelId, user).catch(() => {});
+
+  return c.json(response, 201);
 });
+
+async function notifyChannelMembers(channelId: string, sender: AuthUser) {
+  const [channel] = await db
+    .select({ name: channels.name, isPrivate: channels.isPrivate })
+    .from(channels).where(eq(channels.id, channelId));
+  if (!channel) return;
+
+  let tokens: { token: string }[];
+
+  if (channel.isPrivate) {
+    // Private: notify channel members only
+    const members = await db
+      .select({ userId: channelMembers.userId })
+      .from(channelMembers)
+      .where(and(eq(channelMembers.channelId, channelId), ne(channelMembers.userId, sender.id)));
+    if (members.length === 0) return;
+    tokens = await db
+      .select({ token: pushTokens.token })
+      .from(pushTokens)
+      .where(and(
+        inArray(pushTokens.userId, members.map((m) => m.userId)),
+      ));
+  } else {
+    // Public: notify all users with a token except sender
+    tokens = await db
+      .select({ token: pushTokens.token })
+      .from(pushTokens)
+      .where(ne(pushTokens.userId, sender.id));
+  }
+
+  if (tokens.length === 0) return;
+
+  const senderName = `${sender.firstName ?? ''} ${sender.lastName ?? ''}`.trim() || sender.email;
+  const channelLabel = channel.isPrivate ? `#${channel.name}` : `#${channel.name}`;
+
+  const msgs = tokens.map((t) => ({
+    to: t.token,
+    sound: 'default' as const,
+    title: `${senderName} · ${channelLabel}`,
+    body: '💬 Nouveau message',
+    data: { channelId },
+  }));
+
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(msgs),
+  });
+}
 
 export { app as messagesRouter };
