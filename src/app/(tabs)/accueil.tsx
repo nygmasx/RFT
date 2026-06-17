@@ -42,6 +42,7 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 function formatEventDate(iso: string) {
+  if (!iso) return { day: '—', monthLabel: '—' };
   const [, mm, dd] = iso.split('-');
   const day = dd ?? '';
   const monthNum = parseInt(mm ?? '1', 10);
@@ -135,7 +136,7 @@ export default function AccueilScreen() {
               const accent = e.type === 'compet';
               const color = EVENT_COLORS[e.type] ?? t.textDim;
               const label = EVENT_LABELS[e.type] ?? e.type.toUpperCase();
-              const { day, monthLabel } = formatEventDate(e.event_date);
+              const { day, monthLabel } = formatEventDate((e as any).eventDate ?? (e as any).event_date ?? '');
 
               return (
                 <Pressable key={i} style={[styles.eventRow, accent && styles.eventRowAccent]} onPress={() => router.push('/calendar')}>
@@ -147,7 +148,7 @@ export default function AccueilScreen() {
                   <View style={styles.eventInfo}>
                     <Text style={styles.eventTitle}>{e.title}</Text>
                     <Text style={styles.eventSub}>
-                      {e.event_time ?? ''}{e.event_time && e.place ? ' · ' : ''}{e.place ?? ''}
+                      {((e as any).eventTime ?? (e as any).event_time) ?? ''}{((e as any).eventTime ?? (e as any).event_time) && e.place ? ' · ' : ''}{e.place ?? ''}
                     </Text>
                   </View>
                   <Tag text={label} color={color} size={9} t={t} />
