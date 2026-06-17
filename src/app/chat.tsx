@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -36,7 +36,7 @@ function Msg({ msg, isMe, t, msgStyles }: MsgProps) {
   const authorName = msg.profiles
     ? `${msg.profiles.first_name} ${msg.profiles.last_name}`
     : 'Utilisateur';
-  const timeStr = new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = new Date((msg as any).createdAt ?? (msg as any).created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   if (isMe) {
     return (
@@ -194,6 +194,10 @@ export default function ChatScreen() {
         </View>
       </SafeAreaView>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -201,7 +205,7 @@ export default function ChatScreen() {
         renderItem={({ item }) => (
           <Msg
             msg={item}
-            isMe={item.user_id === currentUserId}
+            isMe={((item as any).userId ?? (item as any).user_id) === currentUserId}
             t={t}
             msgStyles={msgStyles}
           />
@@ -250,6 +254,7 @@ export default function ChatScreen() {
           <Text style={styles.readOnlyText}>Ce salon est en lecture seule</Text>
         </SafeAreaView>
       )}
+      </KeyboardAvoidingView>
     </View>
   );
 }

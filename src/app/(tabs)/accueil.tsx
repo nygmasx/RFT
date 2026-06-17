@@ -75,7 +75,7 @@ export default function AccueilScreen() {
           <Pressable style={styles.iconBtn} onPress={() => router.push('/calendar')}>
             <Ionicons name="calendar-outline" size={18} color={t.bone} />
           </Pressable>
-          <Pressable style={styles.notifBtn}>
+          <Pressable style={styles.notifBtn} onPress={() => router.push('/notifications')}>
             <Ionicons name="notifications-outline" size={18} color={t.bone} />
             <View style={styles.notifDot} />
           </Pressable>
