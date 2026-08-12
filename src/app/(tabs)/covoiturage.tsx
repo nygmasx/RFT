@@ -42,7 +42,7 @@ export default function CovoiturageScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool } = useCarpools();
+  const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool } = useCarpools();
 
   return (
     <View style={styles.container}>
@@ -117,10 +117,7 @@ export default function CovoiturageScreen() {
               btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnFull };
               btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
             } else if (isPassenger) {
-              btnLabel = 'INSCRIT';
-              btnDisabled = true;
-              btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnFull };
-              btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
+              btnLabel = 'SE DÉSINSCRIRE';
             } else if (isFull) {
               btnLabel = 'COMPLET';
               btnDisabled = true;
@@ -165,7 +162,11 @@ export default function CovoiturageScreen() {
                 <Pressable
                   style={btnStyle}
                   disabled={btnDisabled}
-                  onPress={() => !btnDisabled && joinCarpool(r.id)}
+                  onPress={() => {
+                    if (btnDisabled) return;
+                    if (isPassenger) void leaveCarpool(r.id);
+                    else void joinCarpool(r.id);
+                  }}
                 >
                   <Text style={btnTextStyle}>{btnLabel}</Text>
                 </Pressable>

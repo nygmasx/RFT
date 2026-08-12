@@ -1,5 +1,4 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
 import { useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -11,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useProfile } from '@/hooks/useProfile';
+import { safeBack } from '@/lib/navigation';
 
 const CATEGORIES = ['Adultes', 'Ados 13-17', 'Enfants 6-12'];
 const WEIGHT_CLASSES = ['-64kg', '-70kg', '-77kg', '-85kg', '-94kg', '+94kg'];
@@ -33,6 +33,8 @@ export default function EditProfileScreen() {
 
   useEffect(() => {
     if (profile) {
+      // The editable form is initialized when the asynchronous profile arrives.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFirstName(profile.firstName ?? '');
       setLastName(profile.lastName ?? '');
       setCategory(profile.category ?? 'Adultes');
@@ -70,7 +72,7 @@ export default function EditProfileScreen() {
       avatarUrl: avatarUri ?? undefined,
     });
     setSaving(false);
-    router.back();
+    safeBack('/(tabs)/profil');
   };
 
   if (loading) {
@@ -87,7 +89,7 @@ export default function EditProfileScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => safeBack('/(tabs)/profil')}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>MODIFIER LE PROFIL</Text>

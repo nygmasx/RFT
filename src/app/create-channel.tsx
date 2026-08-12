@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -11,6 +10,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 interface Member { id: string; firstName: string; lastName: string; avatarUrl?: string | null; }
 
@@ -28,8 +28,8 @@ export default function CreateChannelScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<any[]>('/api/profile/all')
-      .then((rows) => setMembers((rows ?? []).filter((m: any) => m.status === 'approved' && m.id !== user?.id)));
+    api.get<Member[]>('/api/profile/directory')
+      .then((rows) => setMembers((rows ?? []).filter((m) => m.id !== user?.id)));
   }, [user?.id]);
 
   const toggleMember = (id: string) => {
@@ -56,7 +56,7 @@ export default function CreateChannelScreen() {
         member_ids: Array.from(selectedMembers),
       });
       setSaving(false);
-      router.back();
+      safeBack('/(tabs)/salons');
     } catch (e: any) {
       setError(e.message);
       setSaving(false);
@@ -67,7 +67,7 @@ export default function CreateChannelScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/salons')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.headerTitle}>NOUVEAU SALON</Text>

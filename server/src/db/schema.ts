@@ -1,6 +1,6 @@
 import {
   pgTable, text, boolean, integer, numeric,
-  timestamp, date, time, uuid, primaryKey,
+  timestamp, date, time, uuid, primaryKey, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 // ── Better Auth tables ────────────────────────────────────────
@@ -86,13 +86,34 @@ export const messages = pgTable('messages', {
 
 export const announcements = pgTable('announcements', {
   id:        uuid('id').primaryKey().defaultRandom(),
-  authorId:  text('author_id').notNull().references(() => users.id),
+  authorId:  text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   tag:       text('tag'),
   title:     text('title').notNull(),
   body:      text('body').notNull(),
   pinned:    boolean('pinned').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+export const announcementReactions = pgTable('announcement_reactions', {
+  announcementId: uuid('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  userId:         text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  emoji:          text('emoji').notNull(),
+  createdAt:      timestamp('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.announcementId, t.userId, t.emoji] })]);
+
+export const announcementReplies = pgTable('announcement_replies', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  announcementId: uuid('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  userId:         text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  body:           text('body').notNull(),
+  createdAt:      timestamp('created_at').notNull().defaultNow(),
+});
+
+export const announcementReads = pgTable('announcement_reads', {
+  announcementId: uuid('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  userId:         text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt:         timestamp('read_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.announcementId, t.userId] })]);
 
 export const calendarEvents = pgTable('calendar_events', {
   id:        uuid('id').primaryKey().defaultRandom(),
@@ -123,7 +144,7 @@ export const registrations = pgTable('registrations', {
   weightClass:   text('weight_class'),
   status:        text('status').notNull().default('en_attente'), // confirmé | en_attente | annulé
   createdAt:     timestamp('created_at').notNull().defaultNow(),
-});
+}, (t) => [uniqueIndex('registrations_user_competition_unique').on(t.userId, t.competitionId)]);
 
 export const carpools = pgTable('carpools', {
   id:            uuid('id').primaryKey().defaultRandom(),
@@ -158,7 +179,19 @@ export const pushTokens = pgTable('push_tokens', {
   userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   token:     text('token').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (t) => [{ name: 'push_tokens_user_token_unique', columns: [t.userId, t.token] }]);
+}, (t) => [uniqueIndex('push_tokens_token_unique').on(t.token)]);
+
+export const userSettings = pgTable('user_settings', {
+  userId:             text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  notifyCoach:        boolean('notify_coach').notNull().default(true),
+  notifyMessages:     boolean('notify_messages').notNull().default(true),
+  notifyCompetitions: boolean('notify_competitions').notNull().default(true),
+  notifyCarpools:     boolean('notify_carpools').notNull().default(false),
+  shareGrade:         boolean('share_grade').notNull().default(true),
+  sharePalmares:      boolean('share_palmares').notNull().default(true),
+  profileVisibility:  text('profile_visibility').notNull().default('members'),
+  updatedAt:          timestamp('updated_at').notNull().defaultNow(),
+});
 
 export const palmares = pgTable('palmares', {
   id:              uuid('id').primaryKey().defaultRandom(),

@@ -55,7 +55,7 @@ export default function AccueilScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const { data: announcements, loading: loadingAnn } = useAnnouncements();
+  const { data: announcements, loading: loadingAnn, unreadCount } = useAnnouncements();
   const { data: calendarEvents, loading: loadingCal } = useCalendarEvents();
   const { data: channels, loading: loadingChan } = useChannels();
 
@@ -64,12 +64,15 @@ export default function AccueilScreen() {
   const hero = announcements[0];
   const second = announcements[1];
   const upcomingPreview = calendarEvents.slice(0, 3);
+  const todayLabel = new Date().toLocaleDateString('fr-FR', {
+    weekday: 'short', day: '2-digit', month: 'long', year: 'numeric',
+  }).toUpperCase();
 
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.header}>
         <View>
-          <Text style={styles.date}>MER. 27 MAI 2026</Text>
+          <Text style={styles.date}>{todayLabel}</Text>
           <Text style={styles.title}>DOJO</Text>
         </View>
         <View style={styles.headerActions}>
@@ -78,7 +81,7 @@ export default function AccueilScreen() {
           </Pressable>
           <Pressable style={styles.notifBtn} onPress={() => router.push('/notifications')}>
             <Ionicons name="notifications-outline" size={18} color={t.bone} />
-            <View style={styles.notifDot} />
+            {unreadCount > 0 && <View style={styles.notifDot} />}
           </Pressable>
         </View>
       </SafeAreaView>

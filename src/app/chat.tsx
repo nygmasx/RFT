@@ -8,22 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useMessages } from '@/hooks/useMessages';
+import { safeBack } from '@/lib/navigation';
 import { Message } from '@/lib/database.types';
-
-function Tag({ text, filled, t }: { text: string; filled?: boolean; t: Theme }) {
-  return (
-    <View style={[tagSt(t).wrap, filled && { backgroundColor: t.crimson }]}>
-      <Text style={[tagSt(t).text, filled && { color: t.ink }]}>{text}</Text>
-    </View>
-  );
-}
-
-function tagSt(t: Theme) {
-  return StyleSheet.create({
-    wrap: { paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: t.crimson, borderRadius: 2 },
-    text: { fontFamily: FONTS.mono, fontSize: 8, color: t.crimson, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
-  });
-}
 
 interface MsgProps {
   msg: Message;
@@ -36,7 +22,7 @@ function Msg({ msg, isMe, t, msgStyles }: MsgProps) {
   const authorName = msg.profiles
     ? `${msg.profiles.first_name} ${msg.profiles.last_name}`
     : 'Utilisateur';
-  const timeStr = new Date((msg as any).createdAt ?? (msg as any).created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   if (isMe) {
     return (
@@ -122,7 +108,7 @@ export default function ChatScreen() {
   const headerComponent = (
     <>
       <View style={styles.dateLine}>
-        <Text style={styles.dateStamp}>AUJOURD'HUI</Text>
+        <Text style={styles.dateStamp}>AUJOURD’HUI</Text>
       </View>
 
       {/* Private channel notice */}
@@ -173,7 +159,7 @@ export default function ChatScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/salons')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <View style={[styles.chanAvatar, isAnnonces && styles.chanAvatarAnnonces]}>
@@ -205,7 +191,7 @@ export default function ChatScreen() {
         renderItem={({ item }) => (
           <Msg
             msg={item}
-            isMe={((item as any).userId ?? (item as any).user_id) === currentUserId}
+            isMe={item.userId === currentUserId}
             t={t}
             msgStyles={msgStyles}
           />

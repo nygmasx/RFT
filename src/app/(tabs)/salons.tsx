@@ -67,7 +67,7 @@ export default function SalonsScreen() {
                     ? <Ionicons name="sunny" size={18} color={t.bone} />
                     : <Text style={styles.avatarText}>{c.name[0]}</Text>
                   }
-                  {c.is_locked && !isTop && (
+                  {c.isLocked && !isTop && (
                     <View style={styles.lockBadge}>
                       <Ionicons name="lock-closed" size={7} color={t.textMute} />
                     </View>
@@ -78,7 +78,7 @@ export default function SalonsScreen() {
                   <View style={styles.infoTop}>
                     <View style={styles.nameRow}>
                       <Text style={styles.chanName} numberOfLines={1}>{c.name}</Text>
-                      {c.is_locked && (
+                      {c.isLocked && (
                         <Ionicons name="lock-closed" size={10} color={t.textMute} />
                       )}
                     </View>

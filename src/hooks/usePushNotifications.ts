@@ -6,17 +6,20 @@ import { Platform } from 'react-native';
 
 import { api } from '@/lib/api';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 async function registerForPushNotifications(): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
   if (!Device.isDevice) return null; // Simulateur : pas de push
 
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -46,7 +49,7 @@ async function registerForPushNotifications(): Promise<string | null> {
 
 export function usePushNotifications(userId: string | undefined) {
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || Platform.OS === 'web') return;
 
     // Register device token
     registerForPushNotifications().then(async (token) => {
@@ -59,12 +62,15 @@ export function usePushNotifications(userId: string | undefined) {
       const data = response.notification.request.content.data as {
         channelId?: string;
         channelName?: string;
+        announcementId?: string;
       };
       if (data?.channelId) {
         router.push({
           pathname: '/chat',
           params: { channel: data.channelId, name: data.channelName ?? 'Salon' },
         });
+      } else if (data?.announcementId) {
+        router.push({ pathname: '/announcement', params: { id: data.announcementId } });
       }
     });
 

@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { pushTokens, users } from '../db/schema';
+import { pushTokens, users, userSettings } from '../db/schema';
 import { requireSession } from '../middleware/session';
 import type { AuthUser } from '../auth';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
+
+type NotificationPreference = 'notifyCoach' | 'notifyMessages' | 'notifyCompetitions' | 'notifyCarpools';
 
 // POST /api/push-tokens — save or update device token
 app.post('/', requireSession, async (c) => {
@@ -13,16 +15,10 @@ app.post('/', requireSession, async (c) => {
   const { token } = await c.req.json<{ token: string }>();
   if (!token) return c.json({ error: 'Token requis' }, 400);
 
-  // Upsert: insert if not exists
-  const existing = await db
-    .select({ id: pushTokens.id })
-    .from(pushTokens)
-    .where(eq(pushTokens.token, token))
-    .limit(1);
-
-  if (existing.length === 0) {
-    await db.insert(pushTokens).values({ userId: user.id, token });
-  }
+  await db
+    .insert(pushTokens)
+    .values({ userId: user.id, token })
+    .onConflictDoUpdate({ target: pushTokens.token, set: { userId: user.id } });
 
   return c.json({ ok: true });
 });
@@ -79,6 +75,41 @@ export async function notifyUser(userId: string, title: string, body: string) {
     });
   } catch (e) {
     console.error('[Push] Failed to notify user:', e);
+  }
+}
+
+export async function notifyMembers(
+  preference: NotificationPreference,
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+) {
+  try {
+    const preferenceColumn = userSettings[preference];
+    const tokens = await db
+      .select({ token: pushTokens.token })
+      .from(pushTokens)
+      .innerJoin(users, eq(pushTokens.userId, users.id))
+      .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
+      .where(and(
+        or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
+        or(isNull(preferenceColumn), eq(preferenceColumn, true)),
+      ));
+
+    if (tokens.length === 0) return;
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tokens.map(({ token }) => ({
+        to: token,
+        sound: 'default',
+        title,
+        body,
+        ...(data ? { data } : {}),
+      }))),
+    });
+  } catch (e) {
+    console.error(`[Push] Failed to notify members for ${preference}:`, e);
   }
 }
 

@@ -1,56 +1,87 @@
-# Welcome to your Expo app 👋
+# Ronin Fight Team
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Application mobile et web du club Ronin Fight Team. Elle centralise les membres, annonces, calendriers, compétitions, salons de discussion, grades, palmarès et covoiturages.
 
-## Get started
+Le produit est actuellement en phase bêta. Le backend de production est hébergé sur Fly.io et utilise Neon PostgreSQL.
 
-1. Install dependencies
+## Architecture
 
-   ```bash
-   npm install
-   ```
+- Application : Expo SDK 56, React Native 0.85, Expo Router et TypeScript.
+- API : Hono sous Node.js.
+- Authentification : Better Auth avec jetons Bearer.
+- Base de données : Neon PostgreSQL avec Drizzle ORM.
+- Notifications : Expo Push API.
+- Déploiements : EAS pour l’application, Fly.io pour l’API.
 
-2. Start the app
+La référence à utiliser pour toute évolution Expo est la [documentation exacte de SDK 56](https://docs.expo.dev/versions/v56.0.0/).
 
-   ```bash
-   npx expo start
-   ```
+## Installation locale
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Prérequis : Node.js 20.19 ou supérieur et npm.
 
 ```bash
-npm run reset-project
+npm install
+npm --prefix server install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Créer un fichier `.env` à la racine :
 
-### Other setup steps
+```dotenv
+EXPO_PUBLIC_API_URL=http://localhost:3001
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Copier `server/.env.example` vers `server/.env`, puis renseigner une base Neon et un secret Better Auth.
 
-## Learn more
+Lancer l’API et l’application dans deux terminaux :
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm --prefix server run dev
+npm start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Contrôles
 
-## Join the community
+```bash
+# TypeScript, ESLint, backend TypeScript et tests backend
+npm run check
 
-Join our community of developers creating universal apps.
+# Vérification des versions compatibles Expo 56
+npx expo install --check
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# Export web de production
+npx expo export --platform web
+```
+
+Les tests backend utilisent le runner natif de Node via `tsx --test`.
+
+## Migration fonctionnelle 2026-08-12
+
+Les réactions et réponses aux annonces, les états lu/non-lu, les préférences et les contraintes d’idempotence nécessitent la migration suivante :
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_functional_completeness.sql
+```
+
+Avant toute exécution en production : effectuer une sauvegarde Neon, vérifier la cible de `DATABASE_URL`, puis relire le plan de migration. La migration supprime uniquement les doublons de réservations et de jetons push avant de créer leurs index uniques.
+
+## Structure principale
+
+```text
+src/app/                 écrans et routes Expo Router
+src/hooks/               chargement des données et logique applicative
+src/context/             authentification et thème
+src/lib/                 client API et contrats TypeScript
+server/src/routes/       routes HTTP
+server/src/db/           schéma Drizzle et connexion Neon
+server/src/middleware/   contrôles de session et de rôle
+server/test/             tests backend
+```
+
+## Éléments restant avant une sortie publique
+
+- Ajouter des tests d’intégration API avec une base isolée.
+- Choisir et configurer un fournisseur d’envoi d’emails avant d’activer la vérification d’adresse et la récupération de mot de passe.
+- Vérifier les builds EAS signés iOS/Android avec les comptes de distribution du club.
+- Traiter les alertes `npm audit` restantes uniquement avec des mises à jour compatibles Expo 56 ; ne pas utiliser `npm audit fix --force`.
+
+Ne jamais exécuter `db:push` contre la production sans revue préalable du schéma et sauvegarde vérifiée.

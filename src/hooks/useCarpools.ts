@@ -33,5 +33,15 @@ export function useCarpools() {
     }
   };
 
-  return { data, loading, myPassengerCarpoolIds, currentUserId: user?.id, joinCarpool, refetch };
+  const leaveCarpool = async (carpoolId: string) => {
+    try {
+      await api.delete(`/api/carpools/${carpoolId}/join`);
+      refetch();
+    } catch (e: any) {
+      console.error('[leaveCarpool]', e.message);
+      throw e;
+    }
+  };
+
+  return { data, loading, myPassengerCarpoolIds, currentUserId: user?.id, joinCarpool, leaveCarpool, refetch };
 }

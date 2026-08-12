@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
+import { safeBack } from '@/lib/navigation';
 
 const TAG_COLORS: Record<string, string> = {
   'COMPÉTITION': '#C8362D',
@@ -31,17 +32,23 @@ function timeAgo(iso: string): string {
 export default function NotificationsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
-  const { data: announcements, loading } = useAnnouncements();
+  const { data: announcements, loading, markAllRead, markRead, unreadCount } = useAnnouncements();
 
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/accueil')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>NOTIFICATIONS</Text>
-          <View style={{ width: 36 }} />
+          <Pressable
+            style={styles.readAllBtn}
+            onPress={() => void markAllRead()}
+            disabled={unreadCount === 0}
+          >
+            <Text style={[styles.readAllText, unreadCount === 0 && styles.readAllTextDisabled]}>TOUT LIRE</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
 
@@ -70,8 +77,11 @@ export default function NotificationsScreen() {
             return (
               <Pressable
                 key={item.id}
-                style={[styles.card, i > 0 && styles.cardBorder]}
-                onPress={() => router.push({ pathname: '/announcement', params: { id: item.id } })}
+                style={[styles.card, !item.isRead && styles.cardUnread, i > 0 && styles.cardBorder]}
+                onPress={() => {
+                  void markRead(item.id).catch(() => {});
+                  router.push({ pathname: '/announcement', params: { id: item.id } });
+                }}
               >
                 <View style={styles.cardLeft}>
                   <View style={[styles.iconWrap, { backgroundColor: tagColor + '18' }]}>
@@ -82,6 +92,7 @@ export default function NotificationsScreen() {
                     />
                   </View>
                   {item.pinned && <View style={[styles.pinnedDot, { backgroundColor: tagColor }]} />}
+                  {!item.isRead && <View style={styles.unreadDot} />}
                 </View>
 
                 <View style={styles.cardBody}>
@@ -127,6 +138,9 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.display, fontSize: 14, color: t.bone,
       fontWeight: '900', letterSpacing: 2,
     },
+    readAllBtn: { width: 64, alignItems: 'flex-end', paddingVertical: 8 },
+    readAllText: { fontFamily: FONTS.mono, fontSize: 8, color: t.crimson, letterSpacing: 1 },
+    readAllTextDisabled: { color: t.textMute },
 
     scroll: { paddingHorizontal: 20, paddingTop: 20 },
     sectionLabel: {
@@ -138,6 +152,7 @@ function makeStyles(t: Theme) {
       flexDirection: 'row', alignItems: 'center', gap: 14,
       paddingVertical: 14,
     },
+    cardUnread: { backgroundColor: t.surface, marginHorizontal: -10, paddingHorizontal: 10 },
     cardBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
     cardLeft: { alignItems: 'center', gap: 4 },
     iconWrap: {
@@ -147,6 +162,7 @@ function makeStyles(t: Theme) {
     pinnedDot: {
       width: 6, height: 6, borderRadius: 3,
     },
+    unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.crimson },
     cardBody: { flex: 1 },
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     tag: {

@@ -57,20 +57,6 @@ function formatDate(iso: string) {
   };
 }
 
-function medalColor(place: number, t: Theme): string {
-  if (place === 1) return '#C9A24B';
-  if (place === 2) return '#9CA3AF';
-  if (place === 3) return '#C87941';
-  return t.textMute;
-}
-
-function medalLabel(place: number): string {
-  if (place === 1) return 'OR';
-  if (place === 2) return 'ARG';
-  if (place === 3) return 'BRONZE';
-  return 'TOP 4';
-}
-
 export default function CompetitionsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);

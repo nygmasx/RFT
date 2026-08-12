@@ -40,6 +40,14 @@ async function storeToken(data: any) {
   if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
 }
 
+async function parseAuthResponse<T>(res: Response, fallback: string): Promise<AuthResult<T>> {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { data: null, error: { message: data.message ?? data.error ?? fallback } };
+  }
+  return { data, error: null };
+}
+
 export const authClient = {
   signIn: {
     async email({ email, password }: { email: string; password: string }): Promise<AuthResult<AuthSession>> {
@@ -93,6 +101,38 @@ export const authClient = {
   async signOut(): Promise<void> {
     try { await authFetch('/api/auth/sign-out', { method: 'POST' }); } catch {}
     await AsyncStorage.removeItem(TOKEN_KEY);
+  },
+
+  async changePassword(payload: {
+    currentPassword: string;
+    newPassword: string;
+    revokeOtherSessions?: boolean;
+  }): Promise<AuthResult<{ status: boolean }>> {
+    try {
+      const res = await authFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const result = await parseAuthResponse<{ status: boolean }>(res, 'Changement de mot de passe impossible');
+      if (!result.error) await storeToken(result.data);
+      return result;
+    } catch (e: any) {
+      return { data: null, error: { message: e.message } };
+    }
+  },
+
+  async deleteUser(password: string): Promise<AuthResult<{ success: boolean; message: string }>> {
+    try {
+      const res = await authFetch('/api/auth/delete-user', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+      const result = await parseAuthResponse<{ success: boolean; message: string }>(res, 'Suppression du compte impossible');
+      if (!result.error) await AsyncStorage.removeItem(TOKEN_KEY);
+      return result;
+    } catch (e: any) {
+      return { data: null, error: { message: e.message } };
+    }
   },
 
   onSessionChange(_cb: (session: AuthSession | null) => void): { stop: () => void } {

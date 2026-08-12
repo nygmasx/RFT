@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -11,8 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { useCompetitions, CompetitionWithSource } from '@/hooks/useCompetitions';
+import { useCompetitions } from '@/hooks/useCompetitions';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 export default function CreateCarpoolScreen() {
   const { theme: t } = useTheme();
@@ -59,7 +59,7 @@ export default function CreateCarpoolScreen() {
         notes:           notes.trim() || null,
       });
       setSaving(false);
-      router.back();
+      safeBack('/(tabs)/covoiturage');
     } catch (e: any) {
       setSaving(false);
       Alert.alert('Erreur', e.message);
@@ -72,7 +72,7 @@ export default function CreateCarpoolScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/covoiturage')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.headerTitle}>PROPOSER UN COVOIT</Text>

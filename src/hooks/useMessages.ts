@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Message } from '@/lib/database.types';
@@ -9,7 +9,7 @@ export function useMessages(channelId: string) {
   const [loading, setLoading]   = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!channelId) return;
     try {
       const rows = await api.get<Message[]>(`/api/messages/${channelId}`);
@@ -19,15 +19,18 @@ export function useMessages(channelId: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [channelId]);
 
   useEffect(() => {
     if (!channelId) return;
-    fetchMessages();
+    const initialFetch = setTimeout(fetchMessages, 0);
     // Poll every 3s for new messages
     pollRef.current = setInterval(fetchMessages, 3000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [channelId]);
+    return () => {
+      clearTimeout(initialFetch);
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [channelId, fetchMessages]);
 
   const sendMessage = async (body: string) => {
     if (!user || !body.trim()) return;

@@ -1,15 +1,20 @@
 import { Hono } from 'hono';
-import { eq, asc, and, ne, inArray, notInArray } from 'drizzle-orm';
+import { eq, asc, and, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { messages, users, channelMembers, channels, pushTokens } from '../db/schema';
-import { requireSession } from '../middleware/session';
+import { messages, users, channelMembers, channels, pushTokens, userSettings } from '../db/schema';
+import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
+import { getChannelAccess } from '../lib/channel-access';
+import { isStaff } from '../lib/access';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
 // GET /api/messages/:channelId
-app.get('/:channelId', requireSession, async (c) => {
+app.get('/:channelId', requireApproved, async (c) => {
   const channelId = c.req.param('channelId');
+  const access = await getChannelAccess(channelId, c.get('user').id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
 
   const rows = await db
     .select({
@@ -32,12 +37,18 @@ app.get('/:channelId', requireSession, async (c) => {
 });
 
 // POST /api/messages/:channelId
-app.post('/:channelId', requireSession, async (c) => {
+app.post('/:channelId', requireApproved, async (c) => {
   const user = c.get('user');
   const channelId = c.req.param('channelId');
   const { body } = await c.req.json<{ body: string }>();
 
+  const access = await getChannelAccess(channelId, user.id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+  if (access.isLocked && !isStaff(user)) return c.json({ error: 'Salon verrouillé' }, 403);
+
   if (!body?.trim()) return c.json({ error: 'Message vide' }, 400);
+  if (body.trim().length > 4_000) return c.json({ error: 'Message trop long' }, 400);
 
   const [msg] = await db
     .insert(messages)
@@ -73,12 +84,24 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
     tokens = await db
       .select({ token: pushTokens.token })
       .from(pushTokens)
-      .where(inArray(pushTokens.userId, members.map((m) => m.userId)));
+      .innerJoin(users, eq(pushTokens.userId, users.id))
+      .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
+      .where(and(
+        inArray(pushTokens.userId, members.map((m) => m.userId)),
+        or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
+        or(isNull(userSettings.notifyMessages), eq(userSettings.notifyMessages, true)),
+      ));
   } else {
-    // Public: notify all users with a token
+    // Public: notify approved members and staff only
     tokens = await db
       .select({ token: pushTokens.token })
-      .from(pushTokens);
+      .from(pushTokens)
+      .innerJoin(users, eq(pushTokens.userId, users.id))
+      .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
+      .where(and(
+        or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
+        or(isNull(userSettings.notifyMessages), eq(userSettings.notifyMessages, true)),
+      ));
   }
 
   if (tokens.length === 0) {

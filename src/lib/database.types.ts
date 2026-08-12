@@ -28,29 +28,46 @@ export interface Channel {
   id: string;
   name: string;
   description: string | null;
-  is_private: boolean;
-  is_locked: boolean;
-  created_at: string;
+  isPrivate: boolean;
+  isLocked: boolean;
+  createdAt: string;
 }
 
 export interface Message {
   id: string;
-  channel_id: string;
-  user_id: string;
+  channelId: string;
+  userId: string;
   body: string;
-  created_at: string;
+  createdAt: string;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
 }
 
 export interface Announcement {
   id: string;
-  author_id: string;
+  authorId: string;
   tag: string | null;
   title: string;
   body: string;
   pinned: boolean;
-  created_at: string;
+  createdAt: string;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
+  isRead: boolean;
+  reactions: AnnouncementReaction[];
+}
+
+export interface AnnouncementReaction {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+}
+
+export interface AnnouncementReply {
+  id: string;
+  announcementId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  profiles: Pick<Profile, 'first_name' | 'last_name'>;
 }
 
 export interface CalendarEvent {

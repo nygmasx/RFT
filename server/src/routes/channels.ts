@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
 import { and, eq, exists, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { channels, channelMembers, messages, users } from '../db/schema';
-import { requireSession } from '../middleware/session';
+import { channels, channelMembers, users } from '../db/schema';
+import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
+import { getChannelAccess } from '../lib/channel-access';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
 // GET /api/channels — public + private where user is member
-app.get('/', requireSession, async (c) => {
+app.get('/', requireApproved, async (c) => {
   const user = c.get('user');
 
   const memberSubq = db
@@ -29,7 +30,7 @@ app.get('/', requireSession, async (c) => {
 });
 
 // POST /api/channels — create channel + add creator & members
-app.post('/', requireSession, async (c) => {
+app.post('/', requireApproved, async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
     name: string;
@@ -59,14 +60,23 @@ app.post('/', requireSession, async (c) => {
 });
 
 // GET /api/channels/:id/members
-app.get('/:id/members', requireSession, async (c) => {
+app.get('/:id/members', requireApproved, async (c) => {
   const channelId = c.req.param('id');
+  const access = await getChannelAccess(channelId, c.get('user').id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
   const rows = await db
-    .select({ user: users })
+    .select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      avatarUrl: users.avatarUrl,
+      role: users.role,
+    })
     .from(channelMembers)
     .innerJoin(users, eq(channelMembers.userId, users.id))
     .where(eq(channelMembers.channelId, channelId));
-  return c.json(rows.map((r) => r.user));
+  return c.json(rows);
 });
 
 export { app as channelsRouter };

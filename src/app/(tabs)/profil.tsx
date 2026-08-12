@@ -100,7 +100,6 @@ export default function ProfilScreen() {
   const memberId = profile?.memberId ? `#${profile.memberId}` : '—';
 
   const beltColor = belt?.color ?? 'blanche';
-  const beltStripes = belt?.stripes ?? 0;
   const beltColorLabel = beltColor.toUpperCase();
   const beltPromoBy = belt?.promotedBy ?? '—';
   const beltPromoDate = belt?.promotedDate ?? '—';
@@ -254,7 +253,7 @@ export default function ProfilScreen() {
               </View>
               {r.compType && (
                 <View style={styles.tag}>
-                  <Text style={styles.tagText}>{r.comp_type}</Text>
+                  <Text style={styles.tagText}>{r.compType}</Text>
                 </View>
               )}
               <Text style={styles.chevron}>›</Text>

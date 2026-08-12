@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
-import { eq, gte, asc, and } from 'drizzle-orm';
+import { eq, gte, asc, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { carpools, carpoolPassengers, competitions, users } from '../db/schema';
-import { requireSession } from '../middleware/session';
+import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
+import { notifyMembers } from './push';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
 // GET /api/carpools — upcoming carpools
-app.get('/', requireSession, async (c) => {
+app.get('/', requireApproved, async (c) => {
   const user = c.get('user');
   const now = new Date();
 
@@ -47,11 +48,28 @@ app.get('/', requireSession, async (c) => {
 
   const myPassengerCarpoolIds = myPassengerRows.map((r) => r.carpoolId);
 
-  return c.json({ carpools: rows, myPassengerCarpoolIds, currentUserId: user.id });
+  return c.json({
+    carpools: rows.map((row) => ({
+      id: row.id,
+      driver_id: row.driverId,
+      competition_id: row.competitionId,
+      departure_city: row.departureCity,
+      departure_at: row.departureAt,
+      seats_total: row.seatsTotal,
+      seats_taken: row.seatsTaken,
+      cost_per_seat: Number(row.costPerSeat ?? 0),
+      notes: row.notes,
+      created_at: row.createdAt,
+      profiles: row.profiles,
+      competitions: row.competitions,
+    })),
+    myPassengerCarpoolIds,
+    currentUserId: user.id,
+  });
 });
 
 // POST /api/carpools — create carpool
-app.post('/', requireSession, async (c) => {
+app.post('/', requireApproved, async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
     competition_id?: string;
@@ -62,13 +80,26 @@ app.post('/', requireSession, async (c) => {
     notes?: string;
   }>();
 
+  const departureCity = body.departure_city?.trim();
+  const departureAt = new Date(body.departure_at);
+  if (!departureCity) return c.json({ error: 'Ville de départ obligatoire' }, 400);
+  if (Number.isNaN(departureAt.getTime()) || departureAt <= new Date()) {
+    return c.json({ error: 'Date de départ invalide' }, 400);
+  }
+  if (!Number.isInteger(body.seats_total) || body.seats_total < 1 || body.seats_total > 8) {
+    return c.json({ error: 'Le nombre de places doit être compris entre 1 et 8' }, 400);
+  }
+  if ((body.cost_per_seat ?? 0) < 0 || (body.cost_per_seat ?? 0) > 500) {
+    return c.json({ error: 'Participation invalide' }, 400);
+  }
+
   const [row] = await db
     .insert(carpools)
     .values({
       driverId:      user.id,
       competitionId: body.competition_id ?? null,
-      departureCity: body.departure_city,
-      departureAt:   new Date(body.departure_at),
+      departureCity,
+      departureAt,
       seatsTotal:    body.seats_total,
       seatsTaken:    0,
       costPerSeat:   String(body.cost_per_seat ?? 0),
@@ -76,28 +107,91 @@ app.post('/', requireSession, async (c) => {
     })
     .returning();
 
-  return c.json(row, 201);
+  void notifyMembers(
+    'notifyCarpools',
+    '🚗 Nouveau covoiturage',
+    `Départ de ${row.departureCity} · ${row.departureAt.toLocaleString('fr-FR')}`,
+  );
+
+  return c.json({
+    id: row.id,
+    driver_id: row.driverId,
+    competition_id: row.competitionId,
+    departure_city: row.departureCity,
+    departure_at: row.departureAt,
+    seats_total: row.seatsTotal,
+    seats_taken: row.seatsTaken,
+    cost_per_seat: Number(row.costPerSeat ?? 0),
+    notes: row.notes,
+    created_at: row.createdAt,
+  }, 201);
 });
 
 // POST /api/carpools/:id/join
-app.post('/:id/join', requireSession, async (c) => {
+app.post('/:id/join', requireApproved, async (c) => {
   const user = c.get('user');
   const carpoolId = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
 
-  const [carpool] = await db.select().from(carpools).where(eq(carpools.id, carpoolId));
-  if (!carpool) return c.json({ error: 'Introuvable' }, 404);
-  if (carpool.seatsTaken >= carpool.seatsTotal) return c.json({ error: 'Complet' }, 400);
+  const result = await db.execute(sql`
+    WITH reserved AS (
+      UPDATE carpools
+      SET seats_taken = seats_taken + 1
+      WHERE id = ${carpoolId}
+        AND driver_id <> ${user.id}
+        AND seats_taken < seats_total
+        AND NOT EXISTS (
+          SELECT 1 FROM carpool_passengers
+          WHERE carpool_id = ${carpoolId} AND user_id = ${user.id}
+        )
+      RETURNING id
+    ), joined AS (
+      INSERT INTO carpool_passengers (carpool_id, user_id)
+      SELECT id, ${user.id} FROM reserved
+      ON CONFLICT DO NOTHING
+      RETURNING carpool_id
+    ), rollback_duplicate AS (
+      UPDATE carpools
+      SET seats_taken = GREATEST(0, seats_taken - 1)
+      WHERE id IN (SELECT id FROM reserved)
+        AND NOT EXISTS (SELECT 1 FROM joined)
+    )
+    SELECT
+      EXISTS (SELECT 1 FROM joined) AS joined,
+      EXISTS (SELECT 1 FROM carpool_passengers WHERE carpool_id = ${carpoolId} AND user_id = ${user.id}) AS already_joined,
+      EXISTS (SELECT 1 FROM carpools WHERE id = ${carpoolId}) AS exists,
+      EXISTS (SELECT 1 FROM carpools WHERE id = ${carpoolId} AND driver_id = ${user.id}) AS is_driver,
+      EXISTS (SELECT 1 FROM carpools WHERE id = ${carpoolId} AND seats_taken >= seats_total) AS is_full
+  `);
+  const state = result.rows[0] as {
+    joined: boolean; already_joined: boolean; exists: boolean; is_driver: boolean; is_full: boolean;
+  };
 
-  await db.insert(carpoolPassengers).values({ carpoolId, userId: user.id });
-  await db.update(carpools)
-    .set({ seatsTaken: carpool.seatsTaken + 1 })
-    .where(eq(carpools.id, carpoolId));
+  if (!state.exists) return c.json({ error: 'Introuvable' }, 404);
+  if (state.is_driver) return c.json({ error: 'Tu conduis déjà ce trajet' }, 409);
+  if (state.joined || state.already_joined) return c.json({ ok: true });
+  if (state.is_full) return c.json({ error: 'Complet' }, 409);
+  return c.json({ error: 'Réservation impossible' }, 409);
+});
 
+// DELETE /api/carpools/:id/join — leave a carpool atomically
+app.delete('/:id/join', requireApproved, async (c) => {
+  const user = c.get('user');
+  const carpoolId = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  await db.execute(sql`
+    WITH removed AS (
+      DELETE FROM carpool_passengers
+      WHERE carpool_id = ${carpoolId} AND user_id = ${user.id}
+      RETURNING carpool_id
+    )
+    UPDATE carpools
+    SET seats_taken = GREATEST(0, seats_taken - 1)
+    WHERE id IN (SELECT carpool_id FROM removed)
+  `);
   return c.json({ ok: true });
 });
 
 // GET /api/carpools/mine — carpools as driver or passenger
-app.get('/mine', requireSession, async (c) => {
+app.get('/mine', requireApproved, async (c) => {
   const user = c.get('user');
 
   const driverRows = await db

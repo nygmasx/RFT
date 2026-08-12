@@ -2,12 +2,13 @@ import { Hono } from 'hono';
 import { asc, gte, eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { calendarEvents } from '../db/schema';
-import { requireSession, requireCoach } from '../middleware/session';
+import { requireApproved, requireCoach } from '../middleware/session';
 import type { AuthUser } from '../auth';
+import { notifyMembers } from './push';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
-app.get('/', requireSession, async (c) => {
+app.get('/', requireApproved, async (c) => {
   const today = new Date().toISOString().split('T')[0];
   const rows = await db
     .select()
@@ -33,6 +34,12 @@ app.post('/', requireCoach, async (c) => {
     eventTime: body.event_time ?? null,
     place:     body.place ?? null,
   }).returning();
+
+  void notifyMembers(
+    'notifyCompetitions',
+    `📅 ${row.title}`,
+    `${row.eventDate}${row.eventTime ? ` · ${row.eventTime}` : ''}${row.place ? ` · ${row.place}` : ''}`,
+  );
 
   return c.json(row, 201);
 });

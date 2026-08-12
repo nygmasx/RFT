@@ -16,7 +16,7 @@ export interface Announcement {
   author: string;
   date: string;
   body: string;
-  reactions: Array<{ emoji: string; count: number }>;
+  reactions: { emoji: string; count: number }[];
   replies: number;
 }
 

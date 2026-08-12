@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { BeltRecord, PalmaresEntry } from '@/lib/database.types';
@@ -43,9 +44,11 @@ export function useProfile() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user]);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useFocusEffect(useCallback(() => {
+    void refetch();
+  }, [refetch]));
 
   const updateProfile = async (updates: Partial<Profile>) => {
     const updated = await api.put<Profile>('/api/profile', updates);

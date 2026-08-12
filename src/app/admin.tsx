@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Modal, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 type Tab = 'pending' | 'members' | 'calendar';
 type EventType = 'cours' | 'stage' | 'compet';
@@ -108,7 +109,9 @@ export default function AdminScreen() {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useFocusEffect(useCallback(() => {
+    void fetchData();
+  }, [fetchData]));
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
@@ -187,7 +190,7 @@ export default function AdminScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.back}>
+          <Pressable onPress={() => safeBack('/(tabs)/profil')} style={styles.back}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>

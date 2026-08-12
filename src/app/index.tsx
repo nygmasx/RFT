@@ -55,7 +55,7 @@ export default function WelcomeScreen() {
               <Text style={styles.h1Accent}>UN SEUL TATAMI.</Text>
             </Text>
             <Text style={styles.sub}>
-              L'app du club. Annonces, compétitions, covoiturages. Sans WhatsApp, sans bruit.
+              L’app du club. Annonces, compétitions, covoiturages. Sans WhatsApp, sans bruit.
             </Text>
           </View>
 
@@ -72,7 +72,7 @@ export default function WelcomeScreen() {
               style={({ pressed }) => [styles.btnSecondary, pressed && { opacity: 0.7 }]}
               onPress={() => router.replace('/(tabs)/accueil')}
             >
-              <Text style={styles.btnSecondaryText}>J'AI UN CODE CLUB</Text>
+              <Text style={styles.btnSecondaryText}>J’AI UN CODE CLUB</Text>
             </Pressable>
 
             <Text style={styles.footer}>BJJ · LUTTE · MMA — MONTATAIRE · OISE</Text>

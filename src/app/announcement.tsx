@@ -1,19 +1,27 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
+import { AnnouncementReaction, AnnouncementReply } from '@/lib/database.types';
+import { safeBack } from '@/lib/navigation';
 
-const DEFAULT_REACTIONS = [
-  { emoji: '✊', count: 0 },
-  { emoji: '🔥', count: 0 },
-  { emoji: '👍', count: 0 },
-];
+interface AnnouncementDetail {
+  id: string;
+  title: string;
+  body: string;
+  tag: string | null;
+  pinned: boolean;
+  createdAt: string;
+  profiles: { first_name: string; last_name: string };
+  reactions: AnnouncementReaction[];
+  replies: AnnouncementReply[];
+}
 
 export default function AnnouncementScreen() {
   const { theme: t } = useTheme();
@@ -21,30 +29,67 @@ export default function AnnouncementScreen() {
 
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  interface AnnouncementDetail {
-    id: string; title: string; body: string;
-    tag: string | null; pinned: boolean; createdAt: string;
-    profiles: { first_name: string; last_name: string };
-  }
-
   const [announcement, setAnnouncement] = useState<AnnouncementDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reactedIndices, setReactedIndices] = useState<Set<number>>(new Set());
+  const [reactionBusy, setReactionBusy] = useState<string | null>(null);
   const [reply, setReply] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
     api.get<AnnouncementDetail>(`/api/announcements/${id}`)
-      .then((data) => { setAnnouncement(data); setLoading(false); })
+      .then((data) => {
+        setAnnouncement(data);
+        setLoading(false);
+        void api.put(`/api/announcements/${id}/read`, {}).catch(() => {});
+      })
       .catch(() => setLoading(false));
   }, [id]);
 
-  const toggleReaction = (i: number) => {
-    setReactedIndices((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
+  const toggleReaction = async (emoji: string) => {
+    if (!announcement || reactionBusy) return;
+    setReactionBusy(emoji);
+    setError('');
+    try {
+      const result = await api.put<{ reactions: AnnouncementReaction[] }>(
+        `/api/announcements/${announcement.id}/reaction`,
+        { emoji },
+      );
+      setAnnouncement((current) => current ? { ...current, reactions: result.reactions } : current);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setReactionBusy(null);
+    }
+  };
+
+  const sendReply = async () => {
+    const body = reply.trim();
+    if (!announcement || !body || sendingReply) return;
+    setSendingReply(true);
+    setError('');
+    try {
+      const created = await api.post<AnnouncementReply>(
+        `/api/announcements/${announcement.id}/replies`,
+        { body },
+      );
+      setAnnouncement((current) => current
+        ? { ...current, replies: [...(current.replies ?? []), created] }
+        : current);
+      setReply('');
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  const shareAnnouncement = async () => {
+    if (!announcement) return;
+    await Share.share({
+      title: announcement.title,
+      message: `${announcement.title}\n\n${announcement.body}`,
     });
   };
 
@@ -83,11 +128,11 @@ export default function AnnouncementScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/accueil')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.headerLabel}>ANNONCE</Text>
-          <Pressable style={styles.shareBtn}>
+          <Pressable style={styles.shareBtn} onPress={shareAnnouncement}>
             <Text style={styles.shareIcon}>↗</Text>
           </Pressable>
         </View>
@@ -134,21 +179,40 @@ export default function AnnouncementScreen() {
         {/* Body */}
         <Text style={styles.body}>{announcement.body}</Text>
 
-        {/* Reactions (local state) */}
+        {/* Reactions persistées */}
         <View style={styles.reactionBar}>
-          {DEFAULT_REACTIONS.map((r, i) => (
+          {(announcement.reactions ?? []).map((r) => (
             <Pressable
-              key={i}
-              style={[styles.reactionBtn, reactedIndices.has(i) && styles.reactionBtnActive]}
-              onPress={() => toggleReaction(i)}
+              key={r.emoji}
+              style={[styles.reactionBtn, r.reacted && styles.reactionBtnActive]}
+              onPress={() => toggleReaction(r.emoji)}
+              disabled={reactionBusy !== null}
             >
               <Text style={styles.reactionEmoji}>{r.emoji}</Text>
-              <Text style={[styles.reactionCount, reactedIndices.has(i) && { color: t.crimson }]}>
-                {r.count + (reactedIndices.has(i) ? 1 : 0)}
+              <Text style={[styles.reactionCount, r.reacted && { color: t.crimson }]}>
+                {r.count}
               </Text>
             </Pressable>
           ))}
         </View>
+
+        <Text style={styles.repliesLabel}>RÉPONSES — {announcement.replies?.length ?? 0}</Text>
+        {(announcement.replies ?? []).map((item) => {
+          const name = `${item.profiles.first_name} ${item.profiles.last_name}`.trim();
+          return (
+            <View key={item.id} style={styles.replyCard}>
+              <View style={styles.replyHeader}>
+                <Text style={styles.replyAuthor}>{name}</Text>
+                <Text style={styles.replyDate}>
+                  {new Date(item.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                </Text>
+              </View>
+              <Text style={styles.replyBody}>{item.body}</Text>
+            </View>
+          );
+        })}
+
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -164,10 +228,13 @@ export default function AnnouncementScreen() {
           multiline
         />
         <Pressable
-          style={[styles.sendBtn, !reply.trim() && styles.sendBtnDisabled]}
-          onPress={() => setReply('')}
+          style={[styles.sendBtn, (!reply.trim() || sendingReply) && styles.sendBtnDisabled]}
+          onPress={sendReply}
+          disabled={!reply.trim() || sendingReply}
         >
-          <Text style={styles.sendIcon}>➤</Text>
+          {sendingReply
+            ? <ActivityIndicator color={t.bone} size="small" />
+            : <Text style={styles.sendIcon}>➤</Text>}
         </Pressable>
       </SafeAreaView>
     </View>
@@ -247,6 +314,18 @@ function makeStyles(t: Theme) {
     },
     reactionEmoji: { fontSize: 16 },
     reactionCount: { fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, fontWeight: '600' },
+    repliesLabel: {
+      fontFamily: FONTS.mono, fontSize: 10, color: t.textMute,
+      letterSpacing: 1.5, marginBottom: 10,
+    },
+    replyCard: {
+      paddingVertical: 12, borderTopWidth: 1, borderTopColor: t.hairline, gap: 5,
+    },
+    replyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    replyAuthor: { fontFamily: FONTS.body, fontSize: 12.5, color: t.bone, fontWeight: '700' },
+    replyDate: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute },
+    replyBody: { fontFamily: FONTS.body, fontSize: 13, color: t.text, lineHeight: 19 },
+    errorText: { fontFamily: FONTS.body, fontSize: 12, color: t.crimson, marginTop: 8 },
     composer: {
       flexDirection: 'row', alignItems: 'flex-end', gap: 10,
       paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,

@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -12,6 +12,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 type BeltColor = 'blanche' | 'bleue' | 'violette' | 'marron' | 'noire';
 
@@ -92,7 +93,7 @@ export default function EditBeltScreen() {
         promoted_date:  promotedDate ? `${promotedDate.getFullYear()}-${pad(promotedDate.getMonth() + 1)}-${pad(promotedDate.getDate())}` : null,
       });
       setSuccess(true);
-      setTimeout(() => router.back(), 800);
+      setTimeout(() => safeBack('/admin'), 800);
     } catch (e: any) {
       setError(e.message);
     }
@@ -103,7 +104,7 @@ export default function EditBeltScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => safeBack('/admin')}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>GRADE BJJ{memberName ? ` — ${memberName.toUpperCase()}` : ''}</Text>

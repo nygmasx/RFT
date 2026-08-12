@@ -8,8 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { Competition } from '@/lib/database.types';
+import { Carpool, Competition } from '@/lib/database.types';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 function Tag({ text, filled, color, t }: { text: string; filled?: boolean; color?: string; t: Theme }) {
   const c = color ?? t.crimson;
@@ -57,18 +58,18 @@ export default function CompetitionDetailScreen() {
       .then((data) => { setCompetition(data ?? null); setLoadingComp(false); })
       .catch(() => setLoadingComp(false));
 
-    api.get<{ carpools: any[] }>('/api/carpools')
+    api.get<{ carpools: Carpool[] }>('/api/carpools')
       .then(({ carpools }) => {
         setCarpools(
           (carpools ?? [])
-            .filter((c: any) => c.competitionId === id)
-            .map((c: any) => ({
+            .filter((c) => c.competition_id === id)
+            .map((c) => ({
               id:             c.id,
-              departure_city: c.departureCity,
-              departure_at:   c.departureAt,
-              seats_taken:    c.seatsTaken,
-              seats_total:    c.seatsTotal,
-              cost_per_seat:  Number(c.costPerSeat ?? 0),
+              departure_city: c.departure_city,
+              departure_at:   c.departure_at,
+              seats_taken:    c.seats_taken,
+              seats_total:    c.seats_total,
+              cost_per_seat:  c.cost_per_seat,
               driverName:     c.profiles ? `${c.profiles.first_name} ${c.profiles.last_name}` : 'Inconnu',
             }))
         );
@@ -76,9 +77,9 @@ export default function CompetitionDetailScreen() {
       .catch(() => {});
 
     // Check if already registered
-    api.get<{ registrations: Array<{ id: string; competitionId: string }> }>('/api/competitions')
+    api.get<{ registrations: { id: string; competition_id: string }[] }>('/api/competitions')
       .then(({ registrations }) => {
-        const reg = registrations.find((r) => r.competitionId === id);
+        const reg = registrations.find((r) => r.competition_id === id);
         setRegistrationId(reg?.id ?? null);
       })
       .catch(() => {});
@@ -137,7 +138,7 @@ export default function CompetitionDetailScreen() {
         <View style={styles.heroBg} />
         <View style={styles.heroOverlay} />
         <SafeAreaView edges={['top']} style={styles.heroNav}>
-          <Pressable onPress={() => router.back()} style={styles.heroBackBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/competitions')} style={styles.heroBackBtn}>
             <Text style={styles.heroBackIcon}>‹</Text>
           </Pressable>
           <View style={styles.heroActions}>

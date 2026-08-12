@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useProfile } from '@/hooks/useProfile';
+import { safeBack } from '@/lib/navigation';
 
 const MEDAL_COLORS: Record<number, string> = {
   1: '#D4A436', 2: '#BFC4C7', 3: '#C07A3A',
@@ -33,7 +34,7 @@ export default function MonActiviteScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => safeBack('/(tabs)/profil')}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>MON ACTIVITÉ</Text>
@@ -94,19 +95,19 @@ export default function MonActiviteScreen() {
 
                     {/* Info */}
                     <View style={styles.rowInfo}>
-                      <Text style={styles.compName}>{r.competition_name}</Text>
+                      <Text style={styles.compName}>{r.competitionName}</Text>
                       <View style={styles.rowMeta}>
-                        <Text style={styles.metaText}>{r.comp_date}</Text>
-                        {r.weight_class && (
-                          <Text style={styles.metaText}>· {r.weight_class}</Text>
+                        <Text style={styles.metaText}>{r.compDate}</Text>
+                        {r.weightClass && (
+                          <Text style={styles.metaText}>· {r.weightClass}</Text>
                         )}
                       </View>
                     </View>
 
                     {/* Type tag */}
-                    {r.comp_type && (
+                    {r.compType && (
                       <View style={styles.tag}>
-                        <Text style={styles.tagText}>{r.comp_type}</Text>
+                        <Text style={styles.tagText}>{r.compType}</Text>
                       </View>
                     )}
                   </View>

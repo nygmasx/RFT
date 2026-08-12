@@ -69,7 +69,7 @@ export default function PendingScreen() {
           >
             {checking
               ? <ActivityIndicator color="#FFFFFF" size="small" />
-              : <Text style={s.btnCheckText}>VÉRIFIER L'ÉTAT →</Text>
+              : <Text style={s.btnCheckText}>VÉRIFIER L’ÉTAT →</Text>
             }
           </Pressable>
 

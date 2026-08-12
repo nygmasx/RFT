@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.6.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        run: npm ci --prefix server
+
+      - name: Typecheck, lint and test
+        run: npm run check
+
+      - name: Verify Expo SDK 56 dependencies
+        run: npx expo install --check
+
+      - name: Build the web application
+        run: npx expo export --platform web --output-dir dist

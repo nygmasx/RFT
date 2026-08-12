@@ -1,18 +1,18 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform,
   Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/context/ThemeContext';
+import { safeBack } from '@/lib/navigation';
 
 export default function VerifyScreen() {
   const { theme: t } = useTheme();
   const { email } = useLocalSearchParams<{ email: string }>();
   const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef<TextInput>(null);
 
@@ -34,7 +34,7 @@ export default function VerifyScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={s.top}>
-            <Pressable onPress={() => router.back()} style={s.back}>
+            <Pressable onPress={() => safeBack('/(auth)/login')} style={s.back}>
               <Text style={s.backIcon}>‹</Text>
             </Pressable>
           </View>
@@ -67,14 +67,11 @@ export default function VerifyScreen() {
             )}
 
             <Pressable
-              style={[s.btn, (loading || code.length !== 6) && { opacity: 0.5 }]}
+              style={[s.btn, code.length !== 6 && { opacity: 0.5 }]}
               onPress={handleVerify}
-              disabled={loading || code.length !== 6}
+              disabled={code.length !== 6}
             >
-              {loading
-                ? <ActivityIndicator color="#FFFFFF" />
-                : <Text style={s.btnText}>CONFIRMER →</Text>
-              }
+              <Text style={s.btnText}>CONFIRMER →</Text>
             </Pressable>
 
             <Pressable onPress={handleResend} style={s.resendBtn}>

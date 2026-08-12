@@ -1,4 +1,3 @@
-import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 import { api } from '@/lib/api';
@@ -36,18 +35,13 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const router   = useRouter();
-  const segments = useSegments();
-
   const fetchUser = async (): Promise<UserProfile | null> => {
     const { data } = await authClient.getSession();
-    console.log('[Auth] session user:', JSON.stringify(data?.user));
     if (!data?.user) return null;
     const profile = await api.get<UserProfile>('/api/profile').catch((e) => {
-      console.log('[Auth] profile fetch error:', e.message);
+      console.warn('[Auth] Impossible de charger le profil :', e.message);
       return data.user as UserProfile;
     });
-    console.log('[Auth] profile from DB:', JSON.stringify(profile));
     return profile;
   };
 
@@ -58,29 +52,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Redirect logic
-  useEffect(() => {
-    if (loading) return;
-    const inAuth = segments[0] === '(auth)';
-    const current = segments[1];
-
-    if (!user) {
-      if (!inAuth || current === 'pending') router.replace('/(auth)/login');
-      return;
-    }
-
-    const isCoach = user.role === 'coach' || user.role === 'admin';
-
-    if (!isCoach && (user.status === 'pending')) {
-      if (current !== 'pending') router.replace('/(auth)/pending');
-      return;
-    }
-
-    if ((isCoach || user.status === 'approved') && inAuth) {
-      router.replace('/(tabs)/accueil');
-    }
-  }, [user, loading, segments]);
-
   const refreshProfileStatus = async () => {
     const u = await fetchUser();
     setUser(u);
@@ -89,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await authClient.signOut();
     setUser(null);
-    router.replace('/(auth)/login');
   };
 
   const profileStatus = user?.status ?? null;

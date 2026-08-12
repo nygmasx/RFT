@@ -1,5 +1,4 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
@@ -13,6 +12,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { authClient } from '@/lib/auth-client';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 const CATEGORIES = ['Adultes', 'Ados 13-17', 'Enfants 6-12'];
 
@@ -108,7 +108,7 @@ export default function RegisterScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={s.header}>
-              <Pressable onPress={() => router.back()} style={s.back}>
+              <Pressable onPress={() => safeBack('/(auth)/login')} style={s.back}>
                 <Text style={s.backIcon}>‹</Text>
               </Pressable>
               <Text style={s.title}>INSCRIPTION</Text>

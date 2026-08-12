@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useMyCarpool } from '@/hooks/useMyCarpool';
+import { safeBack } from '@/lib/navigation';
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -31,7 +32,7 @@ export default function MesCovoituragesScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => safeBack('/(tabs)/covoiturage')}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>MES COVOITURAGES</Text>

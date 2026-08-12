@@ -13,6 +13,7 @@ import { profileRouter } from './routes/profile';
 import { beltRouter } from './routes/belt';
 import { palmaresRouter } from './routes/palmares';
 import { pushRouter } from './routes/push';
+import { settingsRouter } from './routes/settings';
 
 const app = new Hono();
 
@@ -37,6 +38,7 @@ app.route('/api/profile',       profileRouter);
 app.route('/api/belt',          beltRouter);
 app.route('/api/palmares',      palmaresRouter);
 app.route('/api/push-tokens',   pushRouter);
+app.route('/api/settings',      settingsRouter);
 
 app.get('/health', (c) => c.json({ ok: true }));
 

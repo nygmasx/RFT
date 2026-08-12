@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -12,14 +11,13 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 
 type CompType = 'GI' | 'NO-GI' | 'GRAPPLING';
-type AgeCategory = 'Senior' | 'Master 1' | 'Junior';
 type Place = 1 | 2 | 3 | 4 | null;
 
 const WEIGHT_OPTIONS = ['-64', '-70', '-77', '-85', '-94', 'ABS.'];
 const TYPE_OPTIONS: CompType[] = ['GI', 'NO-GI', 'GRAPPLING'];
-const AGE_OPTIONS: AgeCategory[] = ['Senior', 'Master 1', 'Junior'];
 
 export default function AddResultScreen() {
   const { theme: t } = useTheme();
@@ -59,7 +57,7 @@ export default function AddResultScreen() {
         place,
         notes:            notes.trim() || null,
       });
-      router.back();
+      safeBack('/palmares');
     } catch (e: any) {
       alert(e.message);
     }
@@ -72,7 +70,7 @@ export default function AddResultScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => safeBack('/palmares')}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.title}>AJOUTER UN RÉSULTAT</Text>

@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -12,6 +11,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
+import { safeBack } from '@/lib/navigation';
 import { CalendarEvent } from '@/lib/database.types';
 import { api } from '@/lib/api';
 
@@ -137,7 +137,7 @@ export default function CalendarScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => safeBack('/(tabs)/accueil')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
           <Text style={styles.headerLabel}>CALENDRIER</Text>
