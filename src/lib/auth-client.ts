@@ -1,7 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 export const TOKEN_KEY = 'ba_token';
+
+export function authRedirect(path: 'verify' | 'reset-password') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') return `${window.location.origin}/${path}`;
+  return `rft://${path}`;
+}
 
 export type AuthUser = {
   id: string;
@@ -71,6 +77,7 @@ export const authClient = {
       email: string; password: string; name: string;
       firstName: string; lastName: string; phone?: string;
       category?: string; status?: string; role?: string;
+      callbackURL?: string;
     }): Promise<AuthResult<AuthSession>> {
       try {
         const res = await authFetch('/api/auth/sign-up/email', {
@@ -99,7 +106,13 @@ export const authClient = {
   },
 
   async signOut(): Promise<void> {
-    try { await authFetch('/api/auth/sign-out', { method: 'POST' }); } catch {}
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    try {
+      if (token) await authFetch('/api/auth/revoke-session', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      });
+    } catch {}
     await AsyncStorage.removeItem(TOKEN_KEY);
   },
 
@@ -116,6 +129,42 @@ export const authClient = {
       const result = await parseAuthResponse<{ status: boolean }>(res, 'Changement de mot de passe impossible');
       if (!result.error) await storeToken(result.data);
       return result;
+    } catch (e: any) {
+      return { data: null, error: { message: e.message } };
+    }
+  },
+
+  async requestPasswordReset(email: string): Promise<AuthResult<{ status: boolean }>> {
+    try {
+      const res = await authFetch('/api/auth/request-password-reset', {
+        method: 'POST',
+        body: JSON.stringify({ email, redirectTo: authRedirect('reset-password') }),
+      });
+      return parseAuthResponse<{ status: boolean }>(res, 'Demande impossible');
+    } catch (e: any) {
+      return { data: null, error: { message: e.message } };
+    }
+  },
+
+  async resetPassword(newPassword: string, token: string): Promise<AuthResult<{ status: boolean }>> {
+    try {
+      const res = await authFetch('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ newPassword, token }),
+      });
+      return parseAuthResponse<{ status: boolean }>(res, 'Réinitialisation impossible');
+    } catch (e: any) {
+      return { data: null, error: { message: e.message } };
+    }
+  },
+
+  async sendVerificationEmail(email: string): Promise<AuthResult<{ status: boolean }>> {
+    try {
+      const res = await authFetch('/api/auth/send-verification-email', {
+        method: 'POST',
+        body: JSON.stringify({ email, callbackURL: authRedirect('verify') }),
+      });
+      return parseAuthResponse<{ status: boolean }>(res, 'Envoi impossible');
     } catch (e: any) {
       return { data: null, error: { message: e.message } };
     }

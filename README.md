@@ -9,8 +9,10 @@ Le produit est actuellement en phase bêta. Le backend de production est héberg
 - Application : Expo SDK 56, React Native 0.85, Expo Router et TypeScript.
 - API : Hono sous Node.js.
 - Authentification : Better Auth avec jetons Bearer.
-- Base de données : Neon PostgreSQL avec Drizzle ORM.
-- Notifications : Expo Push API.
+- Base de données : Neon PostgreSQL avec Drizzle ORM et `postgres-js`.
+- Notifications : centre persistant et Expo Push API.
+- Médias : stockage objet S3-compatible pour les avatars.
+- Emails : fournisseur transactionnel Resend pour vérification et récupération.
 - Déploiements : EAS pour l’application, Fly.io pour l’API.
 
 La référence à utiliser pour toute évolution Expo est la [documentation exacte de SDK 56](https://docs.expo.dev/versions/v56.0.0/).
@@ -52,14 +54,20 @@ npx expo install --check
 npx expo export --platform web
 ```
 
-Les tests backend utilisent le runner natif de Node via `tsx --test`.
+Les tests backend utilisent le runner natif de Node via `tsx --test`. Les tests d’intégration exigent exclusivement une base locale nommée `rft_test` :
 
-## Migration fonctionnelle 2026-08-12
+```bash
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rft_test \
+  npm --prefix server run test:integration
+```
+
+## Migrations 2026-08-12
 
 Les réactions et réponses aux annonces, les états lu/non-lu, les préférences et les contraintes d’idempotence nécessitent la migration suivante :
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_functional_completeness.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_production_readiness.sql
 ```
 
 Avant toute exécution en production : effectuer une sauvegarde Neon, vérifier la cible de `DATABASE_URL`, puis relire le plan de migration. La migration supprime uniquement les doublons de réservations et de jetons push avant de créer leurs index uniques.
@@ -77,11 +85,11 @@ server/src/middleware/   contrôles de session et de rôle
 server/test/             tests backend
 ```
 
-## Éléments restant avant une sortie publique
+## Configuration de production restante
 
-- Ajouter des tests d’intégration API avec une base isolée.
-- Choisir et configurer un fournisseur d’envoi d’emails avant d’activer la vérification d’adresse et la récupération de mot de passe.
-- Vérifier les builds EAS signés iOS/Android avec les comptes de distribution du club.
+- Ajouter `RESEND_API_KEY` et `EMAIL_FROM` aux secrets Fly.io pour livrer réellement les emails.
+- Ajouter les variables `S3_*` aux secrets Fly.io, puis exécuter `npm run migrate:avatars --prefix server` pour sortir les avatars historiques de PostgreSQL.
+- Faire valider les mentions légales et la politique de confidentialité par le responsable du club ou son conseil.
 - Traiter les alertes `npm audit` restantes uniquement avec des mises à jour compatibles Expo 56 ; ne pas utiliser `npm audit fix --force`.
 
 Ne jamais exécuter `db:push` contre la production sans revue préalable du schéma et sauvegarde vérifiée.

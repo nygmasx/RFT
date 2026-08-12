@@ -6,6 +6,7 @@ import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { getChannelAccess } from '../lib/channel-access';
 import { isStaff } from '../lib/access';
+import { notifications } from '../db/schema';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -60,11 +61,70 @@ app.post('/:channelId', requireApproved, async (c) => {
     profiles: { first_name: user.firstName, last_name: user.lastName },
   };
 
+  void createChannelNotifications(channelId, user, body.trim(), msg.id);
+
   // Send push notification to channel members — fire and forget
   notifyChannelMembers(channelId, user, body.trim()).catch(() => {});
 
   return c.json(response, 201);
 });
+
+app.put('/item/:id', requireApproved, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const { body } = await c.req.json<{ body?: string }>();
+  const content = body?.trim() ?? '';
+  if (!content || content.length > 4_000) return c.json({ error: 'Message invalide' }, 400);
+  const [current] = await db.select().from(messages).where(eq(messages.id, id));
+  if (!current) return c.json({ error: 'Introuvable' }, 404);
+  const canEdit = current.userId === user.id && Date.now() - current.createdAt.getTime() <= 15 * 60_000;
+  if (!canEdit && !isStaff(user)) return c.json({ error: 'Accès refusé' }, 403);
+  const [row] = await db.update(messages).set({ body: content, updatedAt: new Date() })
+    .where(eq(messages.id, id)).returning();
+  return c.json(row);
+});
+
+app.delete('/item/:id', requireApproved, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const [current] = await db.select().from(messages).where(eq(messages.id, id));
+  if (!current) return c.json({ error: 'Introuvable' }, 404);
+  if (current.userId !== user.id && !isStaff(user)) return c.json({ error: 'Accès refusé' }, 403);
+  await db.delete(messages).where(eq(messages.id, id));
+  return c.json({ ok: true });
+});
+
+async function createChannelNotifications(channelId: string, sender: AuthUser, body: string, messageId: string) {
+  try {
+    const [channel] = await db.select().from(channels).where(eq(channels.id, channelId));
+    if (!channel) return;
+    let recipientIds: string[];
+    if (channel.isPrivate) {
+      const members = await db.select({ userId: channelMembers.userId }).from(channelMembers)
+        .where(eq(channelMembers.channelId, channelId));
+      recipientIds = members.map(({ userId }) => userId).filter((id) => id !== sender.id);
+    } else {
+      const members = await db.select({ userId: users.id }).from(users)
+        .leftJoin(userSettings, eq(users.id, userSettings.userId))
+        .where(and(
+          or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
+          or(isNull(userSettings.notifyMessages), eq(userSettings.notifyMessages, true)),
+        ));
+      recipientIds = members.map(({ userId }) => userId).filter((id) => id !== sender.id);
+    }
+    if (!recipientIds.length) return;
+    const senderName = `${sender.firstName} ${sender.lastName}`.trim() || sender.email;
+    await db.insert(notifications).values(recipientIds.map((userId) => ({
+      userId,
+      type: 'message',
+      title: `${senderName} · #${channel.name}`,
+      body: body.slice(0, 300),
+      data: JSON.stringify({ channelId, channelName: channel.name, messageId }),
+    })));
+  } catch (error) {
+    console.error('[Notifications] Failed to store channel notifications', error);
+  }
+}
 
 async function notifyChannelMembers(channelId: string, sender: AuthUser, messageBody: string) {
   const [channel] = await db

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { eq, gte, asc, and, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { competitions, registrations, calendarEvents } from '../db/schema';
+import { competitions, registrations, calendarEvents, competitionBookmarks } from '../db/schema';
 import { requireApproved, requireCoach } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { notifyMembers } from './push';
@@ -22,12 +22,17 @@ function competitionDto(comp: typeof competitions.$inferSelect) {
   };
 }
 
+app.get('/all', requireCoach, async (c) => {
+  const rows = await db.select().from(competitions).orderBy(asc(competitions.compDate));
+  return c.json(rows.map(competitionDto));
+});
+
 // GET /api/competitions — upcoming competitions + calendar compets
 app.get('/', requireApproved, async (c) => {
   const user = c.get('user');
   const today = new Date().toISOString().split('T')[0];
 
-  const [comps, calEvents, regs] = await Promise.all([
+  const [comps, calEvents, regs, bookmarks] = await Promise.all([
     db.select().from(competitions).where(gte(competitions.compDate, today)).orderBy(asc(competitions.compDate)),
     db.select().from(calendarEvents).where(and(eq(calendarEvents.type, 'compet'), gte(calendarEvents.eventDate, today))).orderBy(asc(calendarEvents.eventDate)),
     db.select({
@@ -40,7 +45,11 @@ app.get('/', requireApproved, async (c) => {
     })
       .from(registrations)
       .where(eq(registrations.userId, user.id)),
+    db.select({ competitionId: competitionBookmarks.competitionId })
+      .from(competitionBookmarks)
+      .where(eq(competitionBookmarks.userId, user.id)),
   ]);
+  const bookmarkedIds = new Set(bookmarks.map((row) => row.competitionId));
 
   // Map calendar events to competition shape, tagged as calendar source
   const calCompets = calEvents.map((e) => ({
@@ -57,7 +66,7 @@ app.get('/', requireApproved, async (c) => {
   }));
 
   const upcoming = [
-    ...comps.map((comp) => ({ ...competitionDto(comp), _fromCalendar: false })),
+    ...comps.map((comp) => ({ ...competitionDto(comp), bookmarked: bookmarkedIds.has(comp.id), _fromCalendar: false })),
     ...calCompets,
   ].sort((a, b) => a.comp_date.localeCompare(b.comp_date));
 
@@ -85,17 +94,26 @@ app.get('/', requireApproved, async (c) => {
 
 // GET /api/competitions/:id
 app.get('/:id', requireApproved, async (c) => {
+  const user = c.get('user');
   const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
-  const [comp] = await db.select().from(competitions).where(eq(competitions.id, id));
+  const [comp, bookmark] = await Promise.all([
+    db.select().from(competitions).where(eq(competitions.id, id)).then((rows) => rows[0]),
+    db.select({ competitionId: competitionBookmarks.competitionId }).from(competitionBookmarks)
+      .where(and(eq(competitionBookmarks.competitionId, id), eq(competitionBookmarks.userId, user.id)))
+      .then((rows) => rows[0]),
+  ]);
   if (!comp) return c.json({ error: 'Introuvable' }, 404);
-  return c.json(competitionDto(comp));
+  return c.json({ ...competitionDto(comp), bookmarked: Boolean(bookmark) });
 });
 
 // POST /api/competitions — coach only
 app.post('/', requireCoach, async (c) => {
   const body = await c.req.json();
+  if (!body.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.comp_date ?? '')) {
+    return c.json({ error: 'Nom et date valides obligatoires' }, 400);
+  }
   const [comp] = await db.insert(competitions).values({
-    name:                 body.name,
+    name:                 body.name.trim(),
     location:             body.location ?? null,
     compDate:             body.comp_date,
     category:             body.category ?? null,
@@ -103,8 +121,49 @@ app.post('/', requireCoach, async (c) => {
     registrationDeadline: body.registration_deadline ?? null,
     status:               body.status ?? 'open',
   }).returning();
-  void notifyMembers('notifyCompetitions', `🏆 ${comp.name}`, `${comp.compDate}${comp.location ? ` · ${comp.location}` : ''}`);
+  void notifyMembers('notifyCompetitions', `🏆 ${comp.name}`, `${comp.compDate}${comp.location ? ` · ${comp.location}` : ''}`, { competitionId: comp.id }, 'competition');
   return c.json(competitionDto(comp), 201);
+});
+
+app.put('/:id', requireCoach, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const body = await c.req.json();
+  if (!body.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.comp_date ?? '')) {
+    return c.json({ error: 'Nom et date valides obligatoires' }, 400);
+  }
+  const [comp] = await db.update(competitions).set({
+    name: body.name.trim(),
+    location: body.location?.trim() || null,
+    compDate: body.comp_date,
+    category: body.category?.trim() || null,
+    compType: body.comp_type ?? null,
+    registrationDeadline: body.registration_deadline || null,
+    status: body.status ?? 'open',
+  }).where(eq(competitions.id, id)).returning();
+  if (!comp) return c.json({ error: 'Introuvable' }, 404);
+  return c.json(competitionDto(comp));
+});
+
+app.delete('/:id', requireCoach, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const [row] = await db.delete(competitions).where(eq(competitions.id, id)).returning({ id: competitions.id });
+  if (!row) return c.json({ error: 'Introuvable' }, 404);
+  return c.json({ ok: true });
+});
+
+app.put('/:id/bookmark', requireApproved, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const userId = c.get('user').id;
+  const [existing] = await db.select().from(competitionBookmarks)
+    .where(and(eq(competitionBookmarks.competitionId, id), eq(competitionBookmarks.userId, userId)));
+  if (existing) {
+    await db.delete(competitionBookmarks).where(and(
+      eq(competitionBookmarks.competitionId, id), eq(competitionBookmarks.userId, userId),
+    ));
+    return c.json({ bookmarked: false });
+  }
+  await db.insert(competitionBookmarks).values({ competitionId: id, userId });
+  return c.json({ bookmarked: true });
 });
 
 // POST /api/competitions/:id/register

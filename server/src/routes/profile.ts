@@ -7,6 +7,7 @@ import type { AuthUser } from '../auth';
 import { notifyCoaches, notifyUser } from './push';
 import { parseProfileUpdate } from '../lib/profile-input';
 import { isStaff } from '../lib/access';
+import { objectStorageConfigured, uploadAvatar } from '../lib/object-storage';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -85,9 +86,11 @@ app.get('/:id/avatar', async (c) => {
     .from(users)
     .where(eq(users.id, c.req.param('id')));
 
-  if (!profile?.avatarUrl?.startsWith('data:')) {
+  if (!profile?.avatarUrl) {
     return c.body(null, 404);
   }
+  if (/^https:\/\//.test(profile.avatarUrl)) return c.redirect(profile.avatarUrl, 302);
+  if (!profile.avatarUrl.startsWith('data:')) return c.body(null, 404);
 
   const [header, base64] = profile.avatarUrl.split(',');
   const mimeMatch = header?.match(/data:([^;]+)/);
@@ -98,6 +101,20 @@ app.get('/:id/avatar', async (c) => {
     'Content-Type': mime,
     'Cache-Control': 'public, max-age=86400',
   });
+});
+
+app.put('/avatar', requireSession, async (c) => {
+  if (!objectStorageConfigured()) return c.json({ error: 'Stockage média non configuré' }, 503);
+  const { dataUrl } = await c.req.json<{ dataUrl?: string }>();
+  if (!dataUrl || dataUrl.length > 2_800_000) return c.json({ error: 'Avatar invalide ou trop volumineux' }, 400);
+  try {
+    const avatarUrl = await uploadAvatar(c.get('user').id, dataUrl);
+    await db.update(users).set({ avatarUrl, updatedAt: new Date() }).where(eq(users.id, c.get('user').id));
+    return c.json({ avatarUrl });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_AVATAR') return c.json({ error: 'Format d’avatar invalide' }, 400);
+    throw error;
+  }
 });
 
 // PUT /api/profile — update own profile

@@ -197,9 +197,9 @@ export default function AdminScreen() {
             <Text style={styles.title}>ADMIN COACH</Text>
             <Text style={styles.subtitle}>Gestion des membres & événements</Text>
           </View>
-          <View style={styles.coachBadge}>
-            <Text style={styles.coachBadgeText}>COACH</Text>
-          </View>
+          <Pressable style={styles.coachBadge} onPress={() => router.push('/admin-content' as never)}>
+            <Text style={styles.coachBadgeText}>CONTENU →</Text>
+          </Pressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>

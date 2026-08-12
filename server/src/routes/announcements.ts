@@ -235,9 +235,33 @@ app.post('/', requireCoach, async (c) => {
     pinned: body.pinned ?? false,
   }).returning();
 
-  void notifyMembers('notifyCoach', `📣 ${title}`, content.slice(0, 180), { announcementId: row.id });
+  void notifyMembers('notifyCoach', `📣 ${title}`, content.slice(0, 180), { announcementId: row.id }, 'announcement');
 
   return c.json(row, 201);
+});
+
+app.put('/:id', requireCoach, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const body = await c.req.json<{ tag?: string | null; title?: string; body?: string; pinned?: boolean }>();
+  const title = body.title?.trim() ?? '';
+  const content = body.body?.trim() ?? '';
+  if (!title || !content) return c.json({ error: 'Titre et contenu obligatoires' }, 400);
+  if (title.length > 200 || content.length > 10_000) return c.json({ error: 'Annonce trop longue' }, 400);
+  const [row] = await db.update(announcements).set({
+    tag: body.tag?.trim() || null,
+    title,
+    body: content,
+    pinned: body.pinned ?? false,
+  }).where(eq(announcements.id, id)).returning();
+  if (!row) return c.json({ error: 'Introuvable' }, 404);
+  return c.json(row);
+});
+
+app.delete('/:id', requireCoach, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const [row] = await db.delete(announcements).where(eq(announcements.id, id)).returning({ id: announcements.id });
+  if (!row) return c.json({ error: 'Introuvable' }, 404);
+  return c.json({ ok: true });
 });
 
 export { app as announcementsRouter };

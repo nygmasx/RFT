@@ -1,121 +1,50 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
-import {
-  KeyboardAvoidingView, Platform,
-  Pressable, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Ionicons } from '@expo/vector-icons';
+import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
-import { safeBack } from '@/lib/navigation';
+import { authClient } from '@/lib/auth-client';
 
 export default function VerifyScreen() {
   const { theme: t } = useTheme();
-  const { email } = useLocalSearchParams<{ email: string }>();
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
-  const inputRef = useRef<TextInput>(null);
+  const styles = useMemo(() => makeStyles(t), [t]);
+  const { email, error } = useLocalSearchParams<{ email?: string; error?: string }>();
+  const [sending, setSending] = useState(false);
+  const [message, setMessage] = useState(error ? 'Le lien est invalide ou expiré.' : 'Ton adresse email est vérifiée.');
 
-  const handleVerify = async () => {
-    setError('Vérification par code non supportée. Utilise email + mot de passe.');
+  const resend = async () => {
+    if (!email) return setMessage('Reconnecte-toi pour renvoyer un lien.');
+    setSending(true);
+    const result = await authClient.sendVerificationEmail(email);
+    setSending(false);
+    setMessage(result.error ? result.error.message : 'Un nouveau lien a été envoyé.');
   };
 
-  const handleResend = async () => {
-    setError('');
-  };
-
-  const s = styles(t);
-
-  return (
-    <View style={s.container}>
-      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={s.inner}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <View style={s.top}>
-            <Pressable onPress={() => safeBack('/(auth)/login')} style={s.back}>
-              <Text style={s.backIcon}>‹</Text>
-            </Pressable>
-          </View>
-
-          <View style={s.content}>
-            <Text style={s.title}>VÉRIFIE TON EMAIL</Text>
-            <Text style={s.subtitle}>
-              Code envoyé à{'\n'}
-              <Text style={s.emailText}>{email}</Text>
-            </Text>
-
-            <TextInput
-              ref={inputRef}
-              style={s.codeInput}
-              value={code}
-              onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              placeholderTextColor={t.textMute}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleVerify}
-            />
-
-            {!!error && (
-              <Text style={[s.errorText, error.includes('envoyé') && { color: t.gold }]}>
-                {error}
-              </Text>
-            )}
-
-            <Pressable
-              style={[s.btn, code.length !== 6 && { opacity: 0.5 }]}
-              onPress={handleVerify}
-              disabled={code.length !== 6}
-            >
-              <Text style={s.btnText}>CONFIRMER →</Text>
-            </Pressable>
-
-            <Pressable onPress={handleResend} style={s.resendBtn}>
-              <Text style={s.resendText}>Renvoyer le code</Text>
-            </Pressable>
-          </View>
-
-          <View />
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+  return <View style={styles.container}><SafeAreaView style={styles.safe}>
+    <View style={styles.content}>
+      <Ionicons name={error ? 'alert-circle-outline' : 'checkmark-circle-outline'} size={64} color={error ? t.crimson : t.gold} />
+      <Text style={styles.title}>{error ? 'LIEN INVALIDE' : 'EMAIL VÉRIFIÉ'}</Text>
+      <Text style={styles.message}>{message}</Text>
+      <Pressable style={styles.primary} onPress={() => router.replace('/(auth)/login')}>
+        <Text style={styles.primaryText}>REVENIR À LA CONNEXION</Text>
+      </Pressable>
+      {(email || error) && <Pressable style={styles.secondary} onPress={resend} disabled={sending}>
+        {sending ? <ActivityIndicator color={t.bone} /> : <Text style={styles.secondaryText}>RENVOYER UN LIEN</Text>}
+      </Pressable>}
     </View>
-  );
+  </SafeAreaView></View>;
 }
 
-const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: t.ink },
-  inner: { flex: 1, paddingHorizontal: 28, paddingVertical: 16 },
-
-  top: { marginBottom: 40 },
-  back: { padding: 4, alignSelf: 'flex-start' },
-  backIcon: { fontSize: 32, color: t.bone, lineHeight: 32 },
-
-  content: { gap: 16 },
-  title: {
-    fontSize: 24, fontWeight: '900', color: t.bone,
-    letterSpacing: 2, textTransform: 'uppercase',
-  },
-  subtitle: { fontSize: 15, color: t.textDim, lineHeight: 22 },
-  emailText: { color: t.bone, fontWeight: '700' },
-
-  codeInput: {
-    backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
-    borderRadius: 4, paddingHorizontal: 14, paddingVertical: 16,
-    fontSize: 32, color: t.bone, letterSpacing: 10, textAlign: 'center',
-    marginVertical: 8,
-  },
-
-  errorText: { fontSize: 13, color: t.crimson, fontWeight: '500', textAlign: 'center' },
-  btn: {
-    backgroundColor: t.crimson, borderRadius: 4,
-    paddingVertical: 15, alignItems: 'center',
-  },
-  btnText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
-
-  resendBtn: { alignItems: 'center', paddingVertical: 8 },
-  resendText: { fontSize: 13, color: t.textDim, textDecorationLine: 'underline' },
+const makeStyles = (t: Theme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.ink }, safe: { flex: 1, padding: 28 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 18 },
+  title: { color: t.bone, fontFamily: FONTS.display, fontSize: 26, fontWeight: '900', letterSpacing: 2 },
+  message: { color: t.textDim, textAlign: 'center', fontSize: 14, lineHeight: 21 },
+  primary: { width: '100%', backgroundColor: t.crimson, padding: 15, borderRadius: 4, alignItems: 'center' },
+  primaryText: { color: '#fff', fontWeight: '900', letterSpacing: 1.4 },
+  secondary: { width: '100%', borderWidth: 1, borderColor: t.hairlineStrong, padding: 14, borderRadius: 4, alignItems: 'center' },
+  secondaryText: { color: t.bone, fontWeight: '700', letterSpacing: 1.2 },
 });

@@ -30,7 +30,7 @@ test('profile updates reject privilege escalation fields', () => {
   assert.deepEqual(result, { ok: false, error: 'Champ non modifiable : role' });
 });
 
-test('profile updates reject invalid or oversized avatars', () => {
+test('profile updates reject avatar data outside the media endpoint', () => {
   assert.equal(parseProfileUpdate({ avatarUrl: 'https://example.com/avatar.jpg' }).ok, false);
   assert.equal(parseProfileUpdate({ avatarUrl: `data:image/jpeg;base64,${'a'.repeat(2_800_001)}` }).ok, false);
 });

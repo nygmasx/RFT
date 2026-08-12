@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { authClient } from '@/lib/auth-client';
+import { authClient, authRedirect } from '@/lib/auth-client';
 import { api } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
 
@@ -67,6 +67,7 @@ export default function RegisterScreen() {
       category,
       status:    'pending',
       role:      'member',
+      callbackURL: `${authRedirect('verify')}?email=${encodeURIComponent(email.trim().toLowerCase())}`,
     } as any);
 
     if (authError) {
@@ -81,8 +82,8 @@ export default function RegisterScreen() {
 
     // Upload avatar if one was picked
     if (avatarBase64) {
-      await api.put('/api/profile', {
-        avatarUrl: `data:image/jpeg;base64,${avatarBase64}`,
+      await api.put('/api/profile/avatar', {
+        dataUrl: `data:image/jpeg;base64,${avatarBase64}`,
       }).catch(() => {});
     }
 

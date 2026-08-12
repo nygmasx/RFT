@@ -1,8 +1,10 @@
 import 'dotenv/config';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { bearer } from 'better-auth/plugins';
 import { db } from './db/client';
 import { users, sessions, accounts, verifications } from './db/schema';
+import { sendTransactionalEmail } from './lib/email';
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
@@ -16,7 +18,32 @@ export const auth = betterAuth({
       verification: verifications,
     },
   }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }) => {
+      void sendTransactionalEmail({
+        to: user.email,
+        subject: 'Réinitialise ton mot de passe RFT',
+        text: 'Une demande de réinitialisation de ton mot de passe a été reçue.',
+        actionUrl: url,
+        actionLabel: 'Choisir un nouveau mot de passe',
+      }).catch((error) => console.error('[Email] Password reset failed', error));
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: false,
+    sendVerificationEmail: async ({ user, url }) => {
+      void sendTransactionalEmail({
+        to: user.email,
+        subject: 'Vérifie ton adresse email RFT',
+        text: 'Confirme ton adresse email pour sécuriser ton compte Ronin Fight Team.',
+        actionUrl: url,
+        actionLabel: 'Vérifier mon email',
+      }).catch((error) => console.error('[Email] Verification failed', error));
+    },
+  },
   user: {
     deleteUser: { enabled: true },
     additionalFields: {
@@ -39,7 +66,11 @@ export const auth = betterAuth({
     'http://192.168.1.53:3001',
     'http://192.168.1.53:8081',
     'exp://',
+    'rft://',
+    'rft://verify',
+    'rft://reset-password',
   ],
+  plugins: [bearer()],
 });
 
 export type AuthUser = typeof auth.$Infer.Session.user;

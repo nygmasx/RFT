@@ -5,14 +5,13 @@ export type ProfileUpdate = Partial<{
   weightClass: string;
   stance: string;
   phone: string;
-  avatarUrl: string;
 }>;
 
 type ParseResult =
   | { ok: true; value: ProfileUpdate }
   | { ok: false; error: string };
 
-const TEXT_LIMITS: Record<Exclude<keyof ProfileUpdate, 'avatarUrl'>, number> = {
+const TEXT_LIMITS: Record<keyof ProfileUpdate, number> = {
   firstName: 80,
   lastName: 80,
   category: 40,
@@ -22,8 +21,7 @@ const TEXT_LIMITS: Record<Exclude<keyof ProfileUpdate, 'avatarUrl'>, number> = {
 };
 
 const ALLOWED_KEYS = new Set<keyof ProfileUpdate>([
-  ...Object.keys(TEXT_LIMITS) as Exclude<keyof ProfileUpdate, 'avatarUrl'>[],
-  'avatarUrl',
+  ...Object.keys(TEXT_LIMITS) as (keyof ProfileUpdate)[],
 ]);
 
 export function parseProfileUpdate(input: unknown): ParseResult {
@@ -39,7 +37,7 @@ export function parseProfileUpdate(input: unknown): ParseResult {
 
   const value: ProfileUpdate = {};
 
-  for (const [key, limit] of Object.entries(TEXT_LIMITS) as [Exclude<keyof ProfileUpdate, 'avatarUrl'>, number][]) {
+  for (const [key, limit] of Object.entries(TEXT_LIMITS) as [keyof ProfileUpdate, number][]) {
     const field = body[key];
     if (field === undefined) continue;
     if (typeof field !== 'string') return { ok: false, error: `Champ invalide : ${key}` };
@@ -50,15 +48,6 @@ export function parseProfileUpdate(input: unknown): ParseResult {
     }
     if (normalized.length > limit) return { ok: false, error: `Champ trop long : ${key}` };
     value[key] = normalized;
-  }
-
-  if (body.avatarUrl !== undefined) {
-    if (typeof body.avatarUrl !== 'string') return { ok: false, error: 'Avatar invalide' };
-    if (!/^data:image\/(jpeg|png|webp);base64,/.test(body.avatarUrl)) {
-      return { ok: false, error: 'Format d’avatar invalide' };
-    }
-    if (body.avatarUrl.length > 2_800_000) return { ok: false, error: 'Avatar trop volumineux' };
-    value.avatarUrl = body.avatarUrl;
   }
 
   if (Object.keys(value).length === 0) return { ok: false, error: 'Aucune modification fournie' };

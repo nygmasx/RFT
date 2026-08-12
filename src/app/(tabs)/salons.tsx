@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -8,13 +8,31 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useChannels } from '@/hooks/useChannels';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
+import { Channel } from '@/lib/database.types';
 
 export default function SalonsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const [query, setQuery] = useState('');
+  const { user } = useAuth();
 
-  const { data: channels, loading } = useChannels();
+  const { data: channels, loading, refetch } = useChannels();
+  const isStaff = user?.role === 'coach' || user?.role === 'admin';
+
+  const moderate = (channel: Channel) => {
+    if (!isStaff) return;
+    Alert.alert(channel.name, 'Modération du salon', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: channel.isLocked ? 'Déverrouiller' : 'Verrouiller', onPress: async () => {
+        await api.put(`/api/channels/${channel.id}`, {
+          name: channel.name, description: channel.description, is_private: channel.isPrivate, is_locked: !channel.isLocked,
+        }); refetch();
+      } },
+      { text: 'Supprimer', style: 'destructive', onPress: async () => { await api.delete(`/api/channels/${channel.id}`); refetch(); } },
+    ]);
+  };
 
   const filtered = channels.filter((c) =>
     c.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -61,6 +79,7 @@ export default function SalonsScreen() {
                 key={c.id}
                 style={[styles.row, isTop && styles.rowTop]}
                 onPress={() => router.push({ pathname: '/chat', params: { channel: c.id, name: c.name } })}
+                onLongPress={() => moderate(c)}
               >
                 <View style={[styles.avatar, isTop && styles.avatarTop]}>
                   {isTop

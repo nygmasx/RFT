@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -44,12 +44,25 @@ export default function CompetitionDetailScreen() {
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const [competition, setCompetition] = useState<Competition | null>(null);
+  const [competition, setCompetition] = useState<(Competition & { bookmarked?: boolean }) | null>(null);
   const [registrationId, setRegistrationId] = useState<string | null>(null);
   const [loadingComp, setLoadingComp] = useState(true);
   const [registering, setRegistering] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [carpools, setCarpools] = useState<CarpoolItem[]>([]);
+
+  const openLocation = async () => {
+    if (!competition?.location) return setStatusMsg('Aucune adresse renseignée.');
+    await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(competition.location)}`);
+  };
+
+  const toggleBookmark = async () => {
+    if (!id || !competition) return;
+    try {
+      const result = await api.put<{ bookmarked: boolean }>(`/api/competitions/${id}/bookmark`, {});
+      setCompetition({ ...competition, bookmarked: result.bookmarked });
+    } catch (error: any) { setStatusMsg(error.message); }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -142,11 +155,11 @@ export default function CompetitionDetailScreen() {
             <Text style={styles.heroBackIcon}>‹</Text>
           </Pressable>
           <View style={styles.heroActions}>
-            <Pressable style={styles.heroActionBtn}>
+            <Pressable style={styles.heroActionBtn} onPress={openLocation} accessibilityLabel="Ouvrir l’adresse">
               <Ionicons name="location-outline" size={16} color={t.bone} />
             </Pressable>
-            <Pressable style={styles.heroActionBtn}>
-              <Ionicons name="bookmark-outline" size={16} color={t.bone} />
+            <Pressable style={styles.heroActionBtn} onPress={toggleBookmark} accessibilityLabel="Ajouter aux favoris">
+              <Ionicons name={competition?.bookmarked ? 'bookmark' : 'bookmark-outline'} size={16} color={t.bone} />
             </Pressable>
           </View>
         </SafeAreaView>
@@ -241,7 +254,9 @@ export default function CompetitionDetailScreen() {
             </Text>
           )}
         </Pressable>
-        <Pressable style={styles.ctaSecondary}>
+        <Pressable style={styles.ctaSecondary} onPress={() => void Share.share({
+          message: `${competition?.name ?? 'Compétition RFT'}${competition?.location ? ` · ${competition.location}` : ''}`,
+        })}>
           <Text style={styles.ctaSecondaryText}>PARTAGER</Text>
         </Pressable>
       </SafeAreaView>

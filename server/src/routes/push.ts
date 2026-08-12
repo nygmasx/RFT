@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { pushTokens, users, userSettings } from '../db/schema';
+import { notifications, pushTokens, users, userSettings } from '../db/schema';
 import { requireSession } from '../middleware/session';
 import type { AuthUser } from '../auth';
 
@@ -26,6 +26,10 @@ app.post('/', requireSession, async (c) => {
 // Internal helper — send Expo push notifications to all coaches
 export async function notifyCoaches(title: string, body: string) {
   try {
+    const coachUsers = await db.select({ id: users.id }).from(users).where(inArray(users.role, ['coach', 'admin']));
+    if (coachUsers.length) await db.insert(notifications).values(coachUsers.map(({ id: userId }) => ({
+      userId, type: 'registration', title, body,
+    })));
     const coaches = await db
       .select({ token: pushTokens.token })
       .from(pushTokens)
@@ -52,8 +56,21 @@ export async function notifyCoaches(title: string, body: string) {
 }
 
 // Internal helper — send to a specific user
-export async function notifyUser(userId: string, title: string, body: string) {
+export async function notifyUser(
+  userId: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+  type = 'info',
+) {
   try {
+    await db.insert(notifications).values({
+      userId,
+      type,
+      title,
+      body,
+      data: data ? JSON.stringify(data) : null,
+    });
     const tokens = await db
       .select({ token: pushTokens.token })
       .from(pushTokens)
@@ -66,6 +83,7 @@ export async function notifyUser(userId: string, title: string, body: string) {
       sound: 'default' as const,
       title,
       body,
+      ...(data ? { data } : {}),
     }));
 
     await fetch('https://exp.host/--/api/v2/push/send', {
@@ -83,18 +101,32 @@ export async function notifyMembers(
   title: string,
   body: string,
   data?: Record<string, string>,
+  type = 'info',
 ) {
   try {
     const preferenceColumn = userSettings[preference];
-    const tokens = await db
-      .select({ token: pushTokens.token })
-      .from(pushTokens)
-      .innerJoin(users, eq(pushTokens.userId, users.id))
-      .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
+    const recipients = await db
+      .select({ userId: users.id })
+      .from(users)
+      .leftJoin(userSettings, eq(users.id, userSettings.userId))
       .where(and(
         or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
         or(isNull(preferenceColumn), eq(preferenceColumn, true)),
       ));
+
+    if (recipients.length === 0) return;
+    await db.insert(notifications).values(recipients.map(({ userId }) => ({
+      userId,
+      type,
+      title,
+      body,
+      data: data ? JSON.stringify(data) : null,
+    })));
+
+    const tokens = await db
+      .select({ token: pushTokens.token })
+      .from(pushTokens)
+      .where(inArray(pushTokens.userId, recipients.map(({ userId }) => userId)));
 
     if (tokens.length === 0) return;
     await fetch('https://exp.host/--/api/v2/push/send', {

@@ -86,6 +86,10 @@ export default function LoginScreen() {
                 />
               </View>
 
+              <Pressable onPress={() => router.push('/(auth)/forgot-password' as never)} style={{ alignSelf: 'flex-end', paddingVertical: 4 }}>
+                <Text style={{ color: t.textDim, fontSize: 12, textDecorationLine: 'underline' }}>Mot de passe oublié ?</Text>
+              </Pressable>
+
               <View style={s.field}>
                 <Text style={s.label}>MOT DE PASSE</Text>
                 <TextInput

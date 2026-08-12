@@ -82,6 +82,7 @@ export const messages = pgTable('messages', {
   userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   body:      text('body').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at'),
 });
 
 export const announcements = pgTable('announcements', {
@@ -146,6 +147,12 @@ export const registrations = pgTable('registrations', {
   createdAt:     timestamp('created_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('registrations_user_competition_unique').on(t.userId, t.competitionId)]);
 
+export const competitionBookmarks = pgTable('competition_bookmarks', {
+  competitionId: uuid('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
+  userId:        text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.competitionId, t.userId] })]);
+
 export const carpools = pgTable('carpools', {
   id:            uuid('id').primaryKey().defaultRandom(),
   driverId:      text('driver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -180,6 +187,17 @@ export const pushTokens = pgTable('push_tokens', {
   token:     text('token').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('push_tokens_token_unique').on(t.token)]);
+
+export const notifications = pgTable('notifications', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type:      text('type').notNull(),
+  title:     text('title').notNull(),
+  body:      text('body').notNull(),
+  data:      text('data'),
+  readAt:    timestamp('read_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
 
 export const userSettings = pgTable('user_settings', {
   userId:             text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),

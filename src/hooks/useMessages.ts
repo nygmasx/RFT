@@ -42,5 +42,10 @@ export function useMessages(channelId: string) {
     }
   };
 
-  return { messages, loading, sendMessage, currentUserId: user?.id };
+  const deleteMessage = async (id: string) => {
+    await api.delete(`/api/messages/item/${id}`);
+    setMessages((current) => current.filter((message) => message.id !== id));
+  };
+
+  return { messages, loading, sendMessage, deleteMessage, currentUserId: user?.id };
 }

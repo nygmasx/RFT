@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useCarpools } from '@/hooks/useCarpools';
+import { api } from '@/lib/api';
 
 const FILTERS = ['Tous'];
 
@@ -44,6 +46,17 @@ export default function CovoiturageScreen() {
 
   const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool } = useCarpools();
 
+  const contactDriver = async (carpoolId: string) => {
+    try {
+      const contact = await api.get<{ name: string; phone: string }>(`/api/carpools/${carpoolId}/contact`);
+      Alert.alert(contact.name, contact.phone, [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Appeler', onPress: () => void Linking.openURL(`tel:${contact.phone.replace(/\s/g, '')}`) },
+        { text: 'SMS', onPress: () => void Linking.openURL(`sms:${contact.phone.replace(/\s/g, '')}`) },
+      ]);
+    } catch (error: any) { Alert.alert('Contact indisponible', error.message); }
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
@@ -76,16 +89,12 @@ export default function CovoiturageScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Mini map placeholder */}
+      {/* Route summary */}
       <View style={styles.mapWrap}>
-        <View style={styles.mapBg} />
-        <View style={styles.mapDojo}>
-          <View style={styles.mapDojoDot} />
-          <Text style={styles.mapLabel}>DOJO</Text>
-        </View>
-        <View style={styles.mapDest}>
-          <View style={styles.mapDestPin} />
-          <Text style={styles.mapLabel}>DEST.</Text>
+        <Ionicons name="navigate-circle-outline" size={32} color={t.crimson} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.mapTitle}>TRAJETS DU CLUB</Text>
+          <Text style={styles.mapCopy}>Les coordonnées du conducteur sont accessibles uniquement après réservation.</Text>
         </View>
       </View>
 
@@ -170,6 +179,11 @@ export default function CovoiturageScreen() {
                 >
                   <Text style={btnTextStyle}>{btnLabel}</Text>
                 </Pressable>
+                {(isPassenger || isDriver) && (
+                  <Pressable style={styles.contactBtn} onPress={() => void contactDriver(r.id)}>
+                    <Text style={styles.contactText}>CONTACTER LE CONDUCTEUR</Text>
+                  </Pressable>
+                )}
               </View>
             );
           })}
@@ -211,10 +225,12 @@ function makeStyles(t: Theme) {
     filterText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, fontWeight: '600' },
     filterTextActive: { color: t.ink },
     mapWrap: {
-      marginHorizontal: 20, marginBottom: 16, height: 140,
+      marginHorizontal: 20, marginBottom: 16, minHeight: 92, padding: 16,
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, overflow: 'hidden', position: 'relative',
+      borderRadius: 3, flexDirection: 'row', alignItems: 'center', gap: 12,
     },
+    mapTitle: { fontFamily: FONTS.display, color: t.bone, fontWeight: '900', fontSize: 14, letterSpacing: 1 },
+    mapCopy: { fontFamily: FONTS.body, color: t.textMute, fontSize: 11.5, lineHeight: 17, marginTop: 3 },
     mapBg: { ...StyleSheet.absoluteFill, backgroundColor: t.surface },
     mapDojo: { position: 'absolute', left: 60, top: 70, alignItems: 'center' },
     mapDojoDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: t.crimson },
@@ -261,5 +277,7 @@ function makeStyles(t: Theme) {
       color: t.bone, letterSpacing: 1.5, textTransform: 'uppercase',
     },
     reserveTextFull: { color: t.textMute },
+    contactBtn: { paddingTop: 10, alignItems: 'center' },
+    contactText: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textDim, letterSpacing: 1.2 },
   });
 }

@@ -11,6 +11,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useProfile } from '@/hooks/useProfile';
 import { safeBack } from '@/lib/navigation';
+import { api } from '@/lib/api';
 
 const CATEGORIES = ['Adultes', 'Ados 13-17', 'Enfants 6-12'];
 const WEIGHT_CLASSES = ['-64kg', '-70kg', '-77kg', '-85kg', '-94kg', '+94kg'];
@@ -30,6 +31,7 @@ export default function EditProfileScreen() {
   const [phone, setPhone] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -62,17 +64,18 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     setSaving(true);
-    await updateProfile({
-      firstName,
-      lastName,
-      category,
-      weightClass,
-      stance,
-      phone,
-      avatarUrl: avatarUri ?? undefined,
-    });
-    setSaving(false);
-    safeBack('/(tabs)/profil');
+    setSaveError('');
+    try {
+      if (avatarUri?.startsWith('data:image/')) {
+        await api.put('/api/profile/avatar', { dataUrl: avatarUri });
+      }
+      await updateProfile({ firstName, lastName, category, weightClass, stance, phone });
+      safeBack('/(tabs)/profil');
+    } catch (error: any) {
+      setSaveError(error.message ?? 'Enregistrement impossible');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -119,6 +122,7 @@ export default function EditProfileScreen() {
             </View>
           </Pressable>
         </View>
+        {!!saveError && <Text style={{ color: t.crimson, textAlign: 'center', fontSize: 12 }}>{saveError}</Text>}
 
         {/* IDENTITÉ */}
         <View style={styles.sectionLabel}>

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -10,15 +10,17 @@ import { useTheme } from '@/context/ThemeContext';
 import { useMessages } from '@/hooks/useMessages';
 import { safeBack } from '@/lib/navigation';
 import { Message } from '@/lib/database.types';
+import { useAuth } from '@/context/AuthContext';
 
 interface MsgProps {
   msg: Message;
   isMe: boolean;
   t: Theme;
   msgStyles: ReturnType<typeof makeMsgStyles>;
+  onLongPress: () => void;
 }
 
-function Msg({ msg, isMe, t, msgStyles }: MsgProps) {
+function Msg({ msg, isMe, t, msgStyles, onLongPress }: MsgProps) {
   const authorName = msg.profiles
     ? `${msg.profiles.first_name} ${msg.profiles.last_name}`
     : 'Utilisateur';
@@ -26,17 +28,17 @@ function Msg({ msg, isMe, t, msgStyles }: MsgProps) {
 
   if (isMe) {
     return (
-      <View style={msgStyles.meWrap}>
+      <Pressable style={msgStyles.meWrap} onLongPress={onLongPress}>
         <View style={msgStyles.meBubble}>
           <Text style={msgStyles.meText}>{msg.body}</Text>
         </View>
         <Text style={msgStyles.meMeta}>{timeStr} · LU</Text>
-      </View>
+      </Pressable>
     );
   }
 
   return (
-    <View style={msgStyles.theirWrap}>
+    <Pressable style={msgStyles.theirWrap} onLongPress={onLongPress}>
       <View style={msgStyles.theirAvatar}>
         <Text style={msgStyles.theirInitial}>{authorName[0]}</Text>
       </View>
@@ -49,7 +51,7 @@ function Msg({ msg, isMe, t, msgStyles }: MsgProps) {
           <Text style={msgStyles.theirText}>{msg.body}</Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -82,13 +84,14 @@ function makeMsgStyles(t: Theme) {
 
 export default function ChatScreen() {
   const { theme: t } = useTheme();
+  const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
   const msgStyles = useMemo(() => makeMsgStyles(t), [t]);
 
   const { channel = '', name } = useLocalSearchParams<{ channel?: string; name?: string }>();
   const [messageText, setMessageText] = useState('');
 
-  const { messages, loading, sendMessage, currentUserId } = useMessages(channel);
+  const { messages, loading, sendMessage, deleteMessage, currentUserId } = useMessages(channel);
   const flatListRef = useRef<FlatList<Message>>(null);
 
   const channelName = name ?? 'Salon';
@@ -103,6 +106,15 @@ export default function ChatScreen() {
     if (!body) return;
     setMessageText('');
     await sendMessage(body);
+  };
+
+  const confirmDelete = (message: Message) => {
+    const allowed = message.userId === currentUserId || user?.role === 'coach' || user?.role === 'admin';
+    if (!allowed) return;
+    Alert.alert('Supprimer ce message ?', 'Il disparaîtra pour tous les membres.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Supprimer', style: 'destructive', onPress: () => void deleteMessage(message.id) },
+    ]);
   };
 
   const headerComponent = (
@@ -194,6 +206,7 @@ export default function ChatScreen() {
             isMe={item.userId === currentUserId}
             t={t}
             msgStyles={msgStyles}
+            onLongPress={() => confirmDelete(item)}
           />
         )}
         contentContainerStyle={styles.messages}

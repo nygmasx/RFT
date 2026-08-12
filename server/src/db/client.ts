@@ -1,7 +1,13 @@
 import 'dotenv/config';
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 
-const sql = neon(process.env.DATABASE_URL!);
-export const db = drizzle(sql, { schema });
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
+export const sqlClient = postgres(process.env.DATABASE_URL, {
+  max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
+  prepare: false,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
+export const db = drizzle(sqlClient, { schema });

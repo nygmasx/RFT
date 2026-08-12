@@ -27,21 +27,47 @@ app.post('/', requireCoach, async (c) => {
     place?: string;
   }>();
 
+  if (!body.title?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.event_date ?? '')) {
+    return c.json({ error: 'Titre et date valides obligatoires' }, 400);
+  }
+
   const [row] = await db.insert(calendarEvents).values({
     type:      body.type,
-    title:     body.title,
+    title:     body.title.trim(),
     eventDate: body.event_date,
     eventTime: body.event_time ?? null,
-    place:     body.place ?? null,
+    place:     body.place?.trim() || null,
   }).returning();
 
   void notifyMembers(
     'notifyCompetitions',
     `📅 ${row.title}`,
     `${row.eventDate}${row.eventTime ? ` · ${row.eventTime}` : ''}${row.place ? ` · ${row.place}` : ''}`,
+    { calendarEventId: row.id },
+    'calendar',
   );
 
   return c.json(row, 201);
+});
+
+app.put('/:id', requireCoach, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const body = await c.req.json<{
+    type: 'cours' | 'compet' | 'stage'; title: string; event_date: string;
+    event_time?: string | null; place?: string | null;
+  }>();
+  if (!body.title?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.event_date ?? '')) {
+    return c.json({ error: 'Titre et date valides obligatoires' }, 400);
+  }
+  const [row] = await db.update(calendarEvents).set({
+    type: body.type,
+    title: body.title.trim(),
+    eventDate: body.event_date,
+    eventTime: body.event_time || null,
+    place: body.place?.trim() || null,
+  }).where(eq(calendarEvents.id, id)).returning();
+  if (!row) return c.json({ error: 'Introuvable' }, 404);
+  return c.json(row);
 });
 
 app.delete('/:id', requireCoach, async (c) => {

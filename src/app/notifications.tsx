@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
-import { useAnnouncements } from '@/hooks/useAnnouncements';
+import { AppNotification, useNotifications } from '@/hooks/useNotifications';
 import { safeBack } from '@/lib/navigation';
 
 const TAG_COLORS: Record<string, string> = {
@@ -16,6 +16,11 @@ const TAG_COLORS: Record<string, string> = {
   'STAGE': '#C9A24B',
   'IMPORTANT': '#C8362D',
   'INFO': '#4A8F6D',
+  'MESSAGE': '#3B82F6',
+  'CALENDAR': '#C9A24B',
+  'CARPOOL': '#4A8F6D',
+  'ANNOUNCEMENT': '#C8362D',
+  'COMPETITION': '#C8362D',
 };
 
 function timeAgo(iso: string): string {
@@ -32,7 +37,16 @@ function timeAgo(iso: string): string {
 export default function NotificationsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
-  const { data: announcements, loading, markAllRead, markRead, unreadCount } = useAnnouncements();
+  const { data: notifications, loading, markAllRead, markRead, unreadCount } = useNotifications();
+
+  const openNotification = (item: AppNotification) => {
+    const data = item.data ?? {};
+    if (data.announcementId) router.push({ pathname: '/announcement', params: { id: data.announcementId } });
+    else if (data.channelId) router.push({ pathname: '/chat', params: { channel: data.channelId, name: data.channelName ?? 'Salon' } });
+    else if (data.competitionId) router.push({ pathname: '/competition-detail', params: { id: data.competitionId } });
+    else if (item.type === 'calendar') router.push('/calendar');
+    else if (item.type === 'carpool') router.push('/(tabs)/covoiturage');
+  };
 
   return (
     <View style={styles.container}>
@@ -56,23 +70,22 @@ export default function NotificationsScreen() {
         <View style={styles.loader}>
           <ActivityIndicator color={t.crimson} />
         </View>
-      ) : announcements.length === 0 ? (
+      ) : notifications.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="notifications-off-outline" size={44} color={t.textMute} />
           <Text style={styles.emptyText}>Aucune notification</Text>
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          <Text style={styles.sectionLabel}>ANNONCES DU CLUB</Text>
+          <Text style={styles.sectionLabel}>ACTIVITÉ DU CLUB</Text>
 
-          {announcements.map((a, i) => {
-            const item = a as any;
-            const tag = item.tag as string | null;
-            const tagColor = TAG_COLORS[tag?.toUpperCase() ?? ''] ?? t.crimson;
-            const createdAt = item.createdAt ?? item.created_at ?? '';
-            const authorFirst = item.profiles?.first_name ?? '';
-            const authorLast = item.profiles?.last_name ?? '';
-            const authorName = `${authorFirst} ${authorLast}`.trim() || 'Coach';
+          {notifications.map((item, i) => {
+            const tag = item.type.toUpperCase();
+            const tagColor = TAG_COLORS[tag] ?? t.crimson;
+            const icon = item.type === 'message' ? 'chatbubble-outline'
+              : item.type === 'competition' ? 'trophy-outline'
+              : item.type === 'calendar' ? 'calendar-outline'
+              : item.type === 'carpool' ? 'car-outline' : 'megaphone-outline';
 
             return (
               <Pressable
@@ -80,32 +93,29 @@ export default function NotificationsScreen() {
                 style={[styles.card, !item.isRead && styles.cardUnread, i > 0 && styles.cardBorder]}
                 onPress={() => {
                   void markRead(item.id).catch(() => {});
-                  router.push({ pathname: '/announcement', params: { id: item.id } });
+                  openNotification(item);
                 }}
               >
                 <View style={styles.cardLeft}>
                   <View style={[styles.iconWrap, { backgroundColor: tagColor + '18' }]}>
                     <Ionicons
-                      name={item.pinned ? 'megaphone' : 'notifications'}
+                      name={icon}
                       size={18}
                       color={tagColor}
                     />
                   </View>
-                  {item.pinned && <View style={[styles.pinnedDot, { backgroundColor: tagColor }]} />}
                   {!item.isRead && <View style={styles.unreadDot} />}
                 </View>
 
                 <View style={styles.cardBody}>
                   <View style={styles.cardTop}>
-                    {tag && (
-                      <View style={[styles.tag, { borderColor: tagColor }]}>
-                        <Text style={[styles.tagText, { color: tagColor }]}>{tag.toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <Text style={styles.cardTime}>{timeAgo(createdAt)}</Text>
+                    <View style={[styles.tag, { borderColor: tagColor }]}>
+                      <Text style={[styles.tagText, { color: tagColor }]}>{tag}</Text>
+                    </View>
+                    <Text style={styles.cardTime}>{timeAgo(item.createdAt)}</Text>
                   </View>
                   <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-                  <Text style={styles.cardAuthor}>par {authorName}</Text>
+                  <Text style={styles.cardAuthor} numberOfLines={2}>{item.body}</Text>
                 </View>
 
                 <Text style={styles.chevron}>›</Text>

@@ -10,6 +10,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useChannels } from '@/hooks/useChannels';
+import { useNotifications } from '@/hooks/useNotifications';
 
 function Tag({ text, filled, color, size = 9, t }: {
   text: string; filled?: boolean; color?: string; size?: number; t: Theme;
@@ -55,7 +56,8 @@ export default function AccueilScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const { data: announcements, loading: loadingAnn, unreadCount } = useAnnouncements();
+  const { data: announcements, loading: loadingAnn } = useAnnouncements();
+  const { unreadCount } = useNotifications();
   const { data: calendarEvents, loading: loadingCal } = useCalendarEvents();
   const { data: channels, loading: loadingChan } = useChannels();
 
