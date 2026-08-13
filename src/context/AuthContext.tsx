@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
-import { api } from '@/lib/api';
 
 type UserProfile = {
   id: string;
@@ -37,12 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const fetchUser = async (): Promise<UserProfile | null> => {
     const { data } = await authClient.getSession();
-    if (!data?.user) return null;
-    const profile = await api.get<UserProfile>('/api/profile').catch((e) => {
-      console.warn('[Auth] Impossible de charger le profil :', e.message);
-      return data.user as UserProfile;
-    });
-    return profile;
+    return data?.user ? data.user as UserProfile : null;
   };
 
   useEffect(() => {
