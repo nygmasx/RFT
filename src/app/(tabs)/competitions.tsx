@@ -92,9 +92,16 @@ export default function CompetitionsScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <View>
+          <View style={styles.headingBlock}>
             <Text style={styles.season}>SAISON 25-26</Text>
-            <Text style={styles.title}>COMPÉTITIONS</Text>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={styles.title}
+            >
+              COMPÉTITIONS
+            </Text>
           </View>
           <Pressable style={styles.calBtn} onPress={() => router.push('/calendar')}>
             <Ionicons name="calendar-outline" size={18} color={t.bone} />
@@ -263,16 +270,18 @@ function makeStyles(t: Theme) {
     container: { flex: 1, backgroundColor: t.ink },
     header: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
-      paddingHorizontal: 24, paddingBottom: 16, paddingTop: 8,
+      paddingHorizontal: 24, paddingBottom: 16, paddingTop: 8, position: 'relative',
     },
+    headingBlock: { flex: 1, minWidth: 0, paddingRight: 50 },
     season: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2 },
     title: {
       fontFamily: FONTS.display, fontSize: 44, color: t.bone, fontWeight: '900',
-      marginTop: 2, letterSpacing: 1,
+      marginTop: 2, letterSpacing: 1, flexShrink: 1,
     },
     calBtn: {
       width: 38, height: 38, borderRadius: 19, backgroundColor: t.elevated,
       borderWidth: 1, borderColor: t.hairline, alignItems: 'center', justifyContent: 'center',
+      position: 'absolute', right: 24, bottom: 16,
     },
     calIcon: { fontSize: 16 },
     tabRow: {

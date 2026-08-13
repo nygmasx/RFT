@@ -6,6 +6,7 @@ import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { notifyMembers, notifyUser } from './push';
 import { isStaff } from '../lib/access';
+import { CompetitionId, ensureStoredCompetition } from '../lib/competition-record';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -73,7 +74,7 @@ app.get('/', requireApproved, async (c) => {
 app.post('/', requireApproved, async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
-    competition_id?: string;
+    competition_id?: string | null;
     departure_city: string;
     departure_at: string;
     seats_total: number;
@@ -94,11 +95,18 @@ app.post('/', requireApproved, async (c) => {
     return c.json({ error: 'Participation invalide' }, 400);
   }
 
+  let competitionId: CompetitionId | null = null;
+  if (body.competition_id) {
+    competitionId = body.competition_id as CompetitionId;
+    const competition = await ensureStoredCompetition(competitionId);
+    if (!competition) return c.json({ error: 'Événement introuvable' }, 400);
+  }
+
   const [row] = await db
     .insert(carpools)
     .values({
       driverId:      user.id,
-      competitionId: body.competition_id ?? null,
+      competitionId,
       departureCity,
       departureAt,
       seatsTotal:    body.seats_total,

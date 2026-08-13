@@ -1,10 +1,13 @@
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +18,7 @@ export default function LoginScreen() {
   const { refreshProfileStatus } = useAuth();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
@@ -55,15 +59,12 @@ export default function LoginScreen() {
           >
             {/* Logo */}
             <View style={s.logoBlock}>
-              <View style={s.sunMark}>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <View key={i} style={[s.rayWrap, { transform: [{ rotate: `${i * 45}deg` }] }]}>
-                    <View style={s.ray} />
-                  </View>
-                ))}
-                <View style={s.sunCore} />
-              </View>
-              <Text style={s.clubName}>RONIN FIGHT TEAM</Text>
+              <Image
+                accessibilityLabel="Logo Ronin Fight Team"
+                contentFit="contain"
+                source={require('../../../assets/images/rft-mark.png')}
+                style={s.logo}
+              />
               <Text style={s.tagline}>MONTATAIRE · OISE</Text>
             </View>
 
@@ -92,16 +93,31 @@ export default function LoginScreen() {
 
               <View style={s.field}>
                 <Text style={s.label}>MOT DE PASSE</Text>
-                <TextInput
-                  style={s.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="••••••••"
-                  placeholderTextColor={t.textMute}
-                  secureTextEntry
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
-                />
+                <View style={s.passwordField}>
+                  <TextInput
+                    style={[s.input, s.passwordInput]}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor={t.textMute}
+                    secureTextEntry={!passwordVisible}
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={passwordVisible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    hitSlop={8}
+                    onPress={() => setPasswordVisible((visible) => !visible)}
+                    style={s.passwordToggle}
+                  >
+                    <Ionicons
+                      name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                      size={21}
+                      color={t.textMute}
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               {!!error && <Text style={s.errorText}>{error}</Text>}
@@ -140,15 +156,8 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.ink },
   inner: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 28, paddingVertical: 24 },
 
-  logoBlock: { alignItems: 'center', marginTop: 32, gap: 10 },
-  sunMark: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  rayWrap: {
-    position: 'absolute', width: 64, height: 64,
-    alignItems: 'center', justifyContent: 'flex-start',
-  },
-  ray: { width: 3, height: 16, backgroundColor: t.crimson, borderRadius: 2 },
-  sunCore: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.crimson },
-  clubName: { fontSize: 22, fontWeight: '900', color: t.bone, letterSpacing: 3, textTransform: 'uppercase' },
+  logoBlock: { alignItems: 'center', marginTop: 16, gap: 6 },
+  logo: { width: 190, height: 158 },
   tagline: { fontSize: 10, fontWeight: '600', color: t.textMute, letterSpacing: 3, textTransform: 'uppercase' },
 
   form: { gap: 12 },
@@ -159,6 +168,12 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
     borderRadius: 4, paddingHorizontal: 14, paddingVertical: 14,
     fontSize: 15, color: t.bone,
+  },
+  passwordField: { position: 'relative' },
+  passwordInput: { paddingRight: 50 },
+  passwordToggle: {
+    position: 'absolute', right: 0, top: 0, bottom: 0, width: 48,
+    alignItems: 'center', justifyContent: 'center',
   },
   errorText: { fontSize: 12, color: t.crimson, fontWeight: '500' },
   btn: {

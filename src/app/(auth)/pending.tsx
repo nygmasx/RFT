@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
@@ -25,15 +26,12 @@ export default function PendingScreen() {
 
         {/* Logo */}
         <View style={s.logoBlock}>
-          <View style={s.sunMark}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <View key={i} style={[s.rayWrap, { transform: [{ rotate: `${i * 45}deg` }] }]}>
-                <View style={s.ray} />
-              </View>
-            ))}
-            <View style={s.sunCore} />
-          </View>
-          <Text style={s.clubName}>RONIN FIGHT TEAM</Text>
+          <Image
+            accessibilityLabel="Logo Ronin Fight Team"
+            contentFit="contain"
+            source={require('../../../assets/images/rft-mark.png')}
+            style={s.logo}
+          />
         </View>
 
         {/* Status */}
@@ -87,15 +85,8 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.ink },
   inner: { flex: 1, paddingHorizontal: 28, justifyContent: 'space-between', paddingVertical: 24 },
 
-  logoBlock: { alignItems: 'center', gap: 10 },
-  sunMark: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
-  rayWrap: {
-    position: 'absolute', width: 60, height: 60,
-    alignItems: 'center', justifyContent: 'flex-start',
-  },
-  ray: { width: 3, height: 15, backgroundColor: t.crimson, borderRadius: 2 },
-  sunCore: { width: 18, height: 18, borderRadius: 9, backgroundColor: t.crimson },
-  clubName: { fontSize: 18, fontWeight: '900', color: t.bone, letterSpacing: 3 },
+  logoBlock: { alignItems: 'center' },
+  logo: { width: 170, height: 141 },
 
   statusBlock: { gap: 16, alignItems: 'center' },
   badge: {

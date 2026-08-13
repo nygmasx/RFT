@@ -108,16 +108,16 @@ export default function CompetitionDetailScreen() {
         await api.delete(`/api/competitions/registrations/${registrationId}`);
         setRegistrationId(null);
         setStatusMsg('Désinscription effectuée.');
-      } catch {
-        setStatusMsg('Erreur lors de la désinscription.');
+      } catch (error) {
+        setStatusMsg(error instanceof Error ? error.message : 'Erreur lors de la désinscription.');
       }
     } else {
       try {
         const reg = await api.post<{ id: string }>(`/api/competitions/${id}/register`, {});
         setRegistrationId(reg.id);
         setStatusMsg('Inscription enregistrée !');
-      } catch {
-        setStatusMsg('Erreur lors de l\'inscription.');
+      } catch (error) {
+        setStatusMsg(error instanceof Error ? error.message : 'Erreur lors de l\'inscription.');
       }
     }
 

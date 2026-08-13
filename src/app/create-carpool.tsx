@@ -3,10 +3,9 @@ import {
   Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
-
 import { Ionicons } from '@expo/vector-icons';
 
+import DateTimePicker from '@/components/themed-date-time-picker';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -47,11 +46,9 @@ export default function CreateCarpoolScreen() {
 
     const costNum = parseFloat(cost.replace(',', '.')) || 0;
 
-    const competitionId = selectedComp?._fromCalendar ? null : selectedEvent;
-
     try {
       await api.post('/api/carpools', {
-        competition_id:  competitionId,
+        competition_id:  selectedEvent,
         departure_city:  city.trim(),
         departure_at:    departureAt,
         seats_total:     seats,

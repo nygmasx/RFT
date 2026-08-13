@@ -79,6 +79,40 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.deepEqual(await bookmark.json(), { bookmarked: true });
   assert.equal((await call(`/api/competitions/${competition.id}/register`, { method: 'POST', token: member.token, body: {} })).status, 201);
 
+  const calendarCompetitionResponse = await call('/api/calendar', { method: 'POST', token: coach.token, body: {
+    type: 'compet', title: 'Calendar Open Integration', event_date: '2099-07-12', place: 'Lyon',
+  } });
+  assert.equal(calendarCompetitionResponse.status, 201, await calendarCompetitionResponse.clone().text());
+  const calendarCompetition = await calendarCompetitionResponse.json() as { id: string };
+  const calendarCompetitionDetail = await call(`/api/competitions/${calendarCompetition.id}`, { token: member.token });
+  assert.equal(calendarCompetitionDetail.status, 200, await calendarCompetitionDetail.clone().text());
+  assert.equal((await calendarCompetitionDetail.json() as { name: string }).name, 'Calendar Open Integration');
+  const calendarCarpool = await call('/api/carpools', { method: 'POST', token: coach.token, body: {
+    competition_id: calendarCompetition.id,
+    departure_city: 'Beauvais',
+    departure_at: '2099-07-12T07:30:00.000Z',
+    seats_total: 4,
+  } });
+  assert.equal(calendarCarpool.status, 201, await calendarCarpool.clone().text());
+  const calendarCarpools = await call('/api/carpools', { token: member.token });
+  const calendarCarpoolsPayload = await calendarCarpools.json() as {
+    carpools: { competition_id: string | null; departure_at: string; seats_total: number; competitions?: { name: string } }[];
+  };
+  const createdCalendarCarpool = calendarCarpoolsPayload.carpools.find(
+    (item) => item.competition_id === calendarCompetition.id,
+  );
+  assert.ok(createdCalendarCarpool);
+  assert.ok(createdCalendarCarpool.departure_at);
+  assert.equal(createdCalendarCarpool.seats_total, 4);
+  assert.equal(createdCalendarCarpool.competitions?.name, 'Calendar Open Integration');
+  const calendarRegistration = await call(`/api/competitions/${calendarCompetition.id}/register`, {
+    method: 'POST', token: member.token, body: {},
+  });
+  assert.equal(calendarRegistration.status, 201, await calendarRegistration.clone().text());
+  const competitionsAfterRegistration = await call('/api/competitions', { token: member.token });
+  const competitionsPayload = await competitionsAfterRegistration.json() as { upcoming: { id: string }[] };
+  assert.equal(competitionsPayload.upcoming.filter((item) => item.id === calendarCompetition.id).length, 1);
+
   const channelResponse = await call('/api/channels', { method: 'POST', token: coach.token, body: {
     name: 'Integration privée', is_private: true, member_ids: [member.id],
   } });

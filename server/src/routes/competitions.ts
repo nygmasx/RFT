@@ -4,6 +4,7 @@ import { db } from '../db/client';
 import { competitions, registrations, calendarEvents, competitionBookmarks } from '../db/schema';
 import { requireApproved, requireCoach } from '../middleware/session';
 import type { AuthUser } from '../auth';
+import { ensureStoredCompetition, findCalendarCompetition } from '../lib/competition-record';
 import { notifyMembers } from './push';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
@@ -19,6 +20,21 @@ function competitionDto(comp: typeof competitions.$inferSelect) {
     registration_deadline: comp.registrationDeadline,
     status: comp.status,
     created_at: comp.createdAt,
+  };
+}
+
+function calendarCompetitionDto(event: typeof calendarEvents.$inferSelect) {
+  return {
+    id: event.id,
+    name: event.title,
+    location: event.place,
+    comp_date: event.eventDate,
+    category: null,
+    comp_type: null,
+    registration_deadline: null,
+    status: 'open',
+    created_at: event.createdAt,
+    _fromCalendar: true,
   };
 }
 
@@ -52,18 +68,10 @@ app.get('/', requireApproved, async (c) => {
   const bookmarkedIds = new Set(bookmarks.map((row) => row.competitionId));
 
   // Map calendar events to competition shape, tagged as calendar source
-  const calCompets = calEvents.map((e) => ({
-    id:                    e.id,
-    name:                  e.title,
-    location:              e.place ?? null,
-    comp_date:             e.eventDate,
-    category:              null,
-    comp_type:             null,
-    registration_deadline: null,
-    status:                'open' as const,
-    created_at:            e.createdAt,
-    _fromCalendar:         true,
-  }));
+  const storedCompetitionIds = new Set(comps.map((comp) => comp.id));
+  const calCompets = calEvents
+    .filter((event) => !storedCompetitionIds.has(event.id))
+    .map(calendarCompetitionDto);
 
   const upcoming = [
     ...comps.map((comp) => ({ ...competitionDto(comp), bookmarked: bookmarkedIds.has(comp.id), _fromCalendar: false })),
@@ -96,13 +104,15 @@ app.get('/', requireApproved, async (c) => {
 app.get('/:id', requireApproved, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
-  const [comp, bookmark] = await Promise.all([
-    db.select().from(competitions).where(eq(competitions.id, id)).then((rows) => rows[0]),
-    db.select({ competitionId: competitionBookmarks.competitionId }).from(competitionBookmarks)
-      .where(and(eq(competitionBookmarks.competitionId, id), eq(competitionBookmarks.userId, user.id)))
-      .then((rows) => rows[0]),
-  ]);
-  if (!comp) return c.json({ error: 'Introuvable' }, 404);
+  const [comp] = await db.select().from(competitions).where(eq(competitions.id, id));
+  if (!comp) {
+    const event = await findCalendarCompetition(id);
+    if (!event) return c.json({ error: 'Introuvable' }, 404);
+    return c.json({ ...calendarCompetitionDto(event), bookmarked: false });
+  }
+  const [bookmark] = await db.select({ competitionId: competitionBookmarks.competitionId })
+    .from(competitionBookmarks)
+    .where(and(eq(competitionBookmarks.competitionId, id), eq(competitionBookmarks.userId, user.id)));
   return c.json({ ...competitionDto(comp), bookmarked: Boolean(bookmark) });
 });
 
@@ -154,6 +164,8 @@ app.delete('/:id', requireCoach, async (c) => {
 app.put('/:id/bookmark', requireApproved, async (c) => {
   const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
   const userId = c.get('user').id;
+  const competition = await ensureStoredCompetition(id);
+  if (!competition) return c.json({ error: 'Compétition introuvable' }, 404);
   const [existing] = await db.select().from(competitionBookmarks)
     .where(and(eq(competitionBookmarks.competitionId, id), eq(competitionBookmarks.userId, userId)));
   if (existing) {
@@ -172,7 +184,7 @@ app.post('/:id/register', requireApproved, async (c) => {
   const competitionId = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
   const body = await c.req.json<{ weight_class?: string }>();
 
-  const [competition] = await db.select().from(competitions).where(eq(competitions.id, competitionId));
+  const competition = await ensureStoredCompetition(competitionId);
   if (!competition) return c.json({ error: 'Compétition introuvable' }, 404);
   const today = new Date().toISOString().split('T')[0];
   if (competition.status === 'closed' || competition.compDate < today) {

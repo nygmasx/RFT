@@ -6,8 +6,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
-
+import DateTimePicker from '@/components/themed-date-time-picker';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -215,6 +214,10 @@ export default function AdminScreen() {
               )}
             </Pressable>
           ))}
+          <Pressable style={styles.timerTabBtn} onPress={() => router.push('/admin-timer' as never)}>
+            <Ionicons name="timer-outline" size={15} color={t.crimson} />
+            <Text style={styles.timerTabText}>TIMER</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
 
@@ -547,6 +550,11 @@ function makeStyles(t: Theme) {
     tabBtnActive: { borderBottomColor: t.crimson },
     tabLabel: { fontFamily: FONTS.mono, fontSize: 11, color: t.textMute, letterSpacing: 1 },
     tabLabelActive: { color: t.bone },
+    timerTabBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12,
+      paddingHorizontal: 8, marginRight: 18, borderBottomWidth: 2, borderBottomColor: t.crimson,
+    },
+    timerTabText: { fontFamily: FONTS.mono, fontSize: 11, color: t.crimson, letterSpacing: 1, fontWeight: '700' },
     badge: { backgroundColor: t.crimson, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
     badgeText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
     pendingCard: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4, padding: 16, gap: 12 },

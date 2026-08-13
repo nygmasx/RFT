@@ -32,6 +32,7 @@ function initials(name: string) {
 
 function formatDeparture(iso: string) {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'DATE À CONFIRMER';
   const day = d.toLocaleString('fr-FR', { weekday: 'short' }).toUpperCase();
   const date = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');

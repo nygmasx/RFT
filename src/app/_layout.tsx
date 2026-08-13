@@ -17,6 +17,7 @@ const PRIVATE_ROUTES = [
   'add-result',
   'admin',
   'admin-content',
+  'admin-timer',
   'announcement',
   'calendar',
   'chat',

@@ -26,6 +26,8 @@ export default function RegisterScreen() {
   const [phone, setPhone]         = useState('');
   const [password, setPassword]   = useState('');
   const [confirm, setConfirm]     = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
   const [category, setCategory]   = useState('Adultes');
   const [avatarUri, setAvatarUri]     = useState<string | null>(null);
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
@@ -169,16 +171,46 @@ export default function RegisterScreen() {
 
               <View style={s.field}>
                 <Text style={s.label}>MOT DE PASSE</Text>
-                <TextInput style={s.input} value={password} onChangeText={setPassword}
-                  placeholder="8 caractères minimum" placeholderTextColor={t.textMute}
-                  secureTextEntry returnKeyType="next" />
+                <View style={s.passwordField}>
+                  <TextInput style={[s.input, s.passwordInput]} value={password} onChangeText={setPassword}
+                    placeholder="8 caractères minimum" placeholderTextColor={t.textMute}
+                    secureTextEntry={!passwordVisible} returnKeyType="next" />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={passwordVisible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    hitSlop={8}
+                    onPress={() => setPasswordVisible((visible) => !visible)}
+                    style={s.passwordToggle}
+                  >
+                    <Ionicons
+                      name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                      size={21}
+                      color={t.textMute}
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               <View style={s.field}>
                 <Text style={s.label}>CONFIRMER LE MOT DE PASSE</Text>
-                <TextInput style={s.input} value={confirm} onChangeText={setConfirm}
-                  placeholder="••••••••" placeholderTextColor={t.textMute}
-                  secureTextEntry returnKeyType="done" onSubmitEditing={handleRegister} />
+                <View style={s.passwordField}>
+                  <TextInput style={[s.input, s.passwordInput]} value={confirm} onChangeText={setConfirm}
+                    placeholder="••••••••" placeholderTextColor={t.textMute}
+                    secureTextEntry={!confirmVisible} returnKeyType="done" onSubmitEditing={handleRegister} />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={confirmVisible ? 'Masquer la confirmation du mot de passe' : 'Afficher la confirmation du mot de passe'}
+                    hitSlop={8}
+                    onPress={() => setConfirmVisible((visible) => !visible)}
+                    style={s.passwordToggle}
+                  >
+                    <Ionicons
+                      name={confirmVisible ? 'eye-off-outline' : 'eye-outline'}
+                      size={21}
+                      color={t.textMute}
+                    />
+                  </Pressable>
+                </View>
               </View>
 
               {!!error && <Text style={s.errorText}>{error}</Text>}
@@ -222,6 +254,12 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
     borderRadius: 4, paddingHorizontal: 14, paddingVertical: 13,
     fontSize: 15, color: t.bone,
+  },
+  passwordField: { position: 'relative' },
+  passwordInput: { paddingRight: 50 },
+  passwordToggle: {
+    position: 'absolute', right: 0, top: 0, bottom: 0, width: 48,
+    alignItems: 'center', justifyContent: 'center',
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface },

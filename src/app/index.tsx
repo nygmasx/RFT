@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,11 +41,12 @@ export default function WelcomeScreen() {
       <View style={styles.glow} />
 
       <SafeAreaView style={styles.safe}>
-        {/* Sun mark */}
-        <View style={styles.sunWrap}>
-          <View style={styles.sunOuter} />
-          <View style={styles.sunInner} />
-        </View>
+        <Image
+          accessibilityLabel="Logo Ronin Fight Team"
+          contentFit="contain"
+          source={require('../../assets/images/rft-mark.png')}
+          style={styles.logo}
+        />
 
         <View style={styles.body}>
           {/* Headline */}
@@ -104,27 +106,7 @@ function makeStyles(t: Theme) {
       paddingHorizontal: 32,
       paddingTop: 20,
     },
-    sunWrap: {
-      width: 64,
-      height: 64,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 16,
-    },
-    sunOuter: {
-      position: 'absolute',
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: t.crimson,
-      opacity: 0.2,
-    },
-    sunInner: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: t.crimson,
-    },
+    logo: { width: 112, height: 93, marginTop: 16 },
     body: {
       flex: 1,
       justifyContent: 'flex-end',
