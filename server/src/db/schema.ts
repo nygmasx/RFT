@@ -220,6 +220,7 @@ export const userSettings = pgTable('user_settings', {
 export const palmares = pgTable('palmares', {
   id:              uuid('id').primaryKey().defaultRandom(),
   userId:          text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  competitionId:   uuid('competition_id').references(() => competitions.id, { onDelete: 'set null' }),
   competitionName: text('competition_name').notNull(),
   compDate:        date('comp_date').notNull(),
   weightClass:     text('weight_class'),
@@ -227,4 +228,4 @@ export const palmares = pgTable('palmares', {
   place:           integer('place').notNull(),
   notes:           text('notes'),
   createdAt:       timestamp('created_at').notNull().defaultNow(),
-});
+}, (t) => [uniqueIndex('palmares_user_competition_unique').on(t.userId, t.competitionId)]);

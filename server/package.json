@@ -11,6 +11,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "migrate:avatars": "tsx scripts/migrate-avatars.ts",
+    "migrate:competition-results": "tsx scripts/migrate-competition-results.ts",
     "backfill:geolocation": "tsx scripts/backfill-geolocation.ts"
   },
   "dependencies": {

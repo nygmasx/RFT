@@ -126,6 +126,7 @@ export interface Carpool {
 export interface PalmaresEntry {
   id: string;
   userId: string;
+  competitionId: string | null;
   competitionName: string;
   compDate: string;
   weightClass: string | null;

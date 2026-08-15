@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { eq, gte, asc, and, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { competitions, registrations, calendarEvents, competitionBookmarks } from '../db/schema';
+import { competitions, registrations, calendarEvents, competitionBookmarks, palmares, users } from '../db/schema';
 import { requireApproved, requireCoach } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { ensureStoredCompetition, findCalendarCompetition } from '../lib/competition-record';
-import { notifyMembers } from './push';
+import { notifyMembers, notifyUser } from './push';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -45,6 +45,69 @@ function calendarCompetitionDto(event: typeof calendarEvents.$inferSelect) {
 app.get('/all', requireCoach, async (c) => {
   const rows = await db.select().from(competitions).orderBy(asc(competitions.compDate));
   return c.json(rows.map(competitionDto));
+});
+
+// GET /api/competitions/admin/overview — every competition with management counts
+app.get('/admin/overview', requireCoach, async (c) => {
+  const [storedCompetitions, calendarCompetitions, registrationRows, resultRows] = await Promise.all([
+    db.select().from(competitions).orderBy(asc(competitions.compDate)),
+    db.select().from(calendarEvents).where(eq(calendarEvents.type, 'compet')).orderBy(asc(calendarEvents.eventDate)),
+    db.select({ competitionId: registrations.competitionId }).from(registrations),
+    db.select({ competitionId: palmares.competitionId }).from(palmares),
+  ]);
+
+  const storedIds = new Set(storedCompetitions.map(({ id }) => id));
+  const allCompetitions = [
+    ...storedCompetitions.map(competitionDto),
+    ...calendarCompetitions.filter(({ id }) => !storedIds.has(id)).map(calendarCompetitionDto),
+  ].sort((a, b) => b.comp_date.localeCompare(a.comp_date));
+
+  return c.json(allCompetitions.map((competition) => ({
+    ...competition,
+    registered_count: registrationRows.filter(({ competitionId }) => competitionId === competition.id).length,
+    result_count: resultRows.filter(({ competitionId }) => competitionId === competition.id).length,
+  })));
+});
+
+// GET /api/competitions/:id/admin — members, registrations and results for staff
+app.get('/:id/admin', requireCoach, async (c) => {
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const competition = await ensureStoredCompetition(id);
+  if (!competition) return c.json({ error: 'Compétition introuvable' }, 404);
+
+  const [members, registrationRows, resultRows] = await Promise.all([
+    db.select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      avatarUrl: users.avatarUrl,
+      category: users.category,
+      weightClass: users.weightClass,
+    })
+      .from(users)
+      .where(and(eq(users.status, 'approved'), eq(users.role, 'member')))
+      .orderBy(asc(users.lastName), asc(users.firstName)),
+    db.select().from(registrations).where(eq(registrations.competitionId, id)),
+    db.select().from(palmares).where(eq(palmares.competitionId, id)),
+  ]);
+
+  return c.json({
+    competition: competitionDto(competition),
+    members: members.map((member) => {
+      const registration = registrationRows.find(({ userId }) => userId === member.id);
+      const result = resultRows.find(({ userId }) => userId === member.id);
+      return {
+        ...member,
+        registration: registration ? {
+          id: registration.id,
+          status: registration.status,
+          weightClass: registration.weightClass,
+          createdAt: registration.createdAt,
+        } : null,
+        result: result ?? null,
+      };
+    }),
+  });
 });
 
 // GET /api/competitions — upcoming competitions + calendar compets
@@ -221,6 +284,58 @@ app.post('/:id/register', requireApproved, async (c) => {
     status: reg.status,
     created_at: reg.createdAt,
   }, 201);
+});
+
+// PUT /api/competitions/:id/admin/registrations/:userId — force enrollment
+app.put('/:id/admin/registrations/:userId', requireCoach, async (c) => {
+  const competitionId = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const userId = c.req.param('userId');
+  const body = await c.req.json<{ weight_class?: string | null }>();
+  const competition = await ensureStoredCompetition(competitionId);
+  if (!competition) return c.json({ error: 'Compétition introuvable' }, 404);
+
+  const [member] = await db.select({ id: users.id }).from(users)
+    .where(and(eq(users.id, userId), eq(users.status, 'approved'), eq(users.role, 'member')));
+  if (!member) return c.json({ error: 'Élève introuvable ou non approuvé' }, 404);
+
+  const weightClass = body.weight_class?.trim() || null;
+  const [registration] = await db.insert(registrations)
+    .values({ userId, competitionId, weightClass, status: 'confirmé' })
+    .onConflictDoUpdate({
+      target: [registrations.userId, registrations.competitionId],
+      set: { weightClass, status: 'confirmé' },
+    })
+    .returning();
+
+  void notifyUser(
+    userId,
+    '🏆 Inscription confirmée',
+    `Le coach t’a inscrit à ${competition.name}.`,
+    { competitionId },
+    'competition',
+  );
+
+  return c.json({
+    id: registration.id,
+    user_id: registration.userId,
+    competition_id: registration.competitionId,
+    weight_class: registration.weightClass,
+    status: registration.status,
+    created_at: registration.createdAt,
+  }, 201);
+});
+
+// DELETE /api/competitions/:id/admin/registrations/:userId — staff removal
+app.delete('/:id/admin/registrations/:userId', requireCoach, async (c) => {
+  const competitionId = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const userId = c.req.param('userId');
+  const [removed] = await db.delete(registrations).where(and(
+    eq(registrations.competitionId, competitionId),
+    eq(registrations.userId, userId),
+  )).returning({ id: registrations.id });
+
+  if (!removed) return c.json({ error: 'Inscription introuvable' }, 404);
+  return c.json({ ok: true });
 });
 
 // DELETE /api/competitions/registrations/:regId

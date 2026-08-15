@@ -33,6 +33,7 @@ const PRIVATE_ROUTES = [
   'add-result',
   'admin',
   'admin-content',
+  'admin-results',
   'admin-timer',
   'announcement',
   'calendar',

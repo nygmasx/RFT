@@ -70,6 +70,7 @@ Les réactions et réponses aux annonces, les états lu/non-lu, les préférence
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_functional_completeness.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_production_readiness.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260814_geolocation.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260815_competition_results.sql
 ```
 
 Après la migration de géolocalisation, compléter les coordonnées des données existantes :

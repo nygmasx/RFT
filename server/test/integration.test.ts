@@ -80,6 +80,74 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.deepEqual(await bookmark.json(), { bookmarked: true });
   assert.equal((await call(`/api/competitions/${competition.id}/register`, { method: 'POST', token: member.token, body: {} })).status, 201);
 
+  assert.equal((await call('/api/competitions/admin/overview', { token: member.token })).status, 403);
+  const initialManagement = await call(`/api/competitions/${competition.id}/admin`, { token: coach.token });
+  assert.equal(initialManagement.status, 200, await initialManagement.clone().text());
+  const initialMember = (await initialManagement.json() as {
+    members: { id: string; registration: { status: string } | null; result: unknown }[];
+  }).members.find(({ id }) => id === member.id);
+  assert.equal(initialMember?.registration?.status, 'en_attente');
+  assert.equal(initialMember?.result, null);
+
+  const removeSelfRegistration = await call(
+    `/api/competitions/${competition.id}/admin/registrations/${member.id}`,
+    { method: 'DELETE', token: coach.token },
+  );
+  assert.equal(removeSelfRegistration.status, 200, await removeSelfRegistration.clone().text());
+
+  const createUnregisteredResult = await call(
+    `/api/palmares/admin/competition/${competition.id}/user/${member.id}`,
+    { method: 'PUT', token: coach.token, body: { place: 2, comp_type: 'GI', weight_class: '-70 kg', notes: 'Argent' } },
+  );
+  assert.equal(createUnregisteredResult.status, 201, await createUnregisteredResult.clone().text());
+  const createdResult = await createUnregisteredResult.json() as { id: string; competitionId: string; place: number };
+  assert.equal(createdResult.competitionId, competition.id);
+  assert.equal(createdResult.place, 2);
+
+  const updateResult = await call(
+    `/api/palmares/admin/competition/${competition.id}/user/${member.id}`,
+    { method: 'PUT', token: coach.token, body: { place: 1, comp_type: 'NO-GI', weight_class: '-70 kg' } },
+  );
+  assert.equal(updateResult.status, 200, await updateResult.clone().text());
+  const updatedResult = await updateResult.json() as { id: string; place: number };
+  assert.equal(updatedResult.id, createdResult.id);
+  assert.equal(updatedResult.place, 1);
+
+  const managementWithoutRegistration = await call(`/api/competitions/${competition.id}/admin`, { token: coach.token });
+  const managedUnregisteredMember = (await managementWithoutRegistration.json() as {
+    members: { id: string; registration: unknown; result: { id: string; place: number } | null }[];
+  }).members.find(({ id }) => id === member.id);
+  assert.equal(managedUnregisteredMember?.registration, null);
+  assert.equal(managedUnregisteredMember?.result?.id, createdResult.id);
+  assert.equal(managedUnregisteredMember?.result?.place, 1);
+
+  const forceRegistration = await call(
+    `/api/competitions/${competition.id}/admin/registrations/${member.id}`,
+    { method: 'PUT', token: coach.token, body: { weight_class: '-70 kg' } },
+  );
+  assert.equal(forceRegistration.status, 201, await forceRegistration.clone().text());
+  assert.equal((await forceRegistration.json() as { status: string }).status, 'confirmé');
+
+  const overview = await call('/api/competitions/admin/overview', { token: coach.token });
+  assert.equal(overview.status, 200, await overview.clone().text());
+  const managedCompetition = (await overview.json() as {
+    id: string; registered_count: number; result_count: number;
+  }[]).find(({ id }) => id === competition.id);
+  assert.equal(managedCompetition?.registered_count, 1);
+  assert.equal(managedCompetition?.result_count, 1);
+
+  const deleteResult = await call(
+    `/api/palmares/admin/competition/${competition.id}/user/${member.id}`,
+    { method: 'DELETE', token: coach.token },
+  );
+  assert.equal(deleteResult.status, 200, await deleteResult.clone().text());
+  const managementAfterDelete = await call(`/api/competitions/${competition.id}/admin`, { token: coach.token });
+  const managedMemberAfterDelete = (await managementAfterDelete.json() as {
+    members: { id: string; registration: { status: string } | null; result: unknown }[];
+  }).members.find(({ id }) => id === member.id);
+  assert.equal(managedMemberAfterDelete?.registration?.status, 'confirmé');
+  assert.equal(managedMemberAfterDelete?.result, null);
+
   const calendarCompetitionResponse = await call('/api/calendar', { method: 'POST', token: coach.token, body: {
     type: 'compet', title: 'Calendar Open Integration', event_date: '2099-07-12', place: 'Place Bellecour 69002 Lyon',
     latitude: 45.7579, longitude: 4.8320,

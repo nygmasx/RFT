@@ -224,6 +224,10 @@ export default function AdminScreen() {
               )}
             </Pressable>
           ))}
+          <Pressable style={styles.timerTabBtn} onPress={() => router.push('/admin-results' as never)}>
+            <Ionicons name="trophy-outline" size={15} color={t.crimson} />
+            <Text style={styles.timerTabText}>RÉSULTATS</Text>
+          </Pressable>
           <Pressable style={styles.timerTabBtn} onPress={() => router.push('/admin-timer' as never)}>
             <Ionicons name="timer-outline" size={15} color={t.crimson} />
             <Text style={styles.timerTabText}>TIMER</Text>
