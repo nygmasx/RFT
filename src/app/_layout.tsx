@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -70,13 +71,15 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <PushNotificationRegistrar />
-        <StatusBar style="auto" />
-        <RootNavigator />
-      </AuthProvider>
-    </ThemeProvider>
+    <KeyboardProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <PushNotificationRegistrar />
+          <StatusBar style="auto" />
+          <RootNavigator />
+        </AuthProvider>
+      </ThemeProvider>
+    </KeyboardProvider>
   );
 }
 

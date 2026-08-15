@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import { FONTS, Theme, ThemeKey, THEMES, THEME_LABELS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -329,7 +330,7 @@ export default function SettingsScreen() {
       </ScrollView>
 
       <Modal visible={dialog !== null} transparent animationType="fade" onRequestClose={closeDialog}>
-        <View style={styles.modalOverlay}>
+        <FormScrollView style={styles.modalOverlay} contentContainerStyle={styles.modalOverlayContent}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
               {dialog === 'password' ? 'CHANGER LE MOT DE PASSE' : dialog === 'delete' ? 'SUPPRIMER LE COMPTE' : 'QUITTER LE CLUB'}
@@ -384,7 +385,7 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
+        </FormScrollView>
       </Modal>
     </View>
   );
@@ -433,7 +434,8 @@ function makeStyles(t: Theme) {
     footerText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5 },
     footerSub: { flexDirection: 'row', alignItems: 'center' },
     footerSubText: { fontFamily: FONTS.body, fontSize: 12, color: t.textMute },
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)' },
+    modalOverlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     modalCard: { width: '100%', maxWidth: 440, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4, padding: 20, gap: 12 },
     modalTitle: { fontFamily: FONTS.display, fontSize: 17, color: t.bone, fontWeight: '900', letterSpacing: 1 },
     modalBody: { fontFamily: FONTS.body, fontSize: 13, color: t.textDim, lineHeight: 19 },

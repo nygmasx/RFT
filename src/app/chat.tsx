@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -193,8 +194,9 @@ export default function ChatScreen() {
       </SafeAreaView>
 
       <KeyboardAvoidingView
+        automaticOffset
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
       <FlatList
         ref={flatListRef}
@@ -212,6 +214,8 @@ export default function ChatScreen() {
         contentContainerStyle={styles.messages}
         ListHeaderComponent={headerComponent}
         ListFooterComponent={footerComponent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => {
           if (messages.length > 0) {

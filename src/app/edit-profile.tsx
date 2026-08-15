@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useProfile } from '@/hooks/useProfile';
@@ -105,7 +106,7 @@ export default function EditProfileScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <FormScrollView contentContainerStyle={styles.scroll}>
 
         {/* Avatar */}
         <View style={styles.avatarSection}>
@@ -225,7 +226,7 @@ export default function EditProfileScreen() {
         </View>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }

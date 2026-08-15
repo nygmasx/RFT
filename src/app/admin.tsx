@@ -6,6 +6,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
@@ -233,8 +234,7 @@ export default function AdminScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={t.crimson} size="large" /></View>
       ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
+        <FormScrollView
           contentContainerStyle={styles.scroll}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.crimson} />}
         >
@@ -378,7 +378,7 @@ export default function AdminScreen() {
           )}
 
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </FormScrollView>
       )}
 
       <Modal visible={selectedMember !== null} animationType="slide" transparent onRequestClose={() => setSelectedMember(null)}>

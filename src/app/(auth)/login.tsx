@@ -2,13 +2,13 @@ import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { authClient } from '@/lib/auth-client';
@@ -48,14 +48,8 @@ export default function LoginScreen() {
   return (
     <View style={s.container}>
       <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <ScrollView
+          <FormScrollView
             contentContainerStyle={s.inner}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
           >
             {/* Logo */}
             <View style={s.logoBlock}>
@@ -145,8 +139,7 @@ export default function LoginScreen() {
             </View>
 
             <Text style={s.footer}>Accès réservé aux membres du club</Text>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </FormScrollView>
       </SafeAreaView>
     </View>
   );

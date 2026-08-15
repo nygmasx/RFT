@@ -1,11 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
@@ -118,7 +117,7 @@ export default function EditBeltScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <FormScrollView contentContainerStyle={styles.scroll}>
 
         {/* Couleur */}
         <Text style={styles.sectionLabel}>COULEUR DE CEINTURE</Text>
@@ -216,7 +215,7 @@ export default function EditBeltScreen() {
 
         {!!error && <Text style={{ color: t.crimson, fontSize: 12, textAlign: 'center' }}>{error}</Text>}
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }

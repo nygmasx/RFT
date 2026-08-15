@@ -15,6 +15,7 @@
     },
     "android": {
       "package": "com.nygmasx.rft",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
         "foregroundImage": "./assets/images/brand/android-foreground.png",

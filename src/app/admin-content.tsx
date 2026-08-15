@@ -1,8 +1,9 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import { FONTS, Theme } from '@/constants/theme';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { useAuth } from '@/context/AuthContext';
@@ -110,7 +111,7 @@ export default function AdminContentScreen() {
         <Text style={[styles.tabText, section === key && styles.tabTextActive]}>{key === 'announcements' ? 'ANNONCES' : 'COMPÉTITIONS'}</Text>
       </Pressable>)}</View>
     </SafeAreaView>
-    {loading ? <View style={styles.center}><ActivityIndicator color={t.crimson} /></View> : <ScrollView contentContainerStyle={styles.scroll}>
+    {loading ? <View style={styles.center}><ActivityIndicator color={t.crimson} /></View> : <FormScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.form}>
         <Text style={styles.formTitle}>{editingId ? 'MODIFIER' : 'NOUVEAU'}</Text>
         {section === 'announcements' ? <>
@@ -140,7 +141,7 @@ export default function AdminContentScreen() {
         </Pressable>
         <Pressable onPress={() => remove(item.id)}><Text style={styles.delete}>SUPPR.</Text></Pressable>
       </View>)}
-    </ScrollView>}
+    </FormScrollView>}
   </View>;
 }
 

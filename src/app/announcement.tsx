@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
@@ -138,11 +139,14 @@ export default function AnnouncementScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <KeyboardAvoidingView automaticOffset behavior="padding" style={{ flex: 1 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Tag */}
         <View style={styles.tagRow}>
           {announcement.tag && (
@@ -215,28 +219,29 @@ export default function AnnouncementScreen() {
         {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+        </ScrollView>
 
-      {/* Composer */}
-      <SafeAreaView edges={['bottom']} style={styles.composer}>
-        <TextInput
-          style={styles.composerInput}
-          placeholder="Écrire une réponse…"
-          placeholderTextColor={t.textMute}
-          value={reply}
-          onChangeText={setReply}
-          multiline
-        />
-        <Pressable
-          style={[styles.sendBtn, (!reply.trim() || sendingReply) && styles.sendBtnDisabled]}
-          onPress={sendReply}
-          disabled={!reply.trim() || sendingReply}
-        >
-          {sendingReply
-            ? <ActivityIndicator color={t.bone} size="small" />
-            : <Text style={styles.sendIcon}>➤</Text>}
-        </Pressable>
-      </SafeAreaView>
+        {/* Composer */}
+        <SafeAreaView edges={['bottom']} style={styles.composer}>
+          <TextInput
+            style={styles.composerInput}
+            placeholder="Écrire une réponse…"
+            placeholderTextColor={t.textMute}
+            value={reply}
+            onChangeText={setReply}
+            multiline
+          />
+          <Pressable
+            style={[styles.sendBtn, (!reply.trim() || sendingReply) && styles.sendBtnDisabled]}
+            onPress={sendReply}
+            disabled={!reply.trim() || sendingReply}
+          >
+            {sendingReply
+              ? <ActivityIndicator color={t.bone} size="small" />
+              : <Text style={styles.sendIcon}>➤</Text>}
+          </Pressable>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

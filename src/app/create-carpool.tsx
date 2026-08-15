@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import {
-  Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
@@ -81,14 +80,8 @@ export default function CreateCarpoolScreen() {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <FormScrollView
         contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
       >
         {/* Événement */}
         <Text style={styles.fieldLabel}>ÉVÉNEMENT</Text>
@@ -226,8 +219,7 @@ export default function CreateCarpoolScreen() {
         />
 
         <View style={{ height: 100 }} />
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </FormScrollView>
 
       <SafeAreaView edges={['bottom']} style={styles.ctaWrap}>
         <Pressable

@@ -64,7 +64,7 @@ function RFTTabBar({ state, navigation }: { state: any; navigation: any }) {
 export default function TabLayout() {
   return (
     <Tabs
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}
       tabBar={(props) => <RFTTabBar state={props.state} navigation={props.navigation} />}
     >
       <Tabs.Screen name="accueil" />

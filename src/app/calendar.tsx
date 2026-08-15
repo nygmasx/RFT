@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
@@ -157,7 +156,7 @@ export default function CalendarScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <FormScrollView contentContainerStyle={styles.scroll}>
         {/* Month navigation */}
         <View style={styles.monthNav}>
           <Pressable onPress={goToPrevMonth} style={styles.navBtn}>
@@ -380,7 +379,7 @@ export default function CalendarScreen() {
         )}
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }

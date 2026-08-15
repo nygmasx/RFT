@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
@@ -79,8 +78,7 @@ export default function AddResultScreen() {
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <FormScrollView contentContainerStyle={styles.scroll}>
 
         {/* COMPÉTITION */}
         <Text style={styles.sectionLabel}>COMPÉTITION</Text>
@@ -200,8 +198,7 @@ export default function AddResultScreen() {
         </Pressable>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
-      </KeyboardAvoidingView>
+      </FormScrollView>
     </View>
   );
 }

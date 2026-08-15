@@ -1,13 +1,13 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { authClient, authRedirect } from '@/lib/auth-client';
@@ -101,14 +101,8 @@ export default function RegisterScreen() {
   return (
     <View style={s.container}>
       <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <ScrollView
+          <FormScrollView
             contentContainerStyle={s.scroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
           >
             <View style={s.header}>
               <Pressable onPress={() => safeBack('/(auth)/login')} style={s.back}>
@@ -224,8 +218,7 @@ export default function RegisterScreen() {
 
               <Text style={s.hint}>Ton profil sera vérifié par le coach avant activation.</Text>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </FormScrollView>
       </SafeAreaView>
     </View>
   );

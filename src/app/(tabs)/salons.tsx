@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -66,51 +67,57 @@ export default function SalonsScreen() {
         </View>
       </SafeAreaView>
 
-      {loading ? (
-        <View style={styles.loaderWrap}>
-          <ActivityIndicator color={t.crimson} />
-        </View>
-      ) : (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {filtered.map((c, i) => {
-            const isTop = i === 0;
-            return (
-              <Pressable
-                key={c.id}
-                style={[styles.row, isTop && styles.rowTop]}
-                onPress={() => router.push({ pathname: '/chat', params: { channel: c.id, name: c.name } })}
-                onLongPress={() => moderate(c)}
-              >
-                <View style={[styles.avatar, isTop && styles.avatarTop]}>
-                  {isTop
-                    ? <Ionicons name="sunny" size={18} color={t.bone} />
-                    : <Text style={styles.avatarText}>{c.name[0]}</Text>
-                  }
-                  {c.isLocked && !isTop && (
-                    <View style={styles.lockBadge}>
-                      <Ionicons name="lock-closed" size={7} color={t.textMute} />
-                    </View>
-                  )}
-                </View>
+      <KeyboardAvoidingView automaticOffset behavior="padding" style={{ flex: 1 }}>
+        {loading ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator color={t.crimson} />
+          </View>
+        ) : (
+          <ScrollView
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {filtered.map((c, i) => {
+              const isTop = i === 0;
+              return (
+                <Pressable
+                  key={c.id}
+                  style={[styles.row, isTop && styles.rowTop]}
+                  onPress={() => router.push({ pathname: '/chat', params: { channel: c.id, name: c.name } })}
+                  onLongPress={() => moderate(c)}
+                >
+                  <View style={[styles.avatar, isTop && styles.avatarTop]}>
+                    {isTop
+                      ? <Ionicons name="sunny" size={18} color={t.bone} />
+                      : <Text style={styles.avatarText}>{c.name[0]}</Text>
+                    }
+                    {c.isLocked && !isTop && (
+                      <View style={styles.lockBadge}>
+                        <Ionicons name="lock-closed" size={7} color={t.textMute} />
+                      </View>
+                    )}
+                  </View>
 
-                <View style={styles.info}>
-                  <View style={styles.infoTop}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.chanName} numberOfLines={1}>{c.name}</Text>
-                      {c.isLocked && (
-                        <Ionicons name="lock-closed" size={10} color={t.textMute} />
-                      )}
+                  <View style={styles.info}>
+                    <View style={styles.infoTop}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.chanName} numberOfLines={1}>{c.name}</Text>
+                        {c.isLocked && (
+                          <Ionicons name="lock-closed" size={10} color={t.textMute} />
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.infoBot}>
+                      <Text style={styles.lastMsg} numberOfLines={1}>{c.description ?? ''}</Text>
                     </View>
                   </View>
-                  <View style={styles.infoBot}>
-                    <Text style={styles.lastMsg} numberOfLines={1}>{c.description ?? ''}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+      </KeyboardAvoidingView>
     </View>
   );
 }

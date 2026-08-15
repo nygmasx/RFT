@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import { FormScrollView } from '@/components/form-scroll-view';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -75,10 +74,8 @@ export default function CreateChannelScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <FormScrollView
         contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
       >
         {/* Nom du salon */}
         <Text style={styles.fieldLabel}>NOM DU SALON</Text>
@@ -156,7 +153,7 @@ export default function CreateChannelScreen() {
         </View>
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </FormScrollView>
 
       {/* CTA */}
       <SafeAreaView edges={['bottom']} style={styles.ctaWrap}>
