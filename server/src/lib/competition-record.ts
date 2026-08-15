@@ -24,6 +24,8 @@ export async function ensureStoredCompetition(id: CompetitionId) {
     id: event.id,
     name: event.title,
     location: event.place,
+    latitude: event.latitude,
+    longitude: event.longitude,
     compDate: event.eventDate,
     status: 'open',
   }).onConflictDoNothing();

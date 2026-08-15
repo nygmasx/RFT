@@ -21,6 +21,8 @@ app.get('/', requireApproved, async (c) => {
       driverId:      carpools.driverId,
       competitionId: carpools.competitionId,
       departureCity: carpools.departureCity,
+      departureLatitude: carpools.departureLatitude,
+      departureLongitude: carpools.departureLongitude,
       departureAt:   carpools.departureAt,
       seatsTotal:    carpools.seatsTotal,
       seatsTaken:    carpools.seatsTaken,
@@ -34,6 +36,9 @@ app.get('/', requireApproved, async (c) => {
       competitions: {
         name:      competitions.name,
         comp_date: competitions.compDate,
+        location: competitions.location,
+        latitude: competitions.latitude,
+        longitude: competitions.longitude,
       },
     })
     .from(carpools)
@@ -56,6 +61,8 @@ app.get('/', requireApproved, async (c) => {
       driver_id: row.driverId,
       competition_id: row.competitionId,
       departure_city: row.departureCity,
+      departure_latitude: row.departureLatitude,
+      departure_longitude: row.departureLongitude,
       departure_at: row.departureAt,
       seats_total: row.seatsTotal,
       seats_taken: row.seatsTaken,
@@ -76,6 +83,8 @@ app.post('/', requireApproved, async (c) => {
   const body = await c.req.json<{
     competition_id?: string | null;
     departure_city: string;
+    departure_latitude?: number;
+    departure_longitude?: number;
     departure_at: string;
     seats_total: number;
     cost_per_seat?: number;
@@ -108,6 +117,8 @@ app.post('/', requireApproved, async (c) => {
       driverId:      user.id,
       competitionId,
       departureCity,
+      departureLatitude: Number.isFinite(body.departure_latitude) ? body.departure_latitude : null,
+      departureLongitude: Number.isFinite(body.departure_longitude) ? body.departure_longitude : null,
       departureAt,
       seatsTotal:    body.seats_total,
       seatsTaken:    0,
@@ -129,6 +140,8 @@ app.post('/', requireApproved, async (c) => {
     driver_id: row.driverId,
     competition_id: row.competitionId,
     departure_city: row.departureCity,
+    departure_latitude: row.departureLatitude,
+    departure_longitude: row.departureLongitude,
     departure_at: row.departureAt,
     seats_total: row.seatsTotal,
     seats_taken: row.seatsTaken,
@@ -238,7 +251,10 @@ app.get('/:id/contact', requireApproved, async (c) => {
 app.put('/:id', requireApproved, async (c) => {
   const user = c.get('user');
   const carpoolId = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
-  const body = await c.req.json<{ departure_city: string; departure_at: string; seats_total: number; cost_per_seat?: number; notes?: string }>();
+  const body = await c.req.json<{
+    departure_city: string; departure_at: string; seats_total: number; cost_per_seat?: number; notes?: string;
+    departure_latitude?: number; departure_longitude?: number;
+  }>();
   const departureAt = new Date(body.departure_at);
   if (!body.departure_city?.trim() || Number.isNaN(departureAt.getTime()) || departureAt <= new Date()) {
     return c.json({ error: 'Départ invalide' }, 400);
@@ -251,6 +267,8 @@ app.put('/:id', requireApproved, async (c) => {
   }
   const [row] = await db.update(carpools).set({
     departureCity: body.departure_city.trim(), departureAt, seatsTotal: body.seats_total,
+    departureLatitude: Number.isFinite(body.departure_latitude) ? body.departure_latitude : null,
+    departureLongitude: Number.isFinite(body.departure_longitude) ? body.departure_longitude : null,
     costPerSeat: String(body.cost_per_seat ?? 0), notes: body.notes?.trim() || null,
   }).where(eq(carpools.id, carpoolId)).returning();
   return c.json(row);

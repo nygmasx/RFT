@@ -8,6 +8,8 @@ type CarpoolApiRow = Partial<Carpool> & {
   driverId?: string;
   competitionId?: string | null;
   departureCity?: string;
+  departureLatitude?: number | null;
+  departureLongitude?: number | null;
   departureAt?: string;
   seatsTotal?: number;
   seatsTaken?: number;
@@ -27,6 +29,8 @@ function normalizeCarpool(row: CarpoolApiRow): Carpool | null {
     driver_id: row.driver_id ?? row.driverId ?? '',
     competition_id: row.competition_id ?? row.competitionId ?? null,
     departure_city: row.departure_city ?? row.departureCity ?? '',
+    departure_latitude: row.departure_latitude ?? row.departureLatitude ?? null,
+    departure_longitude: row.departure_longitude ?? row.departureLongitude ?? null,
     departure_at: row.departure_at ?? row.departureAt ?? '',
     seats_total: numberOrZero(row.seats_total ?? row.seatsTotal),
     seats_taken: numberOrZero(row.seats_taken ?? row.seatsTaken),

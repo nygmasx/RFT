@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@/components/themed-date-time-picker';
+import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -46,6 +47,8 @@ interface CalEvent {
   eventDate: string;
   eventTime: string | null;
   place: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 const BELT_COLORS: Record<string, string> = {
@@ -89,6 +92,7 @@ export default function AdminScreen() {
   const [evtType, setEvtType] = useState<EventType>('cours');
   const [evtTime, setEvtTime] = useState<Date | null>(null);
   const [evtPlace, setEvtPlace] = useState('');
+  const [evtPlacePoint, setEvtPlacePoint] = useState<AddressSuggestion | null>(null);
   const [evtSaving, setEvtSaving] = useState(false);
   const [evtError, setEvtError] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -149,6 +153,9 @@ export default function AdminScreen() {
 
   const handleCreateEvent = async () => {
     if (!evtTitle.trim()) { setEvtError('Titre requis.'); return; }
+    if (evtType === 'compet' && evtPlace.trim() && !evtPlacePoint) {
+      setEvtError('Sélectionne l’adresse de la compétition dans la liste.'); return;
+    }
     setEvtSaving(true);
     setEvtError('');
     try {
@@ -160,8 +167,10 @@ export default function AdminScreen() {
         type:       evtType,
         event_time: timeStr,
         place:      evtPlace.trim() || null,
+        latitude:   evtPlacePoint?.latitude ?? null,
+        longitude:  evtPlacePoint?.longitude ?? null,
       });
-      setEvtTitle(''); setEvtDate(new Date()); setEvtType('cours'); setEvtTime(null); setEvtPlace('');
+      setEvtTitle(''); setEvtDate(new Date()); setEvtType('cours'); setEvtTime(null); setEvtPlace(''); setEvtPlacePoint(null);
       setShowCreate(false);
       fetchData();
     } catch (e: any) {
@@ -320,8 +329,17 @@ export default function AdminScreen() {
                   <View style={styles.formDivider} />
                   <View style={styles.fieldRow}>
                     <Text style={styles.fieldLabel}>LIEU</Text>
-                    <TextInput style={styles.input} value={evtPlace} onChangeText={setEvtPlace}
-                      placeholder="Tatami 2" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+                    {evtType === 'compet' ? (
+                      <AddressAutocomplete
+                        placeholder="Adresse complète de la compétition"
+                        value={evtPlace}
+                        onChange={(value) => { setEvtPlace(value); setEvtPlacePoint(null); }}
+                        onSelect={(suggestion) => { setEvtPlace(suggestion.label); setEvtPlacePoint(suggestion); }}
+                      />
+                    ) : (
+                      <TextInput style={styles.input} value={evtPlace} onChangeText={(value) => { setEvtPlace(value); setEvtPlacePoint(null); }}
+                        placeholder="Tatami 2" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+                    )}
                   </View>
                   {!!evtError && <Text style={{ color: t.crimson, fontSize: 12, marginTop: 8 }}>{evtError}</Text>}
                   <Pressable style={[styles.saveBtn, evtSaving && { opacity: 0.6 }]} onPress={handleCreateEvent} disabled={evtSaving}>

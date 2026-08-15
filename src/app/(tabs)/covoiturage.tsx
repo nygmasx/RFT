@@ -8,6 +8,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useCarpools } from '@/hooks/useCarpools';
 import { api } from '@/lib/api';
+import RouteMapBanner from '@/components/route-map-banner';
 
 const FILTERS = ['Tous'];
 
@@ -150,6 +151,24 @@ export default function CovoiturageScreen() {
                   <Tag text={eventName} t={t} />
                 </View>
 
+                {r.departure_latitude != null && r.departure_longitude != null
+                  && r.competitions?.latitude != null && r.competitions?.longitude != null && (
+                  <RouteMapBanner
+                    compact
+                    style={styles.routeMap}
+                    origin={{
+                      latitude: r.departure_latitude,
+                      longitude: r.departure_longitude,
+                      label: r.departure_city,
+                    }}
+                    destination={{
+                      latitude: r.competitions.latitude,
+                      longitude: r.competitions.longitude,
+                      label: r.competitions.location ?? eventName,
+                    }}
+                  />
+                )}
+
                 <View style={styles.routeRow}>
                   <View style={styles.routeIcons}>
                     <View style={styles.routeCircle} />
@@ -251,6 +270,7 @@ function makeStyles(t: Theme) {
     },
     driverInitials: { fontFamily: FONTS.display, fontSize: 13, color: t.bone, fontWeight: '900' },
     driverInfo: { flex: 1 },
+    routeMap: { marginBottom: 10 },
     driverName: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '700' },
     driverTime: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.2, marginTop: 1 },
     routeRow: {

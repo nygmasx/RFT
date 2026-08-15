@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import DateTimePicker from '@/components/themed-date-time-picker';
+import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -73,6 +74,7 @@ export default function CalendarScreen() {
   const [newType, setNewType] = useState<EventType>('cours');
   const [newTime, setNewTime] = useState<Date | null>(null);
   const [newPlace, setNewPlace] = useState('');
+  const [newPlacePoint, setNewPlacePoint] = useState<AddressSuggestion | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -105,13 +107,16 @@ export default function CalendarScreen() {
       ? new Date(year, month, selectedDay)
       : new Date();
     setNewDate(prefilled);
-    setNewTitle(''); setNewType('cours'); setNewTime(null); setNewPlace('');
+    setNewTitle(''); setNewType('cours'); setNewTime(null); setNewPlace(''); setNewPlacePoint(null);
     setSaveError('');
     setShowCreate(true);
   };
 
   const handleSave = async () => {
     if (!newTitle.trim()) { setSaveError('Titre requis.'); return; }
+    if (newType === 'compet' && newPlace.trim() && !newPlacePoint) {
+      setSaveError('Sélectionne l’adresse de la compétition dans la liste.'); return;
+    }
     setSaving(true);
     setSaveError('');
     try {
@@ -123,6 +128,8 @@ export default function CalendarScreen() {
         type: newType,
         event_time: timeStr,
         place: newPlace.trim() || null,
+        latitude: newPlacePoint?.latitude ?? null,
+        longitude: newPlacePoint?.longitude ?? null,
       });
       setShowCreate(false);
       refetch();
@@ -300,8 +307,17 @@ export default function CalendarScreen() {
             <View style={styles.formDivider} />
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>LIEU</Text>
-              <TextInput style={styles.input} value={newPlace} onChangeText={setNewPlace}
-                placeholder="Tatami 2" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+              {newType === 'compet' ? (
+                <AddressAutocomplete
+                  placeholder="Adresse complète de la compétition"
+                  value={newPlace}
+                  onChange={(value) => { setNewPlace(value); setNewPlacePoint(null); }}
+                  onSelect={(suggestion) => { setNewPlace(suggestion.label); setNewPlacePoint(suggestion); }}
+                />
+              ) : (
+                <TextInput style={styles.input} value={newPlace} onChangeText={(value) => { setNewPlace(value); setNewPlacePoint(null); }}
+                  placeholder="Tatami 2" placeholderTextColor={t.textMute} selectionColor={t.crimson} />
+              )}
             </View>
 
             {!!saveError && <Text style={{ color: t.crimson, fontSize: 12, marginTop: 8 }}>{saveError}</Text>}

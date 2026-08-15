@@ -25,6 +25,8 @@ app.post('/', requireCoach, async (c) => {
     event_date: string;
     event_time?: string;
     place?: string;
+    latitude?: number;
+    longitude?: number;
   }>();
 
   if (!body.title?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.event_date ?? '')) {
@@ -37,6 +39,8 @@ app.post('/', requireCoach, async (c) => {
     eventDate: body.event_date,
     eventTime: body.event_time ?? null,
     place:     body.place?.trim() || null,
+    latitude:  Number.isFinite(body.latitude) ? body.latitude : null,
+    longitude: Number.isFinite(body.longitude) ? body.longitude : null,
   }).returning();
 
   void notifyMembers(
@@ -55,6 +59,7 @@ app.put('/:id', requireCoach, async (c) => {
   const body = await c.req.json<{
     type: 'cours' | 'compet' | 'stage'; title: string; event_date: string;
     event_time?: string | null; place?: string | null;
+    latitude?: number | null; longitude?: number | null;
   }>();
   if (!body.title?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.event_date ?? '')) {
     return c.json({ error: 'Titre et date valides obligatoires' }, 400);
@@ -65,6 +70,8 @@ app.put('/:id', requireCoach, async (c) => {
     eventDate: body.event_date,
     eventTime: body.event_time || null,
     place: body.place?.trim() || null,
+    latitude: Number.isFinite(body.latitude) ? body.latitude : null,
+    longitude: Number.isFinite(body.longitude) ? body.longitude : null,
   }).where(eq(calendarEvents.id, id)).returning();
   if (!row) return c.json({ error: 'Introuvable' }, 404);
   return c.json(row);

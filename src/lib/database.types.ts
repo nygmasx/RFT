@@ -77,6 +77,8 @@ export interface CalendarEvent {
   eventDate: string;
   eventTime: string | null;
   place: string | null;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
 }
 
@@ -84,6 +86,8 @@ export interface Competition {
   id: string;
   name: string;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
   comp_date: string;
   category: string | null;
   comp_type: 'GI' | 'NO-GI' | 'OPEN' | null;
@@ -107,6 +111,8 @@ export interface Carpool {
   driver_id: string;
   competition_id: string | null;
   departure_city: string;
+  departure_latitude: number | null;
+  departure_longitude: number | null;
   departure_at: string;
   seats_total: number;
   seats_taken: number;
@@ -114,7 +120,7 @@ export interface Carpool {
   notes: string | null;
   created_at: string;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
-  competitions?: Pick<Competition, 'name' | 'comp_date'>;
+  competitions?: Pick<Competition, 'name' | 'comp_date' | 'location' | 'latitude' | 'longitude'>;
 }
 
 export interface PalmaresEntry {

@@ -70,7 +70,8 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.equal((await call(`/api/announcements/${announcement.id}`, { token: member.token })).status, 200);
 
   const competitionResponse = await call('/api/competitions', { method: 'POST', token: coach.token, body: {
-    name: 'Open Integration', comp_date: '2099-06-12', location: 'Paris', comp_type: 'GI', status: 'open',
+    name: 'Open Integration', comp_date: '2099-06-12', location: '10 Rue de Rivoli 75001 Paris',
+    latitude: 48.8557, longitude: 2.3609, comp_type: 'GI', status: 'open',
   } });
   assert.equal(competitionResponse.status, 201, await competitionResponse.clone().text());
   const competition = await competitionResponse.json() as { id: string };
@@ -80,7 +81,8 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.equal((await call(`/api/competitions/${competition.id}/register`, { method: 'POST', token: member.token, body: {} })).status, 201);
 
   const calendarCompetitionResponse = await call('/api/calendar', { method: 'POST', token: coach.token, body: {
-    type: 'compet', title: 'Calendar Open Integration', event_date: '2099-07-12', place: 'Lyon',
+    type: 'compet', title: 'Calendar Open Integration', event_date: '2099-07-12', place: 'Place Bellecour 69002 Lyon',
+    latitude: 45.7579, longitude: 4.8320,
   } });
   assert.equal(calendarCompetitionResponse.status, 201, await calendarCompetitionResponse.clone().text());
   const calendarCompetition = await calendarCompetitionResponse.json() as { id: string };
@@ -89,14 +91,20 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.equal((await calendarCompetitionDetail.json() as { name: string }).name, 'Calendar Open Integration');
   const calendarCarpool = await call('/api/carpools', { method: 'POST', token: coach.token, body: {
     competition_id: calendarCompetition.id,
-    departure_city: 'Beauvais',
+    departure_city: '1 Rue de la Mairie 60000 Beauvais',
+    departure_latitude: 49.4301,
+    departure_longitude: 2.0952,
     departure_at: '2099-07-12T07:30:00.000Z',
     seats_total: 4,
   } });
   assert.equal(calendarCarpool.status, 201, await calendarCarpool.clone().text());
   const calendarCarpools = await call('/api/carpools', { token: member.token });
   const calendarCarpoolsPayload = await calendarCarpools.json() as {
-    carpools: { competition_id: string | null; departure_at: string; seats_total: number; competitions?: { name: string } }[];
+    carpools: {
+      competition_id: string | null; departure_at: string; seats_total: number;
+      departure_latitude: number | null; departure_longitude: number | null;
+      competitions?: { name: string; latitude: number | null; longitude: number | null };
+    }[];
   };
   const createdCalendarCarpool = calendarCarpoolsPayload.carpools.find(
     (item) => item.competition_id === calendarCompetition.id,
@@ -104,7 +112,11 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.ok(createdCalendarCarpool);
   assert.ok(createdCalendarCarpool.departure_at);
   assert.equal(createdCalendarCarpool.seats_total, 4);
+  assert.equal(createdCalendarCarpool.departure_latitude, 49.4301);
+  assert.equal(createdCalendarCarpool.departure_longitude, 2.0952);
   assert.equal(createdCalendarCarpool.competitions?.name, 'Calendar Open Integration');
+  assert.equal(createdCalendarCarpool.competitions?.latitude, 45.7579);
+  assert.equal(createdCalendarCarpool.competitions?.longitude, 4.8320);
   const calendarRegistration = await call(`/api/competitions/${calendarCompetition.id}/register`, {
     method: 'POST', token: member.token, body: {},
   });
@@ -127,7 +139,8 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.equal((await call(`/api/messages/item/${message.id}`, { method: 'DELETE', token: coach.token })).status, 200);
 
   const carpoolResponse = await call('/api/carpools', { method: 'POST', token: coach.token, body: {
-    competition_id: competition.id, departure_city: 'Montataire', departure_at: '2099-06-12T07:00:00.000Z',
+    competition_id: competition.id, departure_city: '12 Rue de la République 60160 Montataire',
+    departure_latitude: 49.2559, departure_longitude: 2.4371, departure_at: '2099-06-12T07:00:00.000Z',
     seats_total: 3, cost_per_seat: 5,
   } });
   assert.equal(carpoolResponse.status, 201, await carpoolResponse.clone().text());

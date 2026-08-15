@@ -11,6 +11,7 @@ Le produit est actuellement en phase bêta. Le backend de production est héberg
 - Authentification : Better Auth avec jetons Bearer.
 - Base de données : Neon PostgreSQL avec Drizzle ORM et `postgres-js`.
 - Notifications : centre persistant et Expo Push API.
+- Cartographie : Apple Maps sur iOS, adresses et itinéraires via la GéoPlateforme IGN.
 - Médias : stockage objet S3-compatible pour les avatars.
 - Emails : fournisseur transactionnel Resend pour vérification et récupération.
 - Déploiements : EAS pour l’application, Fly.io pour l’API.
@@ -61,13 +62,20 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rft_test \
   npm --prefix server run test:integration
 ```
 
-## Migrations 2026-08-12
+## Migrations
 
 Les réactions et réponses aux annonces, les états lu/non-lu, les préférences et les contraintes d’idempotence nécessitent la migration suivante :
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_functional_completeness.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_production_readiness.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260814_geolocation.sql
+```
+
+Après la migration de géolocalisation, compléter les coordonnées des données existantes :
+
+```bash
+npm --prefix server run backfill:geolocation
 ```
 
 Avant toute exécution en production : effectuer une sauvegarde Neon, vérifier la cible de `DATABASE_URL`, puis relire le plan de migration. La migration supprime uniquement les doublons de réservations et de jetons push avant de créer leurs index uniques.

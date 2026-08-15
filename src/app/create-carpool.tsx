@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import DateTimePicker from '@/components/themed-date-time-picker';
+import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -22,7 +23,8 @@ export default function CreateCarpoolScreen() {
 
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [showEventList, setShowEventList] = useState(false);
-  const [city, setCity] = useState('');
+  const [departureAddress, setDepartureAddress] = useState('');
+  const [departurePoint, setDeparturePoint] = useState<AddressSuggestion | null>(null);
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -37,7 +39,7 @@ export default function CreateCarpoolScreen() {
   const selectedComp = upcoming.find((c) => c.id === selectedEvent);
 
   const handleSubmit = async () => {
-    if (!user || !selectedEvent || !city.trim()) return;
+    if (!user || !selectedEvent || !departurePoint) return;
     setSaving(true);
 
     const dateStr = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -49,7 +51,9 @@ export default function CreateCarpoolScreen() {
     try {
       await api.post('/api/carpools', {
         competition_id:  selectedEvent,
-        departure_city:  city.trim(),
+        departure_city:  departurePoint.label,
+        departure_latitude: departurePoint.latitude,
+        departure_longitude: departurePoint.longitude,
         departure_at:    departureAt,
         seats_total:     seats,
         cost_per_seat:   costNum,
@@ -63,7 +67,7 @@ export default function CreateCarpoolScreen() {
     }
   };
 
-  const canSubmit = !!selectedEvent && !!city.trim() && !saving;
+  const canSubmit = !!selectedEvent && !!departurePoint && !saving;
 
   return (
     <View style={styles.container}>
@@ -130,16 +134,17 @@ export default function CreateCarpoolScreen() {
           </View>
         )}
 
-        {/* Ville de départ */}
-        <Text style={[styles.fieldLabel, { marginTop: 22 }]}>VILLE DE DÉPART</Text>
-        <TextInput
-          style={styles.textInput}
-          placeholder="ex: Creil, Senlis, Compiègne…"
-          placeholderTextColor={t.textMute}
-          value={city}
-          onChangeText={setCity}
-          autoCorrect={false}
+        {/* Adresse de départ */}
+        <Text style={[styles.fieldLabel, { marginTop: 22 }]}>ADRESSE DE DÉPART</Text>
+        <AddressAutocomplete
+          placeholder="12 rue de la République, Creil…"
+          value={departureAddress}
+          onChange={(value) => { setDepartureAddress(value); setDeparturePoint(null); }}
+          onSelect={(suggestion) => { setDepartureAddress(suggestion.label); setDeparturePoint(suggestion); }}
         />
+        <Text style={[styles.addressHint, departurePoint && styles.addressHintValid]}>
+          {departurePoint ? '✓ ADRESSE LOCALISÉE' : 'SÉLECTIONNE UNE ADRESSE DANS LA LISTE'}
+        </Text>
 
         {/* Date & Heure */}
         <Text style={[styles.fieldLabel, { marginTop: 22 }]}>DATE & HEURE</Text>
@@ -260,6 +265,8 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.mono, fontSize: 10, color: t.textMute,
       letterSpacing: 2, marginBottom: 8,
     },
+    addressHint: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1, marginTop: 7 },
+    addressHintValid: { color: '#22C55E' },
     dropdown: {
       height: 44, backgroundColor: t.surface,
       borderWidth: 1, borderColor: t.hairline, borderRadius: 3,

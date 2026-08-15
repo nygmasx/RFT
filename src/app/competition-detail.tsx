@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { Carpool, Competition } from '@/lib/database.types';
 import { api } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
+import RouteMapBanner from '@/components/route-map-banner';
 
 function Tag({ text, filled, color, t }: { text: string; filled?: boolean; color?: string; t: Theme }) {
   const c = color ?? t.crimson;
@@ -148,8 +149,14 @@ export default function CompetitionDetailScreen() {
     <View style={styles.container}>
       {/* Hero */}
       <View style={styles.hero}>
-        <View style={styles.heroBg} />
-        <View style={styles.heroOverlay} />
+        {comp?.latitude != null && comp.longitude != null ? (
+          <RouteMapBanner
+            destination={{ latitude: comp.latitude, longitude: comp.longitude, label: comp.location ?? comp.name }}
+            showCaption={false}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : <View style={styles.heroBg} />}
+        <View style={[styles.heroOverlay, comp?.latitude != null && comp.longitude != null && styles.heroMapOverlay]} />
         <SafeAreaView edges={['top']} style={styles.heroNav}>
           <Pressable onPress={() => safeBack('/(tabs)/competitions')} style={styles.heroBackBtn}>
             <Text style={styles.heroBackIcon}>‹</Text>
@@ -273,6 +280,7 @@ function makeStyles(t: Theme) {
       ...StyleSheet.absoluteFill,
       backgroundColor: 'rgba(10,10,10,0.75)',
     },
+    heroMapOverlay: { backgroundColor: 'rgba(10,10,10,0.48)' },
     heroNav: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
       paddingHorizontal: 18, paddingTop: 4,

@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Te
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Announcement, Competition } from '@/lib/database.types';
@@ -28,6 +29,7 @@ export default function AdminContentScreen() {
   const [name, setName] = useState('');
   const [date, setDate] = useState('');
   const [location, setLocation] = useState('');
+  const [locationPoint, setLocationPoint] = useState<AddressSuggestion | null>(null);
   const [deadline, setDeadline] = useState('');
   const [compType, setCompType] = useState('GI');
   const [status, setStatus] = useState('open');
@@ -49,7 +51,7 @@ export default function AdminContentScreen() {
 
   const reset = () => {
     setEditingId(null); setTitle(''); setBody(''); setTag('INFO'); setPinned(false);
-    setName(''); setDate(''); setLocation(''); setDeadline(''); setCompType('GI'); setStatus('open');
+    setName(''); setDate(''); setLocation(''); setLocationPoint(null); setDeadline(''); setCompType('GI'); setStatus('open');
   };
 
   const editAnnouncement = (item: Announcement) => {
@@ -59,10 +61,17 @@ export default function AdminContentScreen() {
   const editCompetition = (item: Competition) => {
     setSection('competitions'); setEditingId(item.id); setName(item.name); setDate(item.comp_date);
     setLocation(item.location ?? ''); setDeadline(item.registration_deadline ?? '');
+    setLocationPoint(item.latitude != null && item.longitude != null ? {
+      label: item.location ?? '', latitude: item.latitude, longitude: item.longitude,
+    } : null);
     setCompType(item.comp_type ?? 'GI'); setStatus(item.status);
   };
 
   const save = async () => {
+    if (section === 'competitions' && location.trim() && !locationPoint) {
+      Alert.alert('Adresse incomplète', 'Sélectionne l’adresse de la compétition dans la liste proposée.');
+      return;
+    }
     setSaving(true);
     try {
       if (section === 'announcements') {
@@ -70,7 +79,10 @@ export default function AdminContentScreen() {
         if (editingId) await api.put(`/api/announcements/${editingId}`, payload);
         else await api.post('/api/announcements', payload);
       } else {
-        const payload = { name, comp_date: date, location, registration_deadline: deadline || null, comp_type: compType, status };
+        const payload = {
+          name, comp_date: date, location, registration_deadline: deadline || null, comp_type: compType, status,
+          latitude: locationPoint?.latitude ?? null, longitude: locationPoint?.longitude ?? null,
+        };
         if (editingId) await api.put(`/api/competitions/${editingId}`, payload);
         else await api.post('/api/competitions', payload);
       }
@@ -109,7 +121,12 @@ export default function AdminContentScreen() {
         </> : <>
           <TextInput style={styles.input} placeholder="Nom" placeholderTextColor={t.textMute} value={name} onChangeText={setName} />
           <TextInput style={styles.input} placeholder="Date AAAA-MM-JJ" placeholderTextColor={t.textMute} value={date} onChangeText={setDate} />
-          <TextInput style={styles.input} placeholder="Lieu" placeholderTextColor={t.textMute} value={location} onChangeText={setLocation} />
+          <AddressAutocomplete
+            placeholder="Adresse complète du lieu"
+            value={location}
+            onChange={(value) => { setLocation(value); setLocationPoint(null); }}
+            onSelect={(suggestion) => { setLocation(suggestion.label); setLocationPoint(suggestion); }}
+          />
           <TextInput style={styles.input} placeholder="Clôture AAAA-MM-JJ (facultatif)" placeholderTextColor={t.textMute} value={deadline} onChangeText={setDeadline} />
           <View style={styles.choiceRow}>{['GI', 'NO-GI', 'OPEN'].map((value) => <Pressable key={value} onPress={() => setCompType(value)} style={[styles.choice, compType === value && styles.choiceActive]}><Text style={styles.choiceText}>{value}</Text></Pressable>)}</View>
           <View style={styles.choiceRow}>{['open', 'soon', 'closed'].map((value) => <Pressable key={value} onPress={() => setStatus(value)} style={[styles.choice, status === value && styles.choiceActive]}><Text style={styles.choiceText}>{value.toUpperCase()}</Text></Pressable>)}</View>

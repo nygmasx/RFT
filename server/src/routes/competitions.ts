@@ -14,6 +14,8 @@ function competitionDto(comp: typeof competitions.$inferSelect) {
     id: comp.id,
     name: comp.name,
     location: comp.location,
+    latitude: comp.latitude,
+    longitude: comp.longitude,
     comp_date: comp.compDate,
     category: comp.category,
     comp_type: comp.compType,
@@ -28,6 +30,8 @@ function calendarCompetitionDto(event: typeof calendarEvents.$inferSelect) {
     id: event.id,
     name: event.title,
     location: event.place,
+    latitude: event.latitude,
+    longitude: event.longitude,
     comp_date: event.eventDate,
     category: null,
     comp_type: null,
@@ -122,9 +126,12 @@ app.post('/', requireCoach, async (c) => {
   if (!body.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.comp_date ?? '')) {
     return c.json({ error: 'Nom et date valides obligatoires' }, 400);
   }
+  const hasCoordinates = Number.isFinite(body.latitude) && Number.isFinite(body.longitude);
   const [comp] = await db.insert(competitions).values({
     name:                 body.name.trim(),
     location:             body.location ?? null,
+    latitude:             hasCoordinates ? body.latitude : null,
+    longitude:            hasCoordinates ? body.longitude : null,
     compDate:             body.comp_date,
     category:             body.category ?? null,
     compType:             body.comp_type ?? null,
@@ -141,9 +148,12 @@ app.put('/:id', requireCoach, async (c) => {
   if (!body.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.comp_date ?? '')) {
     return c.json({ error: 'Nom et date valides obligatoires' }, 400);
   }
+  const hasCoordinates = Number.isFinite(body.latitude) && Number.isFinite(body.longitude);
   const [comp] = await db.update(competitions).set({
     name: body.name.trim(),
     location: body.location?.trim() || null,
+    latitude: hasCoordinates ? body.latitude : null,
+    longitude: hasCoordinates ? body.longitude : null,
     compDate: body.comp_date,
     category: body.category?.trim() || null,
     compType: body.comp_type ?? null,

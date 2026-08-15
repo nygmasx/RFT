@@ -1,6 +1,6 @@
 import {
   pgTable, text, boolean, integer, numeric,
-  timestamp, date, time, uuid, primaryKey, uniqueIndex,
+  timestamp, date, time, uuid, primaryKey, uniqueIndex, doublePrecision,
 } from 'drizzle-orm/pg-core';
 
 // ── Better Auth tables ────────────────────────────────────────
@@ -123,6 +123,8 @@ export const calendarEvents = pgTable('calendar_events', {
   eventDate: date('event_date').notNull(),
   eventTime: time('event_time'),
   place:     text('place'),
+  latitude:  doublePrecision('latitude'),
+  longitude: doublePrecision('longitude'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -130,6 +132,8 @@ export const competitions = pgTable('competitions', {
   id:                   uuid('id').primaryKey().defaultRandom(),
   name:                 text('name').notNull(),
   location:             text('location'),
+  latitude:             doublePrecision('latitude'),
+  longitude:            doublePrecision('longitude'),
   compDate:             date('comp_date').notNull(),
   category:             text('category'),
   compType:             text('comp_type'), // GI | NO-GI | OPEN
@@ -158,6 +162,8 @@ export const carpools = pgTable('carpools', {
   driverId:      text('driver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   competitionId: uuid('competition_id').references(() => competitions.id),
   departureCity: text('departure_city').notNull(),
+  departureLatitude:  doublePrecision('departure_latitude'),
+  departureLongitude: doublePrecision('departure_longitude'),
   departureAt:   timestamp('departure_at').notNull(),
   seatsTotal:    integer('seats_total').notNull(),
   seatsTaken:    integer('seats_taken').notNull().default(0),
