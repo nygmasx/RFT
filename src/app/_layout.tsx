@@ -3,14 +3,29 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
+import { InAppNotificationBanner } from '@/components/in-app-notification-banner';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 function PushNotificationRegistrar() {
   const { user } = useAuth();
-  usePushNotifications(user?.id);
-  return null;
+  const {
+    foregroundNotification,
+    dismissForegroundNotification,
+    openForegroundNotification,
+  } = usePushNotifications(user?.id);
+
+  if (!foregroundNotification) return null;
+
+  return (
+    <InAppNotificationBanner
+      key={foregroundNotification.id}
+      notification={foregroundNotification}
+      onDismiss={dismissForegroundNotification}
+      onPress={openForegroundNotification}
+    />
+  );
 }
 
 const PRIVATE_ROUTES = [
@@ -74,9 +89,9 @@ export default function RootLayout() {
     <KeyboardProvider>
       <ThemeProvider>
         <AuthProvider>
-          <PushNotificationRegistrar />
           <StatusBar style="auto" />
           <RootNavigator />
+          <PushNotificationRegistrar />
         </AuthProvider>
       </ThemeProvider>
     </KeyboardProvider>

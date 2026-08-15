@@ -13,8 +13,8 @@ process.env.BETTER_AUTH_URL = 'http://localhost:3001';
 
 const { app } = await import('../src/app');
 const { db, sqlClient } = await import('../src/db/client');
-const { users } = await import('../src/db/schema');
-const { eq } = await import('drizzle-orm');
+const { notifications: notificationsTable, users } = await import('../src/db/schema');
+const { and, eq } = await import('drizzle-orm');
 
 before(async () => {
   await sqlClient.unsafe(`TRUNCATE TABLE
@@ -130,12 +130,56 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   } });
   assert.equal(channelResponse.status, 201, await channelResponse.clone().text());
   const channel = await channelResponse.json() as { id: string };
-  const messageResponse = await call(`/api/messages/${channel.id}`, { method: 'POST', token: coach.token, body: { body: 'Oss !' } });
+  assert.equal((await call('/api/push-tokens', {
+    method: 'POST', token: coach.token, body: { token: 'ExponentPushToken[coach-integration]' },
+  })).status, 200);
+  assert.equal((await call('/api/push-tokens', {
+    method: 'POST', token: member.token, body: { token: 'ExponentPushToken[member-integration]' },
+  })).status, 200);
+
+  const originalFetch = globalThis.fetch;
+  const expoPushPayloads: unknown[][] = [];
+  globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+    const [input, init] = args;
+    if (String(input) === 'https://exp.host/--/api/v2/push/send') {
+      expoPushPayloads.push(JSON.parse(String(init?.body)) as unknown[]);
+      return new Response(JSON.stringify({ data: [{ status: 'ok' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return originalFetch(...args);
+  };
+
+  let messageResponse!: Response;
+  try {
+    messageResponse = await call(`/api/messages/${channel.id}`, {
+      method: 'POST', token: coach.token, body: { body: 'Oss !' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
   assert.equal(messageResponse.status, 201, await messageResponse.clone().text());
   const message = await messageResponse.json() as { id: string };
+  const sentPushes = expoPushPayloads.flat() as { to: string; data?: { senderId?: string } }[];
+  assert.deepEqual(sentPushes.map(({ to }) => to), ['ExponentPushToken[member-integration]']);
+  assert.equal(sentPushes[0]?.data?.senderId, coach.id);
   const messages = await call(`/api/messages/${channel.id}`, { token: member.token });
   assert.equal(messages.status, 200);
   assert.equal((await messages.json() as unknown[]).length, 1);
+  const [senderMessageNotification, recipientMessageNotification] = await Promise.all([
+    db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.userId, coach.id),
+      eq(notificationsTable.type, 'message'),
+    )),
+    db.select().from(notificationsTable).where(and(
+      eq(notificationsTable.userId, member.id),
+      eq(notificationsTable.type, 'message'),
+    )),
+  ]);
+  assert.equal(senderMessageNotification.length, 0);
+  assert.equal(recipientMessageNotification.length, 1);
   assert.equal((await call(`/api/messages/item/${message.id}`, { method: 'DELETE', token: coach.token })).status, 200);
 
   const carpoolResponse = await call('/api/carpools', { method: 'POST', token: coach.token, body: {

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, asc, and, inArray, isNull, or } from 'drizzle-orm';
+import { eq, asc, and, inArray, isNull, ne, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import { messages, users, channelMembers, channels, pushTokens, userSettings } from '../db/schema';
 import { requireApproved } from '../middleware/session';
@@ -135,7 +135,7 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
   let tokens: { token: string }[];
 
   if (channel.isPrivate) {
-    // Private: notify all channel members (including sender's other devices)
+    // Private: notify channel members except the sender, on every device.
     const members = await db
       .select({ userId: channelMembers.userId })
       .from(channelMembers)
@@ -148,6 +148,7 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
       .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
       .where(and(
         inArray(pushTokens.userId, members.map((m) => m.userId)),
+        ne(pushTokens.userId, sender.id),
         or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
         or(isNull(userSettings.notifyMessages), eq(userSettings.notifyMessages, true)),
       ));
@@ -159,6 +160,7 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
       .innerJoin(users, eq(pushTokens.userId, users.id))
       .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
       .where(and(
+        ne(pushTokens.userId, sender.id),
         or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])),
         or(isNull(userSettings.notifyMessages), eq(userSettings.notifyMessages, true)),
       ));
@@ -180,7 +182,7 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
     title: senderName,
     subtitle: `#${channel.name}`,
     body: messageBody,
-    data: { channelId, channelName: channel.name },
+    data: { channelId, channelName: channel.name, senderId: sender.id },
     ...(avatarUrl ? { attachments: [{ url: avatarUrl }] } : {}),
   }));
 
