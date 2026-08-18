@@ -32,8 +32,10 @@ export default function AdminContentScreen() {
   const [location, setLocation] = useState('');
   const [locationPoint, setLocationPoint] = useState<AddressSuggestion | null>(null);
   const [deadline, setDeadline] = useState('');
+  const [registrationUrl, setRegistrationUrl] = useState('');
   const [compType, setCompType] = useState('GI');
   const [status, setStatus] = useState('open');
+  const [importance, setImportance] = useState<Competition['importance']>('regional');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,7 +54,7 @@ export default function AdminContentScreen() {
 
   const reset = () => {
     setEditingId(null); setTitle(''); setBody(''); setTag('INFO'); setPinned(false);
-    setName(''); setDate(''); setLocation(''); setLocationPoint(null); setDeadline(''); setCompType('GI'); setStatus('open');
+    setName(''); setDate(''); setLocation(''); setLocationPoint(null); setDeadline(''); setRegistrationUrl(''); setCompType('GI'); setStatus('open'); setImportance('regional');
   };
 
   const editAnnouncement = (item: Announcement) => {
@@ -62,10 +64,11 @@ export default function AdminContentScreen() {
   const editCompetition = (item: Competition) => {
     setSection('competitions'); setEditingId(item.id); setName(item.name); setDate(item.comp_date);
     setLocation(item.location ?? ''); setDeadline(item.registration_deadline ?? '');
+    setRegistrationUrl(item.registration_url ?? '');
     setLocationPoint(item.latitude != null && item.longitude != null ? {
       label: item.location ?? '', latitude: item.latitude, longitude: item.longitude,
     } : null);
-    setCompType(item.comp_type ?? 'GI'); setStatus(item.status);
+    setCompType(item.comp_type ?? 'GI'); setStatus(item.status); setImportance(item.importance ?? 'regional');
   };
 
   const save = async () => {
@@ -81,7 +84,7 @@ export default function AdminContentScreen() {
         else await api.post('/api/announcements', payload);
       } else {
         const payload = {
-          name, comp_date: date, location, registration_deadline: deadline || null, comp_type: compType, status,
+          name, comp_date: date, location, registration_deadline: deadline || null, registration_url: registrationUrl.trim() || null, comp_type: compType, status, importance,
           latitude: locationPoint?.latitude ?? null, longitude: locationPoint?.longitude ?? null,
         };
         if (editingId) await api.put(`/api/competitions/${editingId}`, payload);
@@ -129,7 +132,12 @@ export default function AdminContentScreen() {
             onSelect={(suggestion) => { setLocation(suggestion.label); setLocationPoint(suggestion); }}
           />
           <TextInput style={styles.input} placeholder="Clôture AAAA-MM-JJ (facultatif)" placeholderTextColor={t.textMute} value={deadline} onChangeText={setDeadline} />
+          <TextInput style={styles.input} placeholder="Lien d’inscription https://…" placeholderTextColor={t.textMute} value={registrationUrl} onChangeText={setRegistrationUrl} autoCapitalize="none" keyboardType="url" />
           <View style={styles.choiceRow}>{['GI', 'NO-GI', 'OPEN'].map((value) => <Pressable key={value} onPress={() => setCompType(value)} style={[styles.choice, compType === value && styles.choiceActive]}><Text style={styles.choiceText}>{value}</Text></Pressable>)}</View>
+          <Text style={styles.label}>IMPORTANCE POUR LE CLASSEMENT</Text>
+          <View style={styles.choiceWrap}>{([
+            ['local', 'LOCAL'], ['regional', 'RÉGIONAL'], ['national', 'NATIONAL'], ['international', 'INTERNAT.'], ['major', 'MAJEUR'],
+          ] as [Competition['importance'], string][]).map(([value, label]) => <Pressable key={value} onPress={() => setImportance(value)} style={[styles.choiceCompact, importance === value && styles.choiceActive]}><Text style={styles.choiceText}>{label}</Text></Pressable>)}</View>
           <View style={styles.choiceRow}>{['open', 'soon', 'closed'].map((value) => <Pressable key={value} onPress={() => setStatus(value)} style={[styles.choice, status === value && styles.choiceActive]}><Text style={styles.choiceText}>{value.toUpperCase()}</Text></Pressable>)}</View>
         </>}
         <View style={styles.actions}><Pressable style={styles.save} onPress={save} disabled={saving}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>ENREGISTRER</Text>}</Pressable>{editingId && <Pressable style={styles.cancel} onPress={reset}><Text style={styles.cancelText}>ANNULER</Text></Pressable>}</View>
@@ -154,6 +162,7 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   form: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, padding: 14, gap: 10, marginBottom: 10 }, formTitle: { color: t.bone, fontFamily: FONTS.display, fontWeight: '900', letterSpacing: 1 },
   input: { color: t.bone, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong, padding: 12, borderRadius: 3 }, multiline: { minHeight: 90, textAlignVertical: 'top' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, label: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 10 }, choiceRow: { flexDirection: 'row', gap: 6 },
+  choiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, choiceCompact: { minWidth: '30%', flexGrow: 1, borderWidth: 1, borderColor: t.hairlineStrong, padding: 8, alignItems: 'center' },
   choice: { flex: 1, borderWidth: 1, borderColor: t.hairlineStrong, padding: 8, alignItems: 'center' }, choiceActive: { backgroundColor: t.crimson }, choiceText: { color: t.bone, fontSize: 10 },
   actions: { flexDirection: 'row', gap: 8 }, save: { flex: 1, backgroundColor: t.crimson, padding: 13, alignItems: 'center' }, saveText: { color: '#fff', fontWeight: '900', letterSpacing: 1 }, cancel: { padding: 13, borderWidth: 1, borderColor: t.hairlineStrong }, cancelText: { color: t.textDim },
   card: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline }, cardTitle: { color: t.bone, fontWeight: '700', fontSize: 14 }, delete: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9 },

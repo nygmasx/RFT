@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 
 export type AppNotification = {
   id: string;
-  type: 'announcement' | 'message' | 'competition' | 'calendar' | 'carpool' | 'registration' | 'info';
+  type: 'announcement' | 'message' | 'competition' | 'calendar' | 'carpool' | 'registration' | 'info' | 'result_reminder' | 'result_submission' | 'result_approved' | 'result_rejected';
   title: string;
   body: string;
   data: Record<string, string> | null;
@@ -15,14 +15,13 @@ export type AppNotification = {
 export function useNotifications() {
   const [data, setData] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
-  const refetch = useCallback(() => {
+  const refetch = useCallback(async () => {
     setLoading(true);
-    api.get<AppNotification[]>('/api/notifications')
-      .then((rows) => setData(rows ?? []))
-      .catch((error) => console.error('[useNotifications]', error.message))
-      .finally(() => setLoading(false));
+    try { setData(await api.get<AppNotification[]>('/api/notifications') ?? []); }
+    catch (error: any) { console.error('[useNotifications]', error.message); }
+    finally { setLoading(false); }
   }, []);
-  useFocusEffect(refetch);
+  useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
   const markRead = useCallback(async (id: string) => {
     await api.put(`/api/notifications/${id}/read`, {});
     setData((current) => current.map((item) => item.id === id ? { ...item, isRead: true } : item));

@@ -202,6 +202,13 @@ export default function CompetitionDetailScreen() {
           </>
         )}
 
+        {comp?.registration_url && (
+          <Pressable style={styles.externalRegistration} onPress={() => void Linking.openURL(comp.registration_url!)}>
+            <Ionicons name="open-outline" size={16} color="#fff" />
+            <Text style={styles.externalRegistrationText}>INSCRIPTION OFFICIELLE</Text>
+          </Pressable>
+        )}
+
         {/* Covoiturages */}
         <>
           <View style={styles.covHeader}>
@@ -315,6 +322,8 @@ function makeStyles(t: Theme) {
     scroll: { paddingHorizontal: 20, paddingTop: 16 },
     sectionLabel: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2, marginBottom: 8 },
     brief: { fontFamily: FONTS.body, fontSize: 13, color: t.text, lineHeight: 20, marginBottom: 18 },
+    externalRegistration: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.crimson, padding: 13, marginBottom: 18 },
+    externalRegistrationText: { color: '#fff', fontFamily: FONTS.mono, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
     covHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
     },

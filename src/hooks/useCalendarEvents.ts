@@ -9,19 +9,19 @@ export function useCalendarEvents() {
   const [data, setData]       = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchEvents = useCallback(() => {
+  const fetchEvents = useCallback(async () => {
     if (!user) {
       setData([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    api.get<CalendarEvent[]>('/api/calendar')
-      .then((rows) => { setData(rows ?? []); setLoading(false); })
-      .catch((e) => { console.error('[useCalendarEvents]', e.message); setLoading(false); });
+    try { setData(await api.get<CalendarEvent[]>('/api/calendar') ?? []); }
+    catch (e: any) { console.error('[useCalendarEvents]', e.message); }
+    finally { setLoading(false); }
   }, [user]);
 
-  useFocusEffect(fetchEvents);
+  useFocusEffect(useCallback(() => { void fetchEvents(); }, [fetchEvents]));
 
   return { data, loading, refetch: fetchEvents };
 }

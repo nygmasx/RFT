@@ -23,8 +23,9 @@ import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
 
-type Filter = 'all' | 'registered' | 'results';
+type Filter = 'all' | 'registered' | 'results' | 'pending';
 type ResultType = 'GI' | 'NO-GI';
+type ResultStage = 'champion' | 'finalist' | 'semifinal' | 'quarterfinal' | 'round_of_16' | 'round_of_32' | 'participant';
 
 type CompetitionOverview = {
   id: string;
@@ -35,6 +36,7 @@ type CompetitionOverview = {
   status: string;
   registered_count: number;
   result_count: number;
+  pending_result_count: number;
 };
 
 type ManagedRegistration = {
@@ -47,6 +49,9 @@ type ManagedRegistration = {
 type ManagedResult = {
   id: string;
   place: number;
+  resultStage: ResultStage;
+  validationStatus: 'pending' | 'approved' | 'rejected';
+  submissionSource: 'athlete' | 'coach';
   weightClass: string | null;
   compType: ResultType | null;
   notes: string | null;
@@ -68,17 +73,33 @@ type CompetitionManagement = {
   members: ManagedMember[];
 };
 
+type PendingSubmission = ManagedResult & {
+  userId: string;
+  competitionId: string | null;
+  competitionName: string;
+  compDate: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+};
+
 const WEIGHT_OPTIONS = ['-55 kg', '-60 kg', '-65 kg', '-70 kg', '-76 kg', '-82 kg', '-88 kg', '-94 kg', '+94 kg'];
-const PLACE_OPTIONS = [1, 2, 3, 4];
+const RESULT_OPTIONS: { value: ResultStage; label: string }[] = [
+  { value: 'champion', label: '1ER' },
+  { value: 'finalist', label: '2E' },
+  { value: 'semifinal', label: '1/2' },
+  { value: 'quarterfinal', label: '1/4' },
+  { value: 'round_of_16', label: '1/8 · 16' },
+  { value: 'round_of_32', label: '1/16 · 32' },
+  { value: 'participant', label: 'PART.' },
+];
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${date}T12:00:00`));
 }
 
-function placeLabel(place: number) {
-  if (place === 1) return '1ER';
-  if (place === 4) return 'TOP 4+';
-  return `${place}E`;
+function placeLabel(place: number, stage?: ResultStage) {
+  return RESULT_OPTIONS.find(({ value }) => value === stage)?.label ?? (place === 1 ? '1ER' : `${place}E`);
 }
 
 export default function AdminResultsScreen() {
@@ -89,6 +110,7 @@ export default function AdminResultsScreen() {
   const isCoach = user?.role === 'coach' || user?.role === 'admin';
 
   const [competitions, setCompetitions] = useState<CompetitionOverview[]>([]);
+  const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmission[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [management, setManagement] = useState<CompetitionManagement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +119,7 @@ export default function AdminResultsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [editorMember, setEditorMember] = useState<ManagedMember | null>(null);
-  const [place, setPlace] = useState(1);
+  const [resultStage, setResultStage] = useState<ResultStage>('champion');
   const [compType, setCompType] = useState<ResultType>('GI');
   const [weightClass, setWeightClass] = useState('');
   const [notes, setNotes] = useState('');
@@ -111,8 +133,12 @@ export default function AdminResultsScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await api.get<CompetitionOverview[]>('/api/competitions/admin/overview');
+      const [rows, pending] = await Promise.all([
+        api.get<CompetitionOverview[]>('/api/competitions/admin/overview'),
+        api.get<PendingSubmission[]>('/api/palmares/admin/pending'),
+      ]);
       setCompetitions(rows);
+      setPendingSubmissions(pending);
       const requested = competitionId && rows.some(({ id }) => id === competitionId) ? competitionId : null;
       const nextId = requested ?? (selectedId && rows.some(({ id }) => id === selectedId) ? selectedId : rows[0]?.id);
       setSelectedId(nextId ?? null);
@@ -147,11 +173,13 @@ export default function AdminResultsScreen() {
 
   const reloadSelected = useCallback(async () => {
     if (!selectedId) return;
-    const [overview] = await Promise.all([
+    const [overview, pending] = await Promise.all([
       api.get<CompetitionOverview[]>('/api/competitions/admin/overview'),
+      api.get<PendingSubmission[]>('/api/palmares/admin/pending'),
       loadManagement(selectedId),
     ]);
     setCompetitions(overview);
+    setPendingSubmissions(pending);
   }, [loadManagement, selectedId]);
 
   const refresh = async () => {
@@ -202,7 +230,7 @@ export default function AdminResultsScreen() {
 
   const openEditor = (member: ManagedMember) => {
     setEditorMember(member);
-    setPlace(member.result?.place ?? 1);
+    setResultStage(member.result?.resultStage ?? 'champion');
     setCompType(member.result?.compType ?? (management?.competition.comp_type === 'NO-GI' ? 'NO-GI' : 'GI'));
     setWeightClass(member.result?.weightClass ?? member.registration?.weightClass ?? member.weightClass ?? '');
     setNotes(member.result?.notes ?? '');
@@ -213,7 +241,7 @@ export default function AdminResultsScreen() {
     setSaving(true);
     try {
       await api.put(`/api/palmares/admin/competition/${selectedId}/user/${editorMember.id}`, {
-        place,
+        result_stage: resultStage,
         comp_type: compType,
         weight_class: weightClass || null,
         notes: notes || null,
@@ -224,6 +252,32 @@ export default function AdminResultsScreen() {
       Alert.alert('Résultat impossible à enregistrer', error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const reviewResult = async (member: ManagedMember, status: 'approved' | 'rejected') => {
+    if (!member.result) return;
+    setActionId(member.id);
+    try {
+      await api.put(`/api/palmares/admin/${member.result.id}/review`, { status });
+      await reloadSelected();
+    } catch (error: any) {
+      Alert.alert('Validation impossible', error.message);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const reviewPending = async (result: PendingSubmission, status: 'approved' | 'rejected') => {
+    setActionId(result.id);
+    try {
+      await api.put(`/api/palmares/admin/${result.id}/review`, { status });
+      if (selectedId) await reloadSelected();
+      else setPendingSubmissions(await api.get<PendingSubmission[]>('/api/palmares/admin/pending'));
+    } catch (error: any) {
+      Alert.alert('Validation impossible', error.message);
+    } finally {
+      setActionId(null);
     }
   };
 
@@ -252,7 +306,10 @@ export default function AdminResultsScreen() {
     const needle = search.trim().toLocaleLowerCase('fr');
     return (management?.members ?? []).filter((member) => {
       const matchesSearch = !needle || `${member.firstName} ${member.lastName}`.toLocaleLowerCase('fr').includes(needle);
-      const matchesFilter = filter === 'all' || (filter === 'registered' ? Boolean(member.registration) : Boolean(member.result));
+      const matchesFilter = filter === 'all'
+        || (filter === 'registered' ? Boolean(member.registration)
+          : filter === 'pending' ? member.result?.validationStatus === 'pending'
+            : Boolean(member.result));
       return matchesSearch && matchesFilter;
     });
   }, [filter, management?.members, search]);
@@ -288,6 +345,16 @@ export default function AdminResultsScreen() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.crimson} />}
         >
+          {pendingSubmissions.length > 0 ? (
+            <View style={styles.globalPending}>
+              <View style={styles.globalPendingHeader}><View><Text style={styles.globalPendingTitle}>À VALIDER</Text><Text style={styles.globalPendingSubtitle}>Soumissions directes des athlètes</Text></View><View style={styles.globalPendingBadge}><Text style={styles.globalPendingBadgeText}>{pendingSubmissions.length}</Text></View></View>
+              {pendingSubmissions.map((result) => <View key={result.id} style={styles.globalPendingRow}>
+                <View style={styles.globalPendingInfo}><Text style={styles.memberName}>{result.firstName} {result.lastName}</Text><Text style={styles.resultMeta}>{result.competitionName} · {placeLabel(result.place, result.resultStage)} · {result.compType ?? 'TYPE LIBRE'}</Text></View>
+                <Pressable disabled={actionId === result.id} style={styles.rejectSmall} onPress={() => void reviewPending(result, 'rejected')}><Ionicons name="close" size={17} color={t.crimson} /></Pressable>
+                <Pressable disabled={actionId === result.id} style={styles.approveSmall} onPress={() => void reviewPending(result, 'approved')}>{actionId === result.id ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="checkmark" size={18} color="#FFF" />}</Pressable>
+              </View>)}
+            </View>
+          ) : null}
           <Text style={styles.eyebrow}>COMPÉTITION</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.competitionList}>
             {competitions.map((competition) => {
@@ -301,6 +368,7 @@ export default function AdminResultsScreen() {
                     <Text style={styles.count}>{competition.registered_count} INSCRIT{competition.registered_count > 1 ? 'S' : ''}</Text>
                     <Text style={styles.count}>{competition.result_count} RÉSULTAT{competition.result_count > 1 ? 'S' : ''}</Text>
                   </View>
+                  {competition.pending_result_count > 0 ? <Text style={styles.pendingCount}>{competition.pending_result_count} À VALIDER</Text> : null}
                 </Pressable>
               );
             })}
@@ -314,6 +382,8 @@ export default function AdminResultsScreen() {
                 <View><Text style={styles.summaryValue}>{management.members.filter(({ registration }) => registration).length}</Text><Text style={styles.summaryLabel}>INSCRITS</Text></View>
                 <View style={styles.summaryDivider} />
                 <View><Text style={styles.summaryValue}>{management.members.filter(({ result }) => result).length}</Text><Text style={styles.summaryLabel}>RÉSULTATS</Text></View>
+                <View style={styles.summaryDivider} />
+                <View><Text style={[styles.summaryValue, styles.pendingValue]}>{management.members.filter(({ result }) => result?.validationStatus === 'pending').length}</Text><Text style={styles.summaryLabel}>À VALIDER</Text></View>
               </View>
 
               <View style={styles.searchBox}>
@@ -331,7 +401,7 @@ export default function AdminResultsScreen() {
               </View>
 
               <View style={styles.filters}>
-                {([['all', 'TOUS'], ['registered', 'INSCRITS'], ['results', 'RÉSULTATS']] as [Filter, string][]).map(([key, label]) => (
+                {([['all', 'TOUS'], ['registered', 'INSCRITS'], ['results', 'RÉSULTATS'], ['pending', 'À VALIDER']] as [Filter, string][]).map(([key, label]) => (
                   <Pressable key={key} style={[styles.filter, filter === key && styles.filterActive]} onPress={() => setFilter(key)}>
                     <Text style={[styles.filterText, filter === key && styles.filterTextActive]}>{label}</Text>
                   </Pressable>
@@ -353,7 +423,7 @@ export default function AdminResultsScreen() {
                           <Text style={styles.memberMeta}>{[member.category, member.weightClass].filter(Boolean).join(' · ') || 'Catégorie non renseignée'}</Text>
                         </View>
                         {member.result ? (
-                          <View style={styles.medal}><Text style={styles.medalPlace}>{placeLabel(member.result.place)}</Text><Text style={styles.medalLabel}>PLACE</Text></View>
+                          <View style={styles.medal}><Text style={styles.medalPlace}>{placeLabel(member.result.place, member.result.resultStage)}</Text><Text style={styles.medalLabel}>RÉSULTAT</Text></View>
                         ) : null}
                       </View>
 
@@ -364,6 +434,16 @@ export default function AdminResultsScreen() {
                         </View>
                         {member.result ? <Text style={styles.resultMeta}>{[member.result.compType, member.result.weightClass].filter(Boolean).join(' · ')}</Text> : null}
                       </View>
+
+                      {member.result?.validationStatus === 'pending' ? (
+                        <View style={styles.pendingPanel}>
+                          <Text style={styles.pendingText}>SOUMIS PAR L’ATHLÈTE · EN ATTENTE DE VALIDATION</Text>
+                          <View style={styles.actions}>
+                            <Pressable disabled={busy} style={styles.rejectButton} onPress={() => void reviewResult(member, 'rejected')}><Text style={styles.rejectButtonText}>REFUSER</Text></Pressable>
+                            <Pressable disabled={busy} style={styles.approveButton} onPress={() => void reviewResult(member, 'approved')}><Text style={styles.approveButtonText}>VALIDER</Text></Pressable>
+                          </View>
+                        </View>
+                      ) : member.result?.validationStatus === 'rejected' ? <Text style={styles.rejectedText}>REFUSÉ · EN ATTENTE D’UNE CORRECTION</Text> : null}
 
                       <View style={styles.actions}>
                         <Pressable disabled={busy} style={[styles.secondaryButton, member.registration && styles.dangerButton]} onPress={() => member.registration ? removeRegistration(member) : void enroll(member)}>
@@ -403,8 +483,8 @@ export default function AdminResultsScreen() {
             ) : null}
 
             <Text style={styles.fieldLabel}>CLASSEMENT</Text>
-            <View style={styles.optionRow}>
-              {PLACE_OPTIONS.map((item) => <Pressable key={item} style={[styles.placeOption, place === item && styles.optionActive]} onPress={() => setPlace(item)}><Text style={[styles.placeOptionText, place === item && styles.optionTextActive]}>{placeLabel(item)}</Text></Pressable>)}
+            <View style={styles.resultOptions}>
+              {RESULT_OPTIONS.map((item) => <Pressable key={item.value} style={[styles.placeOption, resultStage === item.value && styles.optionActive]} onPress={() => setResultStage(item.value)}><Text style={[styles.placeOptionText, resultStage === item.value && styles.optionTextActive]}>{item.label}</Text></Pressable>)}
             </View>
 
             <Text style={styles.fieldLabel}>TYPE</Text>
@@ -445,6 +525,16 @@ function makeStyles(t: Theme) {
     headerIcon: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
     content: { paddingVertical: 18, paddingBottom: 48 },
     eyebrow: { paddingHorizontal: 18, marginBottom: 10, color: t.textMute, fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 2 },
+    globalPending: { marginHorizontal: 18, marginBottom: 18, padding: 13, gap: 8, borderWidth: 1, borderColor: t.gold + '77', backgroundColor: t.gold + '0C', borderRadius: 4 },
+    globalPendingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+    globalPendingTitle: { color: t.gold, fontFamily: FONTS.display, fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+    globalPendingSubtitle: { color: t.textMute, fontSize: 10, marginTop: 2 },
+    globalPendingBadge: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: t.gold },
+    globalPendingBadgeText: { color: t.ink, fontWeight: '900' },
+    globalPendingRow: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: t.hairline, paddingTop: 8 },
+    globalPendingInfo: { flex: 1, minWidth: 0, gap: 3 },
+    rejectSmall: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.crimson },
+    approveSmall: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: '#4A8F6D' },
     competitionList: { paddingHorizontal: 18, gap: 10 },
     competitionCard: { width: 230, minHeight: 142, padding: 14, borderRadius: 5, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface, gap: 6 },
     competitionCardActive: { borderColor: t.crimson, backgroundColor: t.crimson + '0E' },
@@ -454,9 +544,11 @@ function makeStyles(t: Theme) {
     competitionLocation: { color: t.textDim, fontSize: 12 },
     countRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 'auto' },
     count: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.5 },
+    pendingCount: { color: t.gold, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
     summary: { margin: 18, marginBottom: 14, padding: 14, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: t.elevated, borderRadius: 5 },
     summaryValue: { color: t.bone, fontSize: 22, fontWeight: '900', textAlign: 'center' },
     summaryLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1 },
+    pendingValue: { color: t.gold },
     summaryDivider: { width: 1, height: 34, backgroundColor: t.hairlineStrong },
     searchBox: { marginHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, height: 46, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4, backgroundColor: t.surface },
     searchInput: { flex: 1, color: t.text, fontSize: 15 },
@@ -483,6 +575,13 @@ function makeStyles(t: Theme) {
     statusText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.5 },
     statusTextActive: { color: t.crimson },
     resultMeta: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 9 },
+    pendingPanel: { gap: 9, padding: 10, borderWidth: 1, borderColor: t.gold + '77', backgroundColor: t.gold + '10', borderRadius: 3 },
+    pendingText: { color: t.gold, fontFamily: FONTS.mono, fontSize: 8.5, letterSpacing: 0.7 },
+    rejectedText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.7 },
+    rejectButton: { flex: 1, height: 36, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
+    rejectButtonText: { color: t.crimson, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    approveButton: { flex: 1, height: 36, backgroundColor: '#4A8F6D', alignItems: 'center', justifyContent: 'center' },
+    approveButtonText: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
     actions: { flexDirection: 'row', gap: 8 },
     secondaryButton: { flex: 1, height: 40, borderRadius: 3, borderWidth: 1, borderColor: t.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
     secondaryButtonText: { color: t.bone, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
@@ -507,7 +606,8 @@ function makeStyles(t: Theme) {
     warningText: { flex: 1, color: t.gold, fontSize: 12, lineHeight: 17 },
     fieldLabel: { marginTop: 8, color: t.textMute, fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1.5 },
     optionRow: { flexDirection: 'row', gap: 8 },
-    placeOption: { flex: 1, height: 48, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },
+    resultOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    placeOption: { minWidth: '21%', flexGrow: 1, height: 48, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },
     placeOptionText: { color: t.textDim, fontWeight: '900', fontSize: 13 },
     typeOption: { flex: 1, height: 44, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },
     optionActive: { borderColor: t.crimson, backgroundColor: t.crimson + '18' },

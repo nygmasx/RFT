@@ -9,19 +9,19 @@ export function useChannels() {
   const [data, setData]       = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(() => {
+  const refetch = useCallback(async () => {
     if (!user) {
       setData([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    api.get<Channel[]>('/api/channels')
-      .then((rows) => { setData(rows ?? []); setLoading(false); })
-      .catch((e) => { console.error('[useChannels]', e.message); setLoading(false); });
+    try { setData(await api.get<Channel[]>('/api/channels') ?? []); }
+    catch (e: any) { console.error('[useChannels]', e.message); }
+    finally { setLoading(false); }
   }, [user]);
 
-  useFocusEffect(refetch);
+  useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
 
   return { data, loading, refetch };
 }

@@ -41,7 +41,9 @@ export default function NotificationsScreen() {
 
   const openNotification = (item: AppNotification) => {
     const data = item.data ?? {};
-    if (data.announcementId) router.push({ pathname: '/announcement', params: { id: data.announcementId } });
+    if (data.screen === 'add_result') router.push({ pathname: '/add-result', params: data.competitionId ? { competitionId: data.competitionId } : {} });
+    else if (data.screen === 'admin_results') router.push({ pathname: '/admin-results', params: data.competitionId ? { competitionId: data.competitionId } : {} });
+    else if (data.announcementId) router.push({ pathname: '/announcement', params: { id: data.announcementId } });
     else if (data.channelId) router.push({ pathname: '/chat', params: { channel: data.channelId, name: data.channelName ?? 'Salon' } });
     else if (data.competitionId) router.push({ pathname: '/competition-detail', params: { id: data.competitionId } });
     else if (item.type === 'calendar') router.push('/calendar');
@@ -84,6 +86,7 @@ export default function NotificationsScreen() {
             const tagColor = TAG_COLORS[tag] ?? t.crimson;
             const icon = item.type === 'message' ? 'chatbubble-outline'
               : item.type === 'competition' ? 'trophy-outline'
+              : item.type.startsWith('result_') ? 'medal-outline'
               : item.type === 'calendar' ? 'calendar-outline'
               : item.type === 'carpool' ? 'car-outline' : 'megaphone-outline';
 

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -45,8 +45,9 @@ function formatDeparture(iso: string) {
 export default function CovoiturageScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool } = useCarpools();
+  const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool, refetch } = useCarpools();
 
   const contactDriver = async (carpoolId: string) => {
     try {
@@ -105,7 +106,9 @@ export default function CovoiturageScreen() {
           <ActivityIndicator color={t.crimson} />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+          setRefreshing(true); void refetch().finally(() => setRefreshing(false));
+        }} />}>
           {carpools.map((r) => {
             const driverName = r.profiles
               ? `${r.profiles.first_name} ${r.profiles.last_name}`

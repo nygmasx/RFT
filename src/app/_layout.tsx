@@ -49,6 +49,7 @@ const PRIVATE_ROUTES = [
   'mon-activite',
   'notifications',
   'palmares',
+  'rankings',
   'settings',
 ] as const;
 

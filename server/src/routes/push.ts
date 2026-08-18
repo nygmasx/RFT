@@ -24,11 +24,16 @@ app.post('/', requireSession, async (c) => {
 });
 
 // Internal helper — send Expo push notifications to all coaches
-export async function notifyCoaches(title: string, body: string) {
+export async function notifyCoaches(
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+  type = 'registration',
+) {
   try {
     const coachUsers = await db.select({ id: users.id }).from(users).where(inArray(users.role, ['coach', 'admin']));
     if (coachUsers.length) await db.insert(notifications).values(coachUsers.map(({ id: userId }) => ({
-      userId, type: 'registration', title, body,
+      userId, type, title, body, data: data ? JSON.stringify(data) : null,
     })));
     const coaches = await db
       .select({ token: pushTokens.token })
@@ -43,6 +48,7 @@ export async function notifyCoaches(title: string, body: string) {
       sound: 'default' as const,
       title,
       body,
+      ...(data ? { data } : {}),
     }));
 
     await fetch('https://exp.host/--/api/v2/push/send', {

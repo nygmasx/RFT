@@ -34,8 +34,13 @@ function openNotification(data: Record<string, unknown>) {
   const channelName = stringValue(data.channelName);
   const announcementId = stringValue(data.announcementId);
   const competitionId = stringValue(data.competitionId);
+  const screen = stringValue(data.screen);
 
-  if (channelId) {
+  if (screen === 'add_result') {
+    router.push({ pathname: '/add-result', params: competitionId ? { competitionId } : {} });
+  } else if (screen === 'admin_results') {
+    router.push({ pathname: '/admin-results', params: competitionId ? { competitionId } : {} });
+  } else if (channelId) {
     router.push({
       pathname: '/chat',
       params: { channel: channelId, name: channelName ?? 'Salon' },

@@ -54,7 +54,13 @@
       ],
       "expo-image",
       "expo-web-browser",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Autoriser RFT à enregistrer des messages vocaux.",
+          "enableBackgroundRecording": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

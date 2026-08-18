@@ -18,7 +18,7 @@ const { and, eq } = await import('drizzle-orm');
 
 before(async () => {
   await sqlClient.unsafe(`TRUNCATE TABLE
-    notifications, competition_bookmarks, announcement_reads, announcement_reactions,
+    notifications, message_mentions, channel_reads, result_reminders, competition_bookmarks, announcement_reads, announcement_reactions,
     announcement_replies, announcements, carpool_passengers, carpools, registrations,
     competitions, messages, channel_members, channels, calendar_events, push_tokens,
     user_settings, palmares, belt_records, sessions, accounts, verifications, users
@@ -71,10 +71,11 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
 
   const competitionResponse = await call('/api/competitions', { method: 'POST', token: coach.token, body: {
     name: 'Open Integration', comp_date: '2099-06-12', location: '10 Rue de Rivoli 75001 Paris',
-    latitude: 48.8557, longitude: 2.3609, comp_type: 'GI', status: 'open',
+    latitude: 48.8557, longitude: 2.3609, comp_type: 'GI', status: 'open', registration_url: 'https://example.com/register',
   } });
   assert.equal(competitionResponse.status, 201, await competitionResponse.clone().text());
-  const competition = await competitionResponse.json() as { id: string };
+  const competition = await competitionResponse.json() as { id: string; registration_url: string };
+  assert.equal(competition.registration_url, 'https://example.com/register');
   const bookmark = await call(`/api/competitions/${competition.id}/bookmark`, { method: 'PUT', token: member.token, body: {} });
   assert.equal(bookmark.status, 200);
   assert.deepEqual(await bookmark.json(), { bookmarked: true });
@@ -225,17 +226,41 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
       method: 'POST', token: coach.token, body: { body: 'Oss !' },
     });
     await new Promise((resolve) => setTimeout(resolve, 100));
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-  assert.equal(messageResponse.status, 201, await messageResponse.clone().text());
-  const message = await messageResponse.json() as { id: string };
-  const sentPushes = expoPushPayloads.flat() as { to: string; data?: { senderId?: string } }[];
-  assert.deepEqual(sentPushes.map(({ to }) => to), ['ExponentPushToken[member-integration]']);
-  assert.equal(sentPushes[0]?.data?.senderId, coach.id);
-  const messages = await call(`/api/messages/${channel.id}`, { token: member.token });
-  assert.equal(messages.status, 200);
-  assert.equal((await messages.json() as unknown[]).length, 1);
+    assert.equal(messageResponse.status, 201, await messageResponse.clone().text());
+    const message = await messageResponse.json() as { id: string; readCount: number };
+    assert.equal(message.readCount, 0);
+    const sentPushes = expoPushPayloads.flat() as { to: string; data?: { senderId?: string } }[];
+    assert.deepEqual(sentPushes.map(({ to }) => to), ['ExponentPushToken[member-integration]']);
+    assert.equal(sentPushes[0]?.data?.senderId, coach.id);
+
+    const membersResponse = await call(`/api/messages/${channel.id}/members`, { token: coach.token });
+    assert.equal(membersResponse.status, 200);
+    assert.ok((await membersResponse.json() as { id: string }[]).some(({ id }) => id === member.id));
+
+    const messages = await call(`/api/messages/${channel.id}`, { token: member.token });
+    assert.equal(messages.status, 200);
+    const memberMessages = await messages.json() as { id: string; readCount: number }[];
+    assert.equal(memberMessages.length, 1);
+    assert.equal(memberMessages[0].readCount, 1);
+
+    const mentionResponse = await call(`/api/messages/${channel.id}`, { method: 'POST', token: coach.token, body: {
+      body: '@Test_Member à toi', mention_user_ids: [member.id],
+    } });
+    assert.equal(mentionResponse.status, 201, await mentionResponse.clone().text());
+    assert.deepEqual((await mentionResponse.json() as { mentionedUserIds: string[] }).mentionedUserIds, [member.id]);
+
+    const mediaResponse = await call(`/api/messages/${channel.id}/media`, { method: 'POST', token: coach.token, body: {
+      data_url: 'data:audio/mp4;base64,AAAA', file_name: 'vocal.m4a', duration_ms: 500,
+    } });
+    assert.equal(mediaResponse.status, 201, await mediaResponse.clone().text());
+    const media = await mediaResponse.json() as { messageType: string; mediaUrl: string; readCount: number };
+    assert.equal(media.messageType, 'audio'); assert.equal(media.readCount, 0);
+    const mediaDownload = await app.request(media.mediaUrl);
+    assert.equal(mediaDownload.status, 200); assert.equal(mediaDownload.headers.get('content-type'), 'audio/mp4');
+
+    assert.equal((await call(`/api/messages/item/${message.id}`, { method: 'DELETE', token: coach.token })).status, 200);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } finally { globalThis.fetch = originalFetch; }
   const [senderMessageNotification, recipientMessageNotification] = await Promise.all([
     db.select().from(notificationsTable).where(and(
       eq(notificationsTable.userId, coach.id),
@@ -247,9 +272,8 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     )),
   ]);
   assert.equal(senderMessageNotification.length, 0);
-  assert.equal(recipientMessageNotification.length, 1);
-  assert.equal((await call(`/api/messages/item/${message.id}`, { method: 'DELETE', token: coach.token })).status, 200);
-
+  assert.equal(recipientMessageNotification.length, 3);
+  assert.ok(recipientMessageNotification.some(({ title }) => title.includes('mentionné')));
   const carpoolResponse = await call('/api/carpools', { method: 'POST', token: coach.token, body: {
     competition_id: competition.id, departure_city: '12 Rue de la République 60160 Montataire',
     departure_latitude: 49.2559, departure_longitude: 2.4371, departure_at: '2099-06-12T07:00:00.000Z',

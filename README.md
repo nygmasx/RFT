@@ -71,7 +71,11 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_functional
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260812_production_readiness.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260814_geolocation.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260815_competition_results.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260818_result_validation_rankings.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260818_chat_media_receipts.sql
 ```
+
+La dernière migration active la soumission de résultats par les athlètes avec validation coach, les rappels automatiques à J+1 et les classements par ceinture/P4P. Les rappels sont contrôlables avec `DISABLE_RESULT_REMINDERS=true` dans les environnements où un autre ordonnanceur est utilisé.
 
 Après la migration de géolocalisation, compléter les coordonnées des données existantes :
 

@@ -8,6 +8,9 @@ primary_region = 'cdg'
 
 [build]
 
+[deploy]
+  release_command = 'npm run migrate:latest'
+
 [http_service]
   internal_port = 3001
   force_https = true

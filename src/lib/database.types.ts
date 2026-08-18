@@ -38,8 +38,23 @@ export interface Message {
   channelId: string;
   userId: string;
   body: string;
+  messageType: 'text' | 'image' | 'audio';
+  mediaUrl: string | null;
+  mediaMimeType: string | null;
+  mediaFileName: string | null;
+  mediaDurationMs: number | null;
+  mentionedUserIds: string[];
+  readCount: number;
+  recipientCount: number;
   createdAt: string;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
+}
+
+export interface MentionableMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
 }
 
 export interface Announcement {
@@ -91,7 +106,9 @@ export interface Competition {
   comp_date: string;
   category: string | null;
   comp_type: 'GI' | 'NO-GI' | 'OPEN' | null;
+  importance: 'local' | 'regional' | 'national' | 'international' | 'major';
   registration_deadline: string | null;
+  registration_url: string | null;
   status: 'open' | 'soon' | 'closed';
   created_at: string;
 }
@@ -104,6 +121,7 @@ export interface Registration {
   status: 'confirmé' | 'en_attente' | 'annulé';
   created_at: string;
   competitions?: Competition;
+  result?: PalmaresEntry | null;
 }
 
 export interface Carpool {
@@ -132,6 +150,13 @@ export interface PalmaresEntry {
   weightClass: string | null;
   compType: 'GI' | 'NO-GI' | null;
   place: number;
+  resultStage: 'champion' | 'finalist' | 'semifinal' | 'quarterfinal' | 'round_of_16' | 'round_of_32' | 'participant';
+  validationStatus: 'pending' | 'approved' | 'rejected';
+  submissionSource: 'athlete' | 'coach';
+  beltColor: 'blanche' | 'bleue' | 'violette' | 'marron' | 'noire' | null;
+  submittedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
   notes: string | null;
   createdAt: string;
 }

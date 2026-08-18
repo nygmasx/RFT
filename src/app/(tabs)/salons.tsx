@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
@@ -17,6 +17,7 @@ export default function SalonsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const [query, setQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
 
   const { data: channels, loading, refetch } = useChannels();
@@ -77,6 +78,9 @@ export default function SalonsScreen() {
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+              setRefreshing(true); void refetch().finally(() => setRefreshing(false));
+            }} />}
           >
             {filtered.map((c, i) => {
               const isTop = i === 0;

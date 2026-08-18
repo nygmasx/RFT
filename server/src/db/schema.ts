@@ -81,9 +81,26 @@ export const messages = pgTable('messages', {
   channelId: text('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   body:      text('body').notNull(),
+  messageType: text('message_type').notNull().default('text'), // text | image | audio
+  mediaData: text('media_data'),
+  mediaMimeType: text('media_mime_type'),
+  mediaFileName: text('media_file_name'),
+  mediaDurationMs: integer('media_duration_ms'),
+  mediaToken: uuid('media_token'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at'),
-});
+}, (t) => [uniqueIndex('messages_media_token_unique').on(t.mediaToken)]);
+
+export const channelReads = pgTable('channel_reads', {
+  channelId: text('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt:    timestamp('read_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.channelId, t.userId] })]);
+
+export const messageMentions = pgTable('message_mentions', {
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.messageId, t.userId] })]);
 
 export const announcements = pgTable('announcements', {
   id:        uuid('id').primaryKey().defaultRandom(),
@@ -137,6 +154,8 @@ export const competitions = pgTable('competitions', {
   compDate:             date('comp_date').notNull(),
   category:             text('category'),
   compType:             text('comp_type'), // GI | NO-GI | OPEN
+  importance:           text('importance').notNull().default('regional'), // local | regional | national | international | major
+  registrationUrl:      text('registration_url'),
   registrationDeadline: date('registration_deadline'),
   status:               text('status').notNull().default('open'), // open | soon | closed
   createdAt:            timestamp('created_at').notNull().defaultNow(),
@@ -226,6 +245,19 @@ export const palmares = pgTable('palmares', {
   weightClass:     text('weight_class'),
   compType:        text('comp_type'), // GI | NO-GI
   place:           integer('place').notNull(),
+  resultStage:     text('result_stage').notNull().default('participant'),
+  validationStatus: text('validation_status').notNull().default('approved'), // pending | approved | rejected
+  submissionSource: text('submission_source').notNull().default('coach'), // athlete | coach
+  beltColor:       text('belt_color'),
+  submittedAt:     timestamp('submitted_at').notNull().defaultNow(),
+  reviewedBy:      text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt:      timestamp('reviewed_at'),
   notes:           text('notes'),
   createdAt:       timestamp('created_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('palmares_user_competition_unique').on(t.userId, t.competitionId)]);
+
+export const resultReminders = pgTable('result_reminders', {
+  userId:        text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  competitionId: uuid('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
+  sentAt:        timestamp('sent_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.competitionId] })]);

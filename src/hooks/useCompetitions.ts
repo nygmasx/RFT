@@ -10,17 +10,15 @@ export function useCompetitions() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading]             = useState(true);
 
-  const refetch = useCallback(() => {
-    api.get<{ upcoming: CompetitionWithSource[]; registrations: Registration[] }>('/api/competitions')
-      .then(({ upcoming, registrations }) => {
-        setUpcoming(upcoming ?? []);
-        setRegistrations(registrations ?? []);
-        setLoading(false);
-      })
-      .catch((e) => { console.error('[useCompetitions]', e.message); setLoading(false); });
+  const refetch = useCallback(async () => {
+    try {
+      const response = await api.get<{ upcoming: CompetitionWithSource[]; registrations: Registration[] }>('/api/competitions');
+      setUpcoming(response.upcoming ?? []); setRegistrations(response.registrations ?? []);
+    } catch (e: any) { console.error('[useCompetitions]', e.message); }
+    finally { setLoading(false); }
   }, []);
 
-  useFocusEffect(refetch);
+  useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
 
   return { upcoming, registrations, loading, refetch };
 }

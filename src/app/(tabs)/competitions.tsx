@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -57,10 +57,16 @@ function formatDate(iso: string) {
   };
 }
 
+const RESULT_LABELS: Record<string, string> = {
+  champion: '1ER', finalist: '2E', semifinal: '1/2', quarterfinal: '1/4',
+  round_of_16: '1/8', round_of_32: '1/16', participant: 'PART.',
+};
+
 export default function CompetitionsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const [activeTab, setActiveTab] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const tabs = ['À venir', 'Mes inscriptions', 'Passées'];
 
   const { upcoming, registrations, loading, refetch } = useCompetitions();
@@ -122,7 +128,9 @@ export default function CompetitionsScreen() {
           <ActivityIndicator color={t.crimson} />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+          setRefreshing(true); void refetch().finally(() => setRefreshing(false));
+        }} />}>
 
           {activeTab === 0 && (
             <>
@@ -232,11 +240,13 @@ export default function CompetitionsScreen() {
                 const comp = r.competitions;
                 if (!comp) return null;
                 const { day, month, year } = formatDate(comp.comp_date);
+                const result = r.result;
                 return (
-                  <View key={i} style={styles.pastCard}>
+                  <View key={i} style={styles.pastEntry}>
+                    <View style={styles.pastCard}>
                     <View style={styles.pastLeft}>
-                      <View style={[styles.medalDisc, { borderColor: t.textMute }]}>
-                        <Text style={[styles.medalText, { color: t.textMute }]}>?</Text>
+                      <View style={[styles.medalDisc, { borderColor: result?.validationStatus === 'approved' ? t.gold : t.textMute }]}>
+                        <Text style={[styles.medalText, { color: result?.validationStatus === 'approved' ? t.gold : t.textMute }]}>{result ? RESULT_LABELS[result.resultStage] : '?'}</Text>
                       </View>
                     </View>
                     <View style={styles.pastInfo}>
@@ -252,6 +262,16 @@ export default function CompetitionsScreen() {
                       <Text style={styles.pastMonth}>{month}</Text>
                       <Text style={styles.pastYear}>{year.slice(2)}</Text>
                     </View>
+                    </View>
+                  {result?.validationStatus === 'pending' ? (
+                    <View style={styles.resultStatus}><Ionicons name="time-outline" size={14} color={t.gold} /><Text style={[styles.resultStatusText, { color: t.gold }]}>EN ATTENTE DE VALIDATION DU COACH</Text></View>
+                  ) : result?.validationStatus === 'approved' ? (
+                    <View style={styles.resultStatus}><Ionicons name="checkmark-circle-outline" size={14} color="#4A8F6D" /><Text style={[styles.resultStatusText, { color: '#4A8F6D' }]}>VALIDÉ · COMPTABILISÉ AU CLASSEMENT</Text></View>
+                  ) : (
+                    <Pressable style={styles.submitResult} onPress={() => router.push({ pathname: '/add-result', params: { competitionId: comp.id } })}>
+                      <Text style={styles.submitResultText}>{result?.validationStatus === 'rejected' ? 'CORRIGER ET RENVOYER' : 'SAISIR MON RÉSULTAT'}</Text>
+                    </Pressable>
+                  )}
                   </View>
                 );
               })}
@@ -345,8 +365,7 @@ function makeStyles(t: Theme) {
       color: t.textDim, letterSpacing: 1.5, textTransform: 'uppercase',
     },
     pastCard: {
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
+      backgroundColor: t.surface, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
     },
     pastLeft: { alignItems: 'center', width: 44 },
     medalDisc: {
@@ -357,6 +376,7 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.display, fontSize: 18, fontWeight: '900',
     },
     pastInfo: { flex: 1, minWidth: 0 },
+    pastEntry: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3, overflow: 'hidden' },
     pastTags: { flexDirection: 'row', gap: 6, marginBottom: 5 },
     pastName: {
       fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '700', marginBottom: 2,
@@ -368,5 +388,9 @@ function makeStyles(t: Theme) {
     },
     pastMonth: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1.2 },
     pastYear: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1.2 },
+    resultStatus: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderTopWidth: 1, borderTopColor: t.hairline },
+    resultStatusText: { fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '700', letterSpacing: 0.7 },
+    submitResult: { minHeight: 42, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
+    submitResultText: { color: '#FFF', fontFamily: FONTS.mono, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   });
 }

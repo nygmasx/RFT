@@ -6,12 +6,13 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/security.test.ts test/app.test.ts test/geolocation.test.ts",
+    "test": "tsx --test test/security.test.ts test/app.test.ts test/geolocation.test.ts test/ranking.test.ts test/official-rankings.test.ts",
     "test:integration": "tsx --test test/integration.test.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "migrate:avatars": "tsx scripts/migrate-avatars.ts",
     "migrate:competition-results": "tsx scripts/migrate-competition-results.ts",
+    "migrate:latest": "tsx scripts/migrate-latest.ts",
     "backfill:geolocation": "tsx scripts/backfill-geolocation.ts"
   },
   "dependencies": {

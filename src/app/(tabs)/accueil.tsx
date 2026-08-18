@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -56,10 +56,11 @@ export default function AccueilScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
-  const { data: announcements, loading: loadingAnn } = useAnnouncements();
-  const { unreadCount } = useNotifications();
-  const { data: calendarEvents, loading: loadingCal } = useCalendarEvents();
-  const { data: channels, loading: loadingChan } = useChannels();
+  const [refreshing, setRefreshing] = useState(false);
+  const { data: announcements, loading: loadingAnn, refetch: refetchAnnouncements } = useAnnouncements();
+  const { unreadCount, refetch: refetchNotifications } = useNotifications();
+  const { data: calendarEvents, loading: loadingCal, refetch: refetchCalendar } = useCalendarEvents();
+  const { data: channels, loading: loadingChan, refetch: refetchChannels } = useChannels();
 
   const loading = loadingAnn || loadingCal || loadingChan;
 
@@ -93,7 +94,9 @@ export default function AccueilScreen() {
           <ActivityIndicator color={t.crimson} />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+          setRefreshing(true); void Promise.all([refetchAnnouncements(), refetchNotifications(), refetchCalendar(), refetchChannels()]).finally(() => setRefreshing(false));
+        }} />}>
 
           {/* Hero announcement */}
           {hero && (

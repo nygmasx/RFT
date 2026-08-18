@@ -5,9 +5,21 @@ import { competitions, registrations, calendarEvents, competitionBookmarks, palm
 import { requireApproved, requireCoach } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { ensureStoredCompetition, findCalendarCompetition } from '../lib/competition-record';
+import { isCompetitionImportance } from '../lib/ranking';
 import { notifyMembers, notifyUser } from './push';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
+
+function parseRegistrationUrl(value: unknown): string | null | undefined {
+  if (value == null || value === '') return null;
+  if (typeof value !== 'string' || value.length > 500) return undefined;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function competitionDto(comp: typeof competitions.$inferSelect) {
   return {
@@ -19,7 +31,9 @@ function competitionDto(comp: typeof competitions.$inferSelect) {
     comp_date: comp.compDate,
     category: comp.category,
     comp_type: comp.compType,
+    importance: comp.importance,
     registration_deadline: comp.registrationDeadline,
+    registration_url: comp.registrationUrl,
     status: comp.status,
     created_at: comp.createdAt,
   };
@@ -35,7 +49,9 @@ function calendarCompetitionDto(event: typeof calendarEvents.$inferSelect) {
     comp_date: event.eventDate,
     category: null,
     comp_type: null,
+    importance: 'regional',
     registration_deadline: null,
+    registration_url: null,
     status: 'open',
     created_at: event.createdAt,
     _fromCalendar: true,
@@ -53,7 +69,7 @@ app.get('/admin/overview', requireCoach, async (c) => {
     db.select().from(competitions).orderBy(asc(competitions.compDate)),
     db.select().from(calendarEvents).where(eq(calendarEvents.type, 'compet')).orderBy(asc(calendarEvents.eventDate)),
     db.select({ competitionId: registrations.competitionId }).from(registrations),
-    db.select({ competitionId: palmares.competitionId }).from(palmares),
+    db.select({ competitionId: palmares.competitionId, validationStatus: palmares.validationStatus }).from(palmares),
   ]);
 
   const storedIds = new Set(storedCompetitions.map(({ id }) => id));
@@ -66,6 +82,7 @@ app.get('/admin/overview', requireCoach, async (c) => {
     ...competition,
     registered_count: registrationRows.filter(({ competitionId }) => competitionId === competition.id).length,
     result_count: resultRows.filter(({ competitionId }) => competitionId === competition.id).length,
+    pending_result_count: resultRows.filter(({ competitionId, validationStatus }) => competitionId === competition.id && validationStatus === 'pending').length,
   })));
 });
 
@@ -147,9 +164,12 @@ app.get('/', requireApproved, async (c) => {
 
   // Fetch full competition data for registrations
   const regCompIds = [...new Set(regs.map((r) => r.competitionId))];
-  const regComps = regCompIds.length
-    ? await db.select().from(competitions).where(inArray(competitions.id, regCompIds))
-    : [];
+  const [regComps, resultRows] = regCompIds.length
+    ? await Promise.all([
+      db.select().from(competitions).where(inArray(competitions.id, regCompIds)),
+      db.select().from(palmares).where(and(eq(palmares.userId, user.id), inArray(palmares.competitionId, regCompIds))),
+    ])
+    : [[], []];
 
   const fullRegs = regs.map((r) => ({
     id: r.id,
@@ -162,6 +182,7 @@ app.get('/', requireApproved, async (c) => {
       const comp = regComps.find((candidate) => candidate.id === r.competitionId);
       return comp ? competitionDto(comp) : null;
     })(),
+    result: resultRows.find(({ competitionId }) => competitionId === r.competitionId) ?? null,
   }));
 
   return c.json({ upcoming, registrations: fullRegs });
@@ -189,6 +210,9 @@ app.post('/', requireCoach, async (c) => {
   if (!body.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.comp_date ?? '')) {
     return c.json({ error: 'Nom et date valides obligatoires' }, 400);
   }
+  if (!isCompetitionImportance(body.importance ?? 'regional')) return c.json({ error: 'Importance invalide' }, 400);
+  const registrationUrl = parseRegistrationUrl(body.registration_url);
+  if (registrationUrl === undefined) return c.json({ error: 'Lien d’inscription invalide' }, 400);
   const hasCoordinates = Number.isFinite(body.latitude) && Number.isFinite(body.longitude);
   const [comp] = await db.insert(competitions).values({
     name:                 body.name.trim(),
@@ -198,7 +222,9 @@ app.post('/', requireCoach, async (c) => {
     compDate:             body.comp_date,
     category:             body.category ?? null,
     compType:             body.comp_type ?? null,
+    importance:           body.importance ?? 'regional',
     registrationDeadline: body.registration_deadline ?? null,
+    registrationUrl,
     status:               body.status ?? 'open',
   }).returning();
   void notifyMembers('notifyCompetitions', `🏆 ${comp.name}`, `${comp.compDate}${comp.location ? ` · ${comp.location}` : ''}`, { competitionId: comp.id }, 'competition');
@@ -211,6 +237,9 @@ app.put('/:id', requireCoach, async (c) => {
   if (!body.name?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(body.comp_date ?? '')) {
     return c.json({ error: 'Nom et date valides obligatoires' }, 400);
   }
+  if (!isCompetitionImportance(body.importance ?? 'regional')) return c.json({ error: 'Importance invalide' }, 400);
+  const registrationUrl = parseRegistrationUrl(body.registration_url);
+  if (registrationUrl === undefined) return c.json({ error: 'Lien d’inscription invalide' }, 400);
   const hasCoordinates = Number.isFinite(body.latitude) && Number.isFinite(body.longitude);
   const [comp] = await db.update(competitions).set({
     name: body.name.trim(),
@@ -220,7 +249,9 @@ app.put('/:id', requireCoach, async (c) => {
     compDate: body.comp_date,
     category: body.category?.trim() || null,
     compType: body.comp_type ?? null,
+    importance: body.importance ?? 'regional',
     registrationDeadline: body.registration_deadline || null,
+    registrationUrl,
     status: body.status ?? 'open',
   }).where(eq(competitions.id, id)).returning();
   if (!comp) return c.json({ error: 'Introuvable' }, 404);

@@ -54,6 +54,10 @@ function tagSt(t: Theme) {
 }
 
 const YEAR_FILTERS = ['Toutes', '2026', '2025', '2024'];
+const RESULT_LABELS: Record<string, string> = {
+  champion: '1ER', finalist: '2E', semifinal: '1/2', quarterfinal: '1/4',
+  round_of_16: '1/8', round_of_32: '1/16', participant: 'PART.',
+};
 
 export default function PalmaresScreen() {
   const { theme: t } = useTheme();
@@ -61,6 +65,7 @@ export default function PalmaresScreen() {
   const [activeYear, setActiveYear] = useState('Toutes');
 
   const { profile, palmares, loading } = useProfile();
+  const approvedPalmares = palmares.filter((result) => result.validationStatus === 'approved');
 
   const filteredResults = activeYear === 'Toutes'
     ? palmares
@@ -69,10 +74,10 @@ export default function PalmaresScreen() {
   const allYears = Array.from(new Set(palmares.map((r) => r.compDate.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
   const yearsToShow = activeYear === 'Toutes' ? allYears : [activeYear];
 
-  const gold   = palmares.filter((r) => r.place === 1).length;
-  const silver = palmares.filter((r) => r.place === 2).length;
-  const bronze = palmares.filter((r) => r.place === 3).length;
-  const top4   = palmares.filter((r) => r.place >= 4).length;
+  const gold   = approvedPalmares.filter((r) => r.resultStage === 'champion').length;
+  const silver = approvedPalmares.filter((r) => r.resultStage === 'finalist').length;
+  const bronze = approvedPalmares.filter((r) => r.resultStage === 'semifinal').length;
+  const top4   = approvedPalmares.filter((r) => r.resultStage === 'quarterfinal').length;
 
   const SUMMARY = [
     { place: 1, count: gold, custom: undefined as string | undefined },
@@ -109,7 +114,12 @@ export default function PalmaresScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
           {/* Season header */}
-          <Text style={styles.season}>SAISON · {palmares.length} COMPÉTITIONS</Text>
+          <Text style={styles.season}>SAISON · {approvedPalmares.length} RÉSULTATS VALIDÉS</Text>
+
+          <Pressable style={styles.rankingButton} onPress={() => router.push('/rankings' as never)}>
+            <View><Text style={styles.rankingTitle}>CLASSEMENTS DU CLUB</Text><Text style={styles.rankingSubtitle}>PAR CEINTURE & POUND-FOR-POUND</Text></View>
+            <Text style={styles.rankingArrow}>→</Text>
+          </Pressable>
 
           {/* Medal counts */}
           <View style={styles.summaryRow}>
@@ -150,12 +160,16 @@ export default function PalmaresScreen() {
                 </View>
                 {items.map((r, i) => (
                   <Pressable key={i} style={[styles.resultRow, i > 0 && styles.resultBorder]}>
-                    <MedalDisc place={r.place} size={36} t={t} />
+                    <View style={styles.resultDisc}>
+                      <MedalDisc place={r.place} size={36} t={t} />
+                      {r.resultStage !== 'champion' && r.resultStage !== 'finalist' && r.resultStage !== 'semifinal' ? <Text style={styles.stageOverlay}>{RESULT_LABELS[r.resultStage]}</Text> : null}
+                    </View>
                     <View style={styles.resultInfo}>
                       <Text style={styles.resultName}>{r.competitionName}</Text>
                       <Text style={styles.resultMeta}>{r.compDate} · {r.weightClass ?? ''}</Text>
                     </View>
                     {r.compType && <Tag text={r.compType} t={t} />}
+                    {r.validationStatus !== 'approved' ? <View style={[styles.validationBadge, r.validationStatus === 'rejected' && styles.validationRejected]}><Text style={styles.validationText}>{r.validationStatus === 'pending' ? 'À VALIDER' : 'REFUSÉ'}</Text></View> : null}
                     <Text style={styles.chevron}>›</Text>
                   </Pressable>
                 ))}
@@ -195,6 +209,10 @@ function makeStyles(t: Theme) {
     loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     scroll: { paddingHorizontal: 20, paddingTop: 16 },
     season: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2, marginBottom: 10 },
+    rankingButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, marginBottom: 14, backgroundColor: t.crimson, borderRadius: 3 },
+    rankingTitle: { color: '#FFF', fontFamily: FONTS.display, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+    rankingSubtitle: { color: '#FFFFFFAA', fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1, marginTop: 3 },
+    rankingArrow: { color: '#FFF', fontSize: 24 },
     summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     summaryCard: {
       flex: 1, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
@@ -217,6 +235,11 @@ function makeStyles(t: Theme) {
     resultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
     resultBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
     resultInfo: { flex: 1, minWidth: 0 },
+    resultDisc: { alignItems: 'center', justifyContent: 'center' },
+    stageOverlay: { position: 'absolute', color: t.textDim, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800' },
+    validationBadge: { paddingHorizontal: 6, paddingVertical: 4, borderWidth: 1, borderColor: t.gold, borderRadius: 2 },
+    validationRejected: { borderColor: t.crimson },
+    validationText: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 7.5, fontWeight: '800' },
     resultName: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '700' },
     resultMeta: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1, marginTop: 2 },
     chevron: { fontSize: 18, color: t.textMute, lineHeight: 20 },

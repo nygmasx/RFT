@@ -1,7 +1,16 @@
 import { Hono } from 'hono';
 import { eq, asc, and, inArray, isNull, ne, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { messages, users, channelMembers, channels, pushTokens, userSettings } from '../db/schema';
+import {
+  messages,
+  users,
+  channelMembers,
+  channelReads,
+  messageMentions,
+  channels,
+  pushTokens,
+  userSettings,
+} from '../db/schema';
 import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { getChannelAccess } from '../lib/channel-access';
@@ -10,19 +19,103 @@ import { notifications } from '../db/schema';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
-// GET /api/messages/:channelId
-app.get('/:channelId', requireApproved, async (c) => {
+const API_BASE_URL = (process.env.BETTER_AUTH_URL ?? 'http://localhost:3001').replace(/\/$/, '');
+const ALLOWED_MEDIA_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp',
+  'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/3gpp', 'audio/webm',
+]);
+
+type MentionableMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+};
+
+async function eligibleMembers(channelId: string, isPrivate: boolean): Promise<MentionableMember[]> {
+  if (isPrivate) {
+    return db.select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      avatarUrl: users.avatarUrl,
+    }).from(channelMembers)
+      .innerJoin(users, eq(channelMembers.userId, users.id))
+      .where(and(eq(channelMembers.channelId, channelId), or(
+        eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin']),
+      )));
+  }
+  return db.select({
+    id: users.id,
+    firstName: users.firstName,
+    lastName: users.lastName,
+    avatarUrl: users.avatarUrl,
+  }).from(users).where(or(eq(users.status, 'approved'), inArray(users.role, ['coach', 'admin'])));
+}
+
+async function validatedMentions(channelId: string, isPrivate: boolean, requested: unknown) {
+  if (!Array.isArray(requested)) return [];
+  const uniqueIds = [...new Set(requested.filter((value): value is string => typeof value === 'string'))].slice(0, 20);
+  if (!uniqueIds.length) return [];
+  const allowedIds = new Set((await eligibleMembers(channelId, isPrivate)).map(({ id }) => id));
+  return uniqueIds.filter((id) => allowedIds.has(id));
+}
+
+function mediaUrl(messageId: string, token: string | null) {
+  return token ? `${API_BASE_URL}/api/messages/media/${messageId}/${token}` : null;
+}
+
+// Opaque media URLs let native image/audio players stream without exposing auth tokens.
+app.get('/media/:messageId/:token', async (c) => {
+  const messageId = c.req.param('messageId') as `${string}-${string}-${string}-${string}-${string}`;
+  const token = c.req.param('token') as `${string}-${string}-${string}-${string}-${string}`;
+  const [media] = await db.select({
+    data: messages.mediaData,
+    mimeType: messages.mediaMimeType,
+  }).from(messages).where(and(eq(messages.id, messageId), eq(messages.mediaToken, token)));
+  if (!media?.data || !media.mimeType) return c.body(null, 404);
+  return c.body(Buffer.from(media.data, 'base64'), 200, {
+    'Content-Type': media.mimeType,
+    'Cache-Control': 'private, max-age=86400',
+    'X-Content-Type-Options': 'nosniff',
+  });
+});
+
+app.get('/:channelId/members', requireApproved, async (c) => {
   const channelId = c.req.param('channelId');
   const access = await getChannelAccess(channelId, c.get('user').id);
   if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
   if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+  return c.json((await eligibleMembers(channelId, access.isPrivate))
+    .filter(({ id }) => id !== c.get('user').id));
+});
 
-  const rows = await db
+// GET /api/messages/:channelId
+app.get('/:channelId', requireApproved, async (c) => {
+  const user = c.get('user');
+  const channelId = c.req.param('channelId');
+  const access = await getChannelAccess(channelId, user.id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+
+  await db.insert(channelReads).values({ channelId, userId: user.id, readAt: new Date() })
+    .onConflictDoUpdate({
+      target: [channelReads.channelId, channelReads.userId],
+      set: { readAt: new Date() },
+    });
+
+  const [rows, readRows, mentionRows, members] = await Promise.all([
+    db
     .select({
       id:        messages.id,
       channelId: messages.channelId,
       userId:    messages.userId,
       body:      messages.body,
+      messageType: messages.messageType,
+      mediaMimeType: messages.mediaMimeType,
+      mediaFileName: messages.mediaFileName,
+      mediaDurationMs: messages.mediaDurationMs,
+      mediaToken: messages.mediaToken,
       createdAt: messages.createdAt,
       profiles: {
         first_name: users.firstName,
@@ -32,16 +125,30 @@ app.get('/:channelId', requireApproved, async (c) => {
     .from(messages)
     .innerJoin(users, eq(messages.userId, users.id))
     .where(eq(messages.channelId, channelId))
-    .orderBy(asc(messages.createdAt));
+    .orderBy(asc(messages.createdAt)),
+    db.select().from(channelReads).where(eq(channelReads.channelId, channelId)),
+    db.select({ messageId: messageMentions.messageId, userId: messageMentions.userId })
+      .from(messageMentions)
+      .innerJoin(messages, eq(messageMentions.messageId, messages.id))
+      .where(eq(messages.channelId, channelId)),
+    eligibleMembers(channelId, access.isPrivate),
+  ]);
 
-  return c.json(rows);
+  return c.json(rows.map((row) => ({
+    ...row,
+    mediaToken: undefined,
+    mediaUrl: mediaUrl(row.id, row.mediaToken),
+    mentionedUserIds: mentionRows.filter(({ messageId }) => messageId === row.id).map(({ userId }) => userId),
+    readCount: readRows.filter(({ userId, readAt }) => userId !== row.userId && readAt >= row.createdAt).length,
+    recipientCount: members.filter(({ id }) => id !== row.userId).length,
+  })));
 });
 
 // POST /api/messages/:channelId
 app.post('/:channelId', requireApproved, async (c) => {
   const user = c.get('user');
   const channelId = c.req.param('channelId');
-  const { body } = await c.req.json<{ body: string }>();
+  const { body, mention_user_ids } = await c.req.json<{ body: string; mention_user_ids?: string[] }>();
 
   const access = await getChannelAccess(channelId, user.id);
   if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
@@ -50,23 +157,95 @@ app.post('/:channelId', requireApproved, async (c) => {
 
   if (!body?.trim()) return c.json({ error: 'Message vide' }, 400);
   if (body.trim().length > 4_000) return c.json({ error: 'Message trop long' }, 400);
+  const mentionedUserIds = await validatedMentions(channelId, access.isPrivate, mention_user_ids);
 
   const [msg] = await db
     .insert(messages)
     .values({ channelId, userId: user.id, body: body.trim() })
     .returning();
 
+  if (mentionedUserIds.length) {
+    await db.insert(messageMentions).values(mentionedUserIds.map((mentionedUserId) => ({
+      messageId: msg.id,
+      userId: mentionedUserId,
+    }))).onConflictDoNothing();
+  }
+
   const response = {
     ...msg,
     profiles: { first_name: user.firstName, last_name: user.lastName },
+    mediaUrl: null,
+    mentionedUserIds,
+    readCount: 0,
   };
 
-  void createChannelNotifications(channelId, user, body.trim(), msg.id);
+  void createChannelNotifications(channelId, user, body.trim(), msg.id, mentionedUserIds);
 
   // Send push notification to channel members — fire and forget
-  notifyChannelMembers(channelId, user, body.trim()).catch(() => {});
+  notifyChannelMembers(channelId, user, body.trim(), mentionedUserIds).catch(() => {});
 
   return c.json(response, 201);
+});
+
+app.post('/:channelId/media', requireApproved, async (c) => {
+  const user = c.get('user');
+  const channelId = c.req.param('channelId');
+  const payload = await c.req.json<{
+    data_url?: string;
+    file_name?: string;
+    duration_ms?: number;
+    caption?: string;
+    mention_user_ids?: string[];
+  }>();
+  const access = await getChannelAccess(channelId, user.id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+  if (access.isLocked && !isStaff(user)) return c.json({ error: 'Salon verrouillé' }, 403);
+
+  const match = payload.data_url?.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/s);
+  if (!match || !ALLOWED_MEDIA_TYPES.has(match[1])) return c.json({ error: 'Format média non accepté' }, 400);
+  const decodedSize = Math.floor(match[2].length * 0.75);
+  if (decodedSize <= 0 || decodedSize > 6_000_000) return c.json({ error: 'Média trop volumineux (6 Mo maximum)' }, 413);
+  const messageType = match[1].startsWith('image/') ? 'image' : 'audio';
+  const durationMs = messageType === 'audio' ? Math.round(Number(payload.duration_ms)) : null;
+  if (messageType === 'audio' && (!durationMs || durationMs < 300 || durationMs > 180_000)) {
+    return c.json({ error: 'Durée du vocal invalide (3 minutes maximum)' }, 400);
+  }
+  const caption = payload.caption?.trim() ?? '';
+  if (caption.length > 1_000) return c.json({ error: 'Légende trop longue' }, 400);
+  const mentionedUserIds = await validatedMentions(channelId, access.isPrivate, payload.mention_user_ids);
+  const mediaToken = crypto.randomUUID();
+  const [msg] = await db.insert(messages).values({
+    channelId,
+    userId: user.id,
+    body: caption,
+    messageType,
+    mediaData: match[2],
+    mediaMimeType: match[1],
+    mediaFileName: payload.file_name?.slice(0, 200) || null,
+    mediaDurationMs: durationMs,
+    mediaToken,
+  }).returning();
+
+  if (mentionedUserIds.length) {
+    await db.insert(messageMentions).values(mentionedUserIds.map((mentionedUserId) => ({
+      messageId: msg.id,
+      userId: mentionedUserId,
+    }))).onConflictDoNothing();
+  }
+
+  const notificationBody = messageType === 'audio' ? '🎤 Message vocal' : '📷 Photo';
+  void createChannelNotifications(channelId, user, notificationBody, msg.id, mentionedUserIds);
+  notifyChannelMembers(channelId, user, notificationBody, mentionedUserIds).catch(() => {});
+  return c.json({
+    ...msg,
+    mediaData: undefined,
+    mediaToken: undefined,
+    mediaUrl: mediaUrl(msg.id, mediaToken),
+    mentionedUserIds,
+    readCount: 0,
+    profiles: { first_name: user.firstName, last_name: user.lastName },
+  }, 201);
 });
 
 app.put('/item/:id', requireApproved, async (c) => {
@@ -77,6 +256,7 @@ app.put('/item/:id', requireApproved, async (c) => {
   if (!content || content.length > 4_000) return c.json({ error: 'Message invalide' }, 400);
   const [current] = await db.select().from(messages).where(eq(messages.id, id));
   if (!current) return c.json({ error: 'Introuvable' }, 404);
+  if (current.messageType !== 'text') return c.json({ error: 'Ce type de message ne peut pas être modifié' }, 400);
   const canEdit = current.userId === user.id && Date.now() - current.createdAt.getTime() <= 15 * 60_000;
   if (!canEdit && !isStaff(user)) return c.json({ error: 'Accès refusé' }, 403);
   const [row] = await db.update(messages).set({ body: content, updatedAt: new Date() })
@@ -94,7 +274,13 @@ app.delete('/item/:id', requireApproved, async (c) => {
   return c.json({ ok: true });
 });
 
-async function createChannelNotifications(channelId: string, sender: AuthUser, body: string, messageId: string) {
+async function createChannelNotifications(
+  channelId: string,
+  sender: AuthUser,
+  body: string,
+  messageId: string,
+  mentionedUserIds: string[] = [],
+) {
   try {
     const [channel] = await db.select().from(channels).where(eq(channels.id, channelId));
     if (!channel) return;
@@ -114,25 +300,38 @@ async function createChannelNotifications(channelId: string, sender: AuthUser, b
     }
     if (!recipientIds.length) return;
     const senderName = `${sender.firstName} ${sender.lastName}`.trim() || sender.email;
+    const mentionedIds = new Set(mentionedUserIds);
     await db.insert(notifications).values(recipientIds.map((userId) => ({
       userId,
       type: 'message',
-      title: `${senderName} · #${channel.name}`,
+      title: mentionedIds.has(userId)
+        ? `${senderName} t’a mentionné · #${channel.name}`
+        : `${senderName} · #${channel.name}`,
       body: body.slice(0, 300),
-      data: JSON.stringify({ channelId, channelName: channel.name, messageId }),
+      data: JSON.stringify({
+        channelId,
+        channelName: channel.name,
+        messageId,
+        mentioned: mentionedIds.has(userId),
+      }),
     })));
   } catch (error) {
     console.error('[Notifications] Failed to store channel notifications', error);
   }
 }
 
-async function notifyChannelMembers(channelId: string, sender: AuthUser, messageBody: string) {
+async function notifyChannelMembers(
+  channelId: string,
+  sender: AuthUser,
+  messageBody: string,
+  mentionedUserIds: string[] = [],
+) {
   const [channel] = await db
     .select({ name: channels.name, isPrivate: channels.isPrivate })
     .from(channels).where(eq(channels.id, channelId));
   if (!channel) return;
 
-  let tokens: { token: string }[];
+  let tokens: { token: string; userId: string }[];
 
   if (channel.isPrivate) {
     // Private: notify channel members except the sender, on every device.
@@ -142,7 +341,7 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
       .where(eq(channelMembers.channelId, channelId));
     if (members.length === 0) return;
     tokens = await db
-      .select({ token: pushTokens.token })
+      .select({ token: pushTokens.token, userId: pushTokens.userId })
       .from(pushTokens)
       .innerJoin(users, eq(pushTokens.userId, users.id))
       .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
@@ -155,7 +354,7 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
   } else {
     // Public: notify approved members and staff only
     tokens = await db
-      .select({ token: pushTokens.token })
+      .select({ token: pushTokens.token, userId: pushTokens.userId })
       .from(pushTokens)
       .innerJoin(users, eq(pushTokens.userId, users.id))
       .leftJoin(userSettings, eq(pushTokens.userId, userSettings.userId))
@@ -176,13 +375,14 @@ async function notifyChannelMembers(channelId: string, sender: AuthUser, message
     ? `${process.env.BETTER_AUTH_URL}/api/profile/${sender.id}/avatar`
     : undefined;
 
+  const mentionedIds = new Set(mentionedUserIds);
   const msgs = tokens.map((t) => ({
     to: t.token,
     sound: 'default' as const,
-    title: senderName,
+    title: mentionedIds.has(t.userId) ? `${senderName} t’a mentionné` : senderName,
     subtitle: `#${channel.name}`,
     body: messageBody,
-    data: { channelId, channelName: channel.name, senderId: sender.id },
+    data: { channelId, channelName: channel.name, senderId: sender.id, mentioned: mentionedIds.has(t.userId) },
     ...(avatarUrl ? { attachments: [{ url: avatarUrl }] } : {}),
   }));
 

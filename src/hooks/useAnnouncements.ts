@@ -9,19 +9,19 @@ export function useAnnouncements() {
   const [data, setData]       = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(() => {
+  const refetch = useCallback(async () => {
     if (!user) {
       setData([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    api.get<Announcement[]>('/api/announcements')
-      .then((rows) => { setData(rows ?? []); setLoading(false); })
-      .catch((e) => { console.error('[useAnnouncements]', e.message); setLoading(false); });
+    try { setData(await api.get<Announcement[]>('/api/announcements') ?? []); }
+    catch (e: any) { console.error('[useAnnouncements]', e.message); }
+    finally { setLoading(false); }
   }, [user]);
 
-  useFocusEffect(refetch);
+  useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
 
   const markAllRead = useCallback(async () => {
     await api.post('/api/announcements/read-all', {});

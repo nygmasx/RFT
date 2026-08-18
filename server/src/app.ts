@@ -17,6 +17,7 @@ import { notificationsRouter } from './routes/notifications';
 import { palmaresRouter } from './routes/palmares';
 import { profileRouter } from './routes/profile';
 import { pushRouter } from './routes/push';
+import { rankingsRouter } from './routes/rankings';
 import { settingsRouter } from './routes/settings';
 
 export const app = new Hono();
@@ -66,6 +67,7 @@ app.route('/api/profile', profileRouter);
 app.route('/api/belt', beltRouter);
 app.route('/api/palmares', palmaresRouter);
 app.route('/api/push-tokens', pushRouter);
+app.route('/api/rankings', rankingsRouter);
 app.route('/api/settings', settingsRouter);
 app.route('/api/notifications', notificationsRouter);
 

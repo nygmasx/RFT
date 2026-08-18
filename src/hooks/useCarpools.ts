@@ -48,18 +48,17 @@ export function useCarpools() {
   const [myPassengerCarpoolIds, setMyPassengerIds]    = useState<Set<string>>(new Set());
   const [loading, setLoading]                         = useState(true);
 
-  const refetch = useCallback(() => {
+  const refetch = useCallback(async () => {
     setLoading(true);
-    api.get<{ carpools: CarpoolApiRow[]; myPassengerCarpoolIds: string[]; currentUserId: string }>('/api/carpools')
-      .then(({ carpools, myPassengerCarpoolIds }) => {
-        setData((carpools ?? []).map(normalizeCarpool).filter((row): row is Carpool => row !== null));
-        setMyPassengerIds(new Set(myPassengerCarpoolIds));
-        setLoading(false);
-      })
-      .catch((e) => { console.error('[useCarpools]', e.message); setLoading(false); });
+    try {
+      const response = await api.get<{ carpools: CarpoolApiRow[]; myPassengerCarpoolIds: string[]; currentUserId: string }>('/api/carpools');
+      setData((response.carpools ?? []).map(normalizeCarpool).filter((row): row is Carpool => row !== null));
+      setMyPassengerIds(new Set(response.myPassengerCarpoolIds));
+    } catch (e: any) { console.error('[useCarpools]', e.message); }
+    finally { setLoading(false); }
   }, []);
 
-  useFocusEffect(refetch);
+  useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
 
   const joinCarpool = async (carpoolId: string) => {
     try {

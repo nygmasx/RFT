@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 
 import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
@@ -10,9 +11,10 @@ import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
+import { Competition } from '@/lib/database.types';
 
 type CompType = 'GI' | 'NO-GI' | 'GRAPPLING';
-type Place = 1 | 2 | 3 | 4 | null;
+type ResultStage = 'champion' | 'finalist' | 'semifinal' | 'quarterfinal' | 'round_of_16' | 'round_of_32' | 'participant';
 
 const WEIGHT_OPTIONS = ['-64', '-70', '-77', '-85', '-94', 'ABS.'];
 const TYPE_OPTIONS: CompType[] = ['GI', 'NO-GI', 'GRAPPLING'];
@@ -21,12 +23,16 @@ export default function AddResultScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const { user } = useAuth();
+  const { competitionId } = useLocalSearchParams<{ competitionId?: string }>();
 
-  const PLACE_OPTIONS = [
-    { place: 1 as Place, iconColor: '#D4A436', label: '1ER PLACE', selectedBg: '#D4A436' },
-    { place: 2 as Place, iconColor: '#BFC4C7', label: '2E PLACE',  selectedBg: '#BFC4C7' },
-    { place: 3 as Place, iconColor: '#C07A3A', label: '3E PLACE',  selectedBg: '#C07A3A' },
-    { place: 4 as Place, iconColor: t.textDim,  label: 'TOP 4 / 5E+', selectedBg: t.elevated },
+  const RESULT_OPTIONS: { stage: ResultStage; iconColor: string; label: string; selectedBg: string }[] = [
+    { stage: 'champion', iconColor: '#D4A436', label: '1ER · CHAMPION', selectedBg: '#6B4D0B' },
+    { stage: 'finalist', iconColor: '#BFC4C7', label: '2E · FINALISTE', selectedBg: '#42474A' },
+    { stage: 'semifinal', iconColor: '#C07A3A', label: '1/2 FINALE', selectedBg: '#603816' },
+    { stage: 'quarterfinal', iconColor: t.textDim, label: '1/4 FINALE', selectedBg: t.elevated },
+    { stage: 'round_of_16', iconColor: t.textDim, label: '1/8 · TOP 16', selectedBg: t.elevated },
+    { stage: 'round_of_32', iconColor: t.textDim, label: '1/16 · TOP 32', selectedBg: t.elevated },
+    { stage: 'participant', iconColor: t.textDim, label: 'PARTICIPATION', selectedBg: t.elevated },
   ];
 
   const [compName, setCompName] = useState('');
@@ -34,35 +40,51 @@ export default function AddResultScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [compType, setCompType] = useState<CompType>('GI');
   const [weightClass, setWeightClass] = useState('-77');
-  const [place, setPlace] = useState<Place>(null);
+  const [resultStage, setResultStage] = useState<ResultStage | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingCompetition, setLoadingCompetition] = useState(Boolean(competitionId));
+
+  useEffect(() => {
+    if (!competitionId) return;
+    api.get<Competition>(`/api/competitions/${competitionId}`)
+      .then((competition) => {
+        setCompName(competition.name);
+        setCompDate(new Date(`${competition.comp_date}T12:00:00`));
+        if (competition.comp_type === 'GI' || competition.comp_type === 'NO-GI') setCompType(competition.comp_type);
+      })
+      .catch((error) => Alert.alert('Compétition introuvable', error.message))
+      .finally(() => setLoadingCompetition(false));
+  }, [competitionId]);
 
   const pad = (n: number) => String(n).padStart(2, '0');
 
   const handleSave = async () => {
-    if (!user || !compName.trim() || place === null) return;
+    if (!user || !compName.trim() || resultStage === null) return;
     setSaving(true);
 
     const isoDate = `${compDate.getFullYear()}-${pad(compDate.getMonth() + 1)}-${pad(compDate.getDate())}`;
 
     try {
       await api.post('/api/palmares', {
+        competition_id: competitionId ?? null,
         competition_name: compName.trim(),
         comp_date:        isoDate,
         weight_class:     weightClass,
         comp_type:        compType === 'GRAPPLING' ? null : compType,
-        place,
+        result_stage:     resultStage,
         notes:            notes.trim() || null,
       });
-      safeBack('/palmares');
+      Alert.alert('Résultat envoyé', 'Ton coach doit maintenant le valider avant sa publication et sa prise en compte dans les classements.', [
+        { text: 'OK', onPress: () => safeBack('/palmares') },
+      ]);
     } catch (e: any) {
       alert(e.message);
     }
     setSaving(false);
   };
 
-  const canSave = !!compName.trim() && place !== null && !saving;
+  const canSave = !!compName.trim() && resultStage !== null && !saving && !loadingCompetition;
 
   return (
     <View style={styles.container}>
@@ -80,6 +102,12 @@ export default function AddResultScreen() {
 
       <FormScrollView contentContainerStyle={styles.scroll}>
 
+        {loadingCompetition ? <ActivityIndicator color={t.crimson} /> : null}
+        <View style={styles.reviewNotice}>
+          <Ionicons name="shield-checkmark-outline" size={20} color={t.gold} />
+          <Text style={styles.reviewNoticeText}>Le résultat restera privé jusqu’à sa validation par un coach.</Text>
+        </View>
+
         {/* COMPÉTITION */}
         <Text style={styles.sectionLabel}>COMPÉTITION</Text>
         <View style={styles.card}>
@@ -89,6 +117,7 @@ export default function AddResultScreen() {
               style={styles.input}
               value={compName}
               onChangeText={setCompName}
+              editable={!competitionId}
               placeholder="ex: Open BJJ de Paris"
               placeholderTextColor={t.textMute}
               selectionColor={t.crimson}
@@ -97,7 +126,7 @@ export default function AddResultScreen() {
           <View style={styles.divider} />
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>DATE</Text>
-            <Pressable onPress={() => setShowDatePicker(true)}>
+            <Pressable disabled={Boolean(competitionId)} onPress={() => setShowDatePicker(true)}>
               <Text style={styles.input}>
                 {compDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </Text>
@@ -153,16 +182,16 @@ export default function AddResultScreen() {
         <Text style={styles.sectionLabel}>RÉSULTAT</Text>
         <Text style={styles.sectionSubLabel}>PLACE</Text>
         <View style={styles.placeGrid}>
-          {PLACE_OPTIONS.map((opt) => {
-            const isSelected = place === opt.place;
+          {RESULT_OPTIONS.map((opt) => {
+            const isSelected = resultStage === opt.stage;
             return (
               <Pressable
-                key={String(opt.place)}
+                key={opt.stage}
                 style={[
                   styles.placeCard,
                   isSelected && { backgroundColor: opt.selectedBg, borderColor: t.crimson },
                 ]}
-                onPress={() => setPlace(opt.place)}
+                onPress={() => setResultStage(opt.stage)}
               >
                 <Ionicons name="medal" size={28} color={opt.iconColor} />
                 <Text style={[styles.placeLabel, isSelected && { color: t.bone, fontWeight: '900' }]}>
@@ -219,6 +248,8 @@ function makeStyles(t: Theme) {
     },
     saveText: { fontFamily: FONTS.mono, fontSize: 11, color: t.crimson, fontWeight: '700', letterSpacing: 1 },
     scroll: { paddingHorizontal: 20, paddingTop: 16, gap: 8 },
+    reviewNotice: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.gold, padding: 12, borderRadius: 3 },
+    reviewNoticeText: { flex: 1, color: t.textDim, fontFamily: FONTS.body, fontSize: 12, lineHeight: 17 },
 
     sectionLabel: {
       fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2,

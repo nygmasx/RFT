@@ -6,6 +6,7 @@ export type ChannelAccess = {
   exists: boolean;
   allowed: boolean;
   isLocked: boolean;
+  isPrivate: boolean;
 };
 
 export async function getChannelAccess(channelId: string, userId: string): Promise<ChannelAccess> {
@@ -14,8 +15,8 @@ export async function getChannelAccess(channelId: string, userId: string): Promi
     .from(channels)
     .where(eq(channels.id, channelId));
 
-  if (!channel) return { exists: false, allowed: false, isLocked: false };
-  if (!channel.isPrivate) return { exists: true, allowed: true, isLocked: channel.isLocked };
+  if (!channel) return { exists: false, allowed: false, isLocked: false, isPrivate: false };
+  if (!channel.isPrivate) return { exists: true, allowed: true, isLocked: channel.isLocked, isPrivate: false };
 
   const [membership] = await db
     .select({ userId: channelMembers.userId })
@@ -23,5 +24,5 @@ export async function getChannelAccess(channelId: string, userId: string): Promi
     .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
     .limit(1);
 
-  return { exists: true, allowed: Boolean(membership), isLocked: channel.isLocked };
+  return { exists: true, allowed: Boolean(membership), isLocked: channel.isLocked, isPrivate: true };
 }

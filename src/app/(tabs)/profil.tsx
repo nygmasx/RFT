@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
@@ -80,6 +80,7 @@ export default function ProfilScreen() {
   const { theme: t } = useTheme();
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { profile, belt, palmares, loading, refetch } = useProfile();
 
@@ -131,7 +132,9 @@ export default function ProfilScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+        setRefreshing(true); void refetch().finally(() => setRefreshing(false));
+      }} />}>
 
         {/* ── Identity card ────────────────────────────────── */}
         <View style={styles.idCard}>
