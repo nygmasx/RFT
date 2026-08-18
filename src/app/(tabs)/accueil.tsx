@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +12,7 @@ import { useAnnouncements } from '@/hooks/useAnnouncements';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { useChannels } from '@/hooks/useChannels';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useRankingsPreview } from '@/hooks/useRankingsPreview';
 
 function Tag({ text, filled, color, size = 9, t }: {
   text: string; filled?: boolean; color?: string; size?: number; t: Theme;
@@ -61,6 +63,7 @@ export default function AccueilScreen() {
   const { unreadCount, refetch: refetchNotifications } = useNotifications();
   const { data: calendarEvents, loading: loadingCal, refetch: refetchCalendar } = useCalendarEvents();
   const { data: channels, loading: loadingChan, refetch: refetchChannels } = useChannels();
+  const { data: rankingPreview, loading: loadingRankings, refetch: refetchRankings } = useRankingsPreview();
 
   const loading = loadingAnn || loadingCal || loadingChan;
 
@@ -95,7 +98,7 @@ export default function AccueilScreen() {
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
-          setRefreshing(true); void Promise.all([refetchAnnouncements(), refetchNotifications(), refetchCalendar(), refetchChannels()]).finally(() => setRefreshing(false));
+          setRefreshing(true); void Promise.all([refetchAnnouncements(), refetchNotifications(), refetchCalendar(), refetchChannels(), refetchRankings()]).finally(() => setRefreshing(false));
         }} />}>
 
           {/* Hero announcement */}
@@ -164,6 +167,61 @@ export default function AccueilScreen() {
               );
             })}
           </View>
+
+          {/* Classements preview */}
+          <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+            <Text style={styles.sectionLabel}>CLASSEMENTS RFT</Text>
+            <Pressable onPress={() => router.push('/rankings' as never)}>
+              <Text style={styles.sectionAction}>TOUT VOIR →</Text>
+            </Pressable>
+          </View>
+
+          <Pressable style={styles.rankingCard} onPress={() => router.push('/rankings' as never)}>
+            <View style={styles.rankingHeader}>
+              <View style={styles.rankingIcon}>
+                <Ionicons name="podium" size={19} color={t.gold} />
+              </View>
+              <View style={styles.rankingHeading}>
+                <Text style={styles.rankingTitle}>POUND-FOR-POUND</Text>
+                <Text style={styles.rankingSubtitle}>CLASSEMENT DU CLUB · RÉSULTATS VALIDÉS</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={t.crimson} />
+            </View>
+
+            {loadingRankings ? (
+              <View style={styles.rankingLoading}>
+                <ActivityIndicator size="small" color={t.crimson} />
+              </View>
+            ) : rankingPreview.length > 0 ? rankingPreview.map((row) => (
+              <View key={row.userId} style={styles.rankingRow}>
+                <Text style={styles.rankingRank}>{String(row.rank).padStart(2, '0')}</Text>
+                {row.avatarUrl ? (
+                  <Image source={{ uri: row.avatarUrl }} style={styles.rankingAvatar} contentFit="cover" />
+                ) : (
+                  <View style={styles.rankingAvatarFallback}>
+                    <Text style={styles.rankingInitials}>{row.firstName[0]}{row.lastName[0]}</Text>
+                  </View>
+                )}
+                <View style={styles.rankingIdentity}>
+                  <Text style={styles.rankingName} numberOfLines={1}>{row.firstName} {row.lastName}</Text>
+                  <Text style={styles.rankingMeta}>{row.resultCount} RÉS. · {row.wins} VICT.</Text>
+                </View>
+                <View style={styles.rankingScore}>
+                  <Text style={styles.rankingPoints}>{row.p4pPoints}</Text>
+                  <Text style={styles.rankingPointsLabel}>PTS</Text>
+                </View>
+              </View>
+            )) : (
+              <View style={styles.rankingEmpty}>
+                <Text style={styles.rankingEmptyText}>Les classements apparaîtront après validation des premiers résultats.</Text>
+              </View>
+            )}
+
+            <View style={styles.rankingFooter}>
+              <Text style={styles.rankingFooterText}>CLUB & CLASSEMENTS OFFICIELS</Text>
+              <Text style={styles.rankingFooterArrow}>ACCÉDER →</Text>
+            </View>
+          </Pressable>
 
           {/* Recent messages */}
           <View style={[styles.sectionHeader, { marginTop: 20 }]}>
@@ -280,6 +338,46 @@ function makeStyles(t: Theme) {
     eventInfo: { flex: 1 },
     eventTitle: { fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '600', marginBottom: 2 },
     eventSub: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim },
+    rankingCard: {
+      overflow: 'hidden', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
+      borderRadius: 3, borderLeftWidth: 2, borderLeftColor: t.gold,
+    },
+    rankingHeader: {
+      minHeight: 60, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 11,
+      backgroundColor: t.elevated, borderBottomWidth: 1, borderBottomColor: t.hairline,
+    },
+    rankingIcon: {
+      width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: t.gold + '66', borderRadius: 18,
+    },
+    rankingHeading: { flex: 1, minWidth: 0 },
+    rankingTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 14, fontWeight: '900', letterSpacing: 0.8 },
+    rankingSubtitle: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.8, marginTop: 3 },
+    rankingLoading: { height: 66, alignItems: 'center', justifyContent: 'center' },
+    rankingRow: {
+      minHeight: 58, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 10,
+      borderBottomWidth: 1, borderBottomColor: t.hairline,
+    },
+    rankingRank: { width: 24, color: t.gold, fontFamily: FONTS.display, fontSize: 16, fontWeight: '900' },
+    rankingAvatar: { width: 34, height: 34, borderRadius: 17 },
+    rankingAvatarFallback: {
+      width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated,
+    },
+    rankingInitials: { color: t.bone, fontFamily: FONTS.display, fontSize: 11, fontWeight: '900' },
+    rankingIdentity: { flex: 1, minWidth: 0 },
+    rankingName: { color: t.bone, fontFamily: FONTS.body, fontSize: 12.5, fontWeight: '700' },
+    rankingMeta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7.5, letterSpacing: 0.5, marginTop: 3 },
+    rankingScore: { alignItems: 'flex-end' },
+    rankingPoints: { color: t.crimson, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900' },
+    rankingPointsLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 1 },
+    rankingEmpty: { minHeight: 68, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
+    rankingEmptyText: { color: t.textMute, fontFamily: FONTS.body, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+    rankingFooter: {
+      paddingHorizontal: 13, minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: t.crimson + '0D',
+    },
+    rankingFooterText: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 7.5, letterSpacing: 0.7 },
+    rankingFooterArrow: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1 },
     messageList: { paddingTop: 4 },
     messageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
     messageBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
