@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import { CoachCompetitions } from '@/components/coach-competitions';
 import { FONTS, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
 import { Competition, Registration } from '@/lib/database.types';
@@ -63,6 +65,12 @@ const RESULT_LABELS: Record<string, string> = {
 };
 
 export default function CompetitionsScreen() {
+  const { user } = useAuth();
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
+  return isCoach ? <CoachCompetitions /> : <MemberCompetitionsScreen />;
+}
+
+function MemberCompetitionsScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const [activeTab, setActiveTab] = useState(0);

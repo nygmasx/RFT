@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
+import { CoachHome } from '@/components/coach-home';
 import { FONTS, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
@@ -55,6 +57,12 @@ function formatEventDate(iso: string) {
 }
 
 export default function AccueilScreen() {
+  const { user } = useAuth();
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
+  return isCoach ? <CoachHome /> : <MemberAccueilScreen />;
+}
+
+function MemberAccueilScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 

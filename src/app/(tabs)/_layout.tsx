@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 
 const TAB_CONFIG = [
@@ -18,7 +19,9 @@ const TAB_CONFIG = [
 function RFTTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   const { theme: t } = useTheme();
+  const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
 
   return (
     <View style={[styles.tabBar, { paddingBottom: insets.bottom + 10 }]}>
@@ -48,7 +51,7 @@ function RFTTabBar({ state, navigation }: { state: any; navigation: any }) {
               tintColor={color}
               size={22}
             />
-            <Text style={[styles.tabLabel, { color }]}>{tab.label}</Text>
+            <Text style={[styles.tabLabel, { color }]}>{isCoach && tab.name === 'accueil' ? 'Pilotage' : tab.label}</Text>
           </Pressable>
         );
       })}

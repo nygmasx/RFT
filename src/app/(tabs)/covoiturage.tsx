@@ -9,6 +9,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useCarpools } from '@/hooks/useCarpools';
 import { api } from '@/lib/api';
 import RouteMapBanner from '@/components/route-map-banner';
+import { useAuth } from '@/context/AuthContext';
 
 const FILTERS = ['Tous'];
 
@@ -44,10 +45,14 @@ function formatDeparture(iso: string) {
 
 export default function CovoiturageScreen() {
   const { theme: t } = useTheme();
+  const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool, refetch } = useCarpools();
+  const isCoach = user?.role === 'coach' || user?.role === 'admin';
+  const availableSeatCount = carpools.reduce((sum, carpool) => sum + Math.max(0, carpool.seats_total - carpool.seats_taken), 0);
+  const fullCarpoolCount = carpools.filter((carpool) => carpool.seats_taken >= carpool.seats_total).length;
 
   const contactDriver = async (carpoolId: string) => {
     try {
@@ -64,8 +69,8 @@ export default function CovoiturageScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.subtitle}>{String(carpools.length).padStart(2, '0')} TRAJETS</Text>
-          <Text style={styles.title}>COVOITURAGE</Text>
+          <Text style={styles.subtitle}>{isCoach ? 'ESPACE COACH · LOGISTIQUE' : `${String(carpools.length).padStart(2, '0')} TRAJETS`}</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.title}>{isCoach ? 'TRAJETS ÉQUIPE' : 'COVOITURAGE'}</Text>
         </View>
 
         {/* Mode switcher */}
@@ -93,13 +98,28 @@ export default function CovoiturageScreen() {
       </SafeAreaView>
 
       {/* Route summary */}
-      <View style={styles.mapWrap}>
-        <Ionicons name="navigate-circle-outline" size={32} color={t.crimson} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.mapTitle}>TRAJETS DU CLUB</Text>
-          <Text style={styles.mapCopy}>Les coordonnées du conducteur sont accessibles uniquement après réservation.</Text>
+      {isCoach ? (
+        <View style={styles.coachLogistics}>
+          <View style={styles.coachLogisticsHeader}>
+            <View style={styles.coachLogisticsIcon}><Ionicons name="navigate-circle-outline" size={24} color={t.crimson} /></View>
+            <View style={{ flex: 1 }}><Text style={styles.mapTitle}>SUIVI LOGISTIQUE</Text><Text style={styles.mapCopy}>Anticipe les places manquantes pour les prochaines compétitions.</Text></View>
+            <Pressable onPress={() => router.push('/mes-covoiturages')}><Text style={styles.coachLogisticsAction}>MES TRAJETS →</Text></Pressable>
+          </View>
+          <View style={styles.coachLogisticsStats}>
+            <View style={styles.coachLogisticsStat}><Text style={styles.coachLogisticsValue}>{carpools.length}</Text><Text style={styles.coachLogisticsLabel}>TRAJETS</Text></View>
+            <View style={styles.coachLogisticsStat}><Text style={styles.coachLogisticsValue}>{availableSeatCount}</Text><Text style={styles.coachLogisticsLabel}>PLACES LIBRES</Text></View>
+            <View style={[styles.coachLogisticsStat, { borderRightWidth: 0 }]}><Text style={[styles.coachLogisticsValue, fullCarpoolCount > 0 && { color: t.crimson }]}>{fullCarpoolCount}</Text><Text style={styles.coachLogisticsLabel}>COMPLETS</Text></View>
+          </View>
         </View>
-      </View>
+      ) : (
+        <View style={styles.mapWrap}>
+          <Ionicons name="navigate-circle-outline" size={32} color={t.crimson} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mapTitle}>TRAJETS DU CLUB</Text>
+            <Text style={styles.mapCopy}>Les coordonnées du conducteur sont accessibles uniquement après réservation.</Text>
+          </View>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.loaderWrap}>
@@ -254,6 +274,14 @@ function makeStyles(t: Theme) {
     },
     mapTitle: { fontFamily: FONTS.display, color: t.bone, fontWeight: '900', fontSize: 14, letterSpacing: 1 },
     mapCopy: { fontFamily: FONTS.body, color: t.textMute, fontSize: 11.5, lineHeight: 17, marginTop: 3 },
+    coachLogistics: { marginHorizontal: 20, marginBottom: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.crimson + '55', borderRadius: 3, overflow: 'hidden' },
+    coachLogisticsHeader: { minHeight: 70, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    coachLogisticsIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson + '16' },
+    coachLogisticsAction: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7.5, fontWeight: '800' },
+    coachLogisticsStats: { minHeight: 54, flexDirection: 'row', borderTopWidth: 1, borderTopColor: t.hairline },
+    coachLogisticsStat: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: t.hairline },
+    coachLogisticsValue: { color: t.bone, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900' },
+    coachLogisticsLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.7, marginTop: 2 },
     mapBg: { ...StyleSheet.absoluteFill, backgroundColor: t.surface },
     mapDojo: { position: 'absolute', left: 60, top: 70, alignItems: 'center' },
     mapDojoDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: t.crimson },

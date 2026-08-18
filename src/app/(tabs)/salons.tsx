@@ -45,13 +45,15 @@ export default function SalonsScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.count}>{String(channels.length).padStart(2, '0')} SALONS</Text>
-            <Text style={styles.title}>SALONS</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.count}>{isStaff ? 'ESPACE COACH · ' : ''}{String(channels.length).padStart(2, '0')} SALONS</Text>
+            <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.title}>{isStaff ? 'COMMUNICATION' : 'SALONS'}</Text>
           </View>
-          <Pressable style={styles.addBtn} onPress={() => router.push('/create-channel')}>
-            <Text style={styles.addIcon}>＋</Text>
-          </Pressable>
+          {isStaff ? (
+            <Pressable accessibilityLabel="Créer un salon" style={styles.addBtn} onPress={() => router.push('/create-channel')}>
+              <Text style={styles.addIcon}>＋</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.searchWrap}>
@@ -67,6 +69,16 @@ export default function SalonsScreen() {
           </View>
         </View>
       </SafeAreaView>
+
+      {isStaff ? (
+        <View style={styles.coachBanner}>
+          <View style={styles.coachBannerIcon}><Ionicons name="shield-checkmark-outline" size={18} color={t.crimson} /></View>
+          <View style={styles.coachBannerCopy}>
+            <Text style={styles.coachBannerTitle}>MODÉRATION COACH</Text>
+            <Text style={styles.coachBannerText}>Maintiens un salon appuyé pour le verrouiller ou le supprimer.</Text>
+          </View>
+        </View>
+      ) : null}
 
       <KeyboardAvoidingView automaticOffset behavior="padding" style={{ flex: 1 }}>
         {loading ? (
@@ -150,6 +162,11 @@ function makeStyles(t: Theme) {
     },
     searchIcon: { fontSize: 13 },
     searchInput: { flex: 1, fontFamily: FONTS.body, fontSize: 13, color: t.bone },
+    coachBanner: { marginHorizontal: 20, marginBottom: 10, minHeight: 58, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.crimson + '0D', borderWidth: 1, borderColor: t.crimson + '55', borderRadius: 3 },
+    coachBannerIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson + '16' },
+    coachBannerCopy: { flex: 1 },
+    coachBannerTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
+    coachBannerText: { color: t.textMute, fontSize: 9.5, marginTop: 3 },
     loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     row: {
       flexDirection: 'row', alignItems: 'center', gap: 14,
