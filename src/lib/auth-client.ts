@@ -30,6 +30,14 @@ type AuthSession = {
 
 type AuthResult<T> = { data: T | null; error: { message: string } | null };
 
+function readableRequestError(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : '';
+  if (/fetch failed|network request failed|could not connect|internet connection/i.test(message)) {
+    return 'Impossible de joindre le serveur. Vérifie ta connexion Internet puis réessaie.';
+  }
+  return message || fallback;
+}
+
 async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = {
@@ -67,7 +75,7 @@ export const authClient = {
         await storeToken(data);
         return { data, error: null };
       } catch (e: any) {
-        return { data: null, error: { message: e.message } };
+        return { data: null, error: { message: readableRequestError(e, 'Connexion impossible') } };
       }
     },
   },
@@ -89,7 +97,7 @@ export const authClient = {
         await storeToken(data);
         return { data, error: null };
       } catch (e: any) {
-        return { data: null, error: { message: e.message } };
+        return { data: null, error: { message: readableRequestError(e, 'Inscription impossible') } };
       }
     },
   },
@@ -130,7 +138,7 @@ export const authClient = {
       if (!result.error) await storeToken(result.data);
       return result;
     } catch (e: any) {
-      return { data: null, error: { message: e.message } };
+      return { data: null, error: { message: readableRequestError(e, 'Changement de mot de passe impossible') } };
     }
   },
 
@@ -142,7 +150,7 @@ export const authClient = {
       });
       return parseAuthResponse<{ status: boolean }>(res, 'Demande impossible');
     } catch (e: any) {
-      return { data: null, error: { message: e.message } };
+      return { data: null, error: { message: readableRequestError(e, 'Demande impossible') } };
     }
   },
 
@@ -154,7 +162,7 @@ export const authClient = {
       });
       return parseAuthResponse<{ status: boolean }>(res, 'Réinitialisation impossible');
     } catch (e: any) {
-      return { data: null, error: { message: e.message } };
+      return { data: null, error: { message: readableRequestError(e, 'Réinitialisation impossible') } };
     }
   },
 
@@ -166,7 +174,7 @@ export const authClient = {
       });
       return parseAuthResponse<{ status: boolean }>(res, 'Envoi impossible');
     } catch (e: any) {
-      return { data: null, error: { message: e.message } };
+      return { data: null, error: { message: readableRequestError(e, 'Envoi impossible') } };
     }
   },
 
@@ -180,7 +188,7 @@ export const authClient = {
       if (!result.error) await AsyncStorage.removeItem(TOKEN_KEY);
       return result;
     } catch (e: any) {
-      return { data: null, error: { message: e.message } };
+      return { data: null, error: { message: readableRequestError(e, 'Suppression du compte impossible') } };
     }
   },
 
