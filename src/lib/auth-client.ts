@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { API_BASE_URL } from './config';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 export const TOKEN_KEY = 'ba_token';
 
 export function authRedirect(path: 'verify' | 'reset-password') {
@@ -34,11 +34,11 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Origin': BASE_URL,
+    'Origin': API_BASE_URL,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string> ?? {}),
   };
-  return fetch(`${BASE_URL}${path}`, { ...options, headers });
+  return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 }
 
 async function storeToken(data: any) {
