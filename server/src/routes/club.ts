@@ -55,6 +55,7 @@ function publicDocument(row: typeof memberDocuments.$inferSelect, origin: string
 
 // Public club page and public acquisition forms.
 app.get('/public', async (c) => {
+  const origin = new URL(c.req.url).origin;
   const [profile] = await db.select().from(clubProfile).where(eq(clubProfile.id, 'rft'));
   const plans = await db.select().from(membershipPlans)
     .where(eq(membershipPlans.active, true)).orderBy(asc(membershipPlans.priceCents));
@@ -70,7 +71,12 @@ app.get('/public', async (c) => {
     : undefined;
   return c.json({
     profile: profile ? { ...profile, disciplines: parseJson<string[]>(profile.disciplines, []) } : null,
-    coaches,
+    coaches: coaches.map((coach) => ({
+      ...coach,
+      avatarUrl: coach.avatarUrl
+        ? (/^https:\/\//.test(coach.avatarUrl) ? coach.avatarUrl : `${origin}/api/profile/${coach.id}/avatar`)
+        : null,
+    })),
     plans: plans.map((plan) => ({ ...plan, features: parseJson<string[]>(plan.features, []) })),
     joinForm: form ? { ...form, fields: parseJson(form.fields, []) } : null,
   });
