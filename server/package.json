@@ -6,7 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/security.test.ts test/app.test.ts test/geolocation.test.ts test/ranking.test.ts test/official-rankings.test.ts",
+    "test": "tsx --test test/security.test.ts test/app.test.ts test/geolocation.test.ts test/ranking.test.ts test/official-rankings.test.ts test/club-management.test.ts",
     "test:integration": "tsx --test test/integration.test.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

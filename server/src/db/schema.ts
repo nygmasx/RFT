@@ -2,6 +2,7 @@ import {
   pgTable, text, boolean, integer, numeric,
   timestamp, date, time, uuid, primaryKey, uniqueIndex, doublePrecision,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ── Better Auth tables ────────────────────────────────────────
 export const users = pgTable('users', {
@@ -261,3 +262,170 @@ export const resultReminders = pgTable('result_reminders', {
   competitionId: uuid('competition_id').notNull().references(() => competitions.id, { onDelete: 'cascade' }),
   sentAt:        timestamp('sent_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.userId, t.competitionId] })]);
+
+// ── Club management ────────────────────────────────────────────────
+export const seasons = pgTable('seasons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  status: text('status').notNull().default('draft'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const familyProfiles = pgTable('family_profiles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerUserId: text('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  birthDate: date('birth_date'),
+  category: text('category'),
+  avatarUrl: text('avatar_url'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const classSessions = pgTable('class_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  seasonId: uuid('season_id').references(() => seasons.id, { onDelete: 'set null' }),
+  coachId: text('coach_id').references(() => users.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  discipline: text('discipline').notNull().default('BJJ'),
+  category: text('category'),
+  sessionDate: date('session_date').notNull(),
+  startTime: time('start_time').notNull(),
+  endTime: time('end_time'),
+  place: text('place'),
+  capacity: integer('capacity').notNull().default(30),
+  status: text('status').notNull().default('scheduled'),
+  trialAllowed: boolean('trial_allowed').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const classBookings = pgTable('class_bookings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').notNull().references(() => classSessions.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  familyProfileId: uuid('family_profile_id').references(() => familyProfiles.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('booked'),
+  checkedInAt: timestamp('checked_in_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('class_bookings_session_user_unique').on(t.sessionId, t.userId).where(sql`${t.userId} is not null`),
+  uniqueIndex('class_bookings_session_family_unique').on(t.sessionId, t.familyProfileId).where(sql`${t.familyProfileId} is not null`),
+]);
+
+export const trialRegistrations = pgTable('trial_registrations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sessionId: uuid('session_id').notNull().references(() => classSessions.id, { onDelete: 'cascade' }),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+  status: text('status').notNull().default('registered'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const membershipPlans = pgTable('membership_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  priceCents: integer('price_cents').notNull().default(0),
+  currency: text('currency').notNull().default('EUR'),
+  billingInterval: text('billing_interval').notNull().default('season'),
+  checkoutUrl: text('checkout_url'),
+  features: text('features').notNull().default('[]'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const memberMemberships = pgTable('member_memberships', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  planId: uuid('plan_id').notNull().references(() => membershipPlans.id, { onDelete: 'restrict' }),
+  status: text('status').notNull().default('active'),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date'),
+  nextPaymentDate: date('next_payment_date'),
+  balanceCents: integer('balance_cents').notNull().default(0),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const payments = pgTable('payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  membershipId: uuid('membership_id').references(() => memberMemberships.id, { onDelete: 'set null' }),
+  amountCents: integer('amount_cents').notNull(),
+  currency: text('currency').notNull().default('EUR'),
+  method: text('method').notNull().default('manual'),
+  status: text('status').notNull().default('pending'),
+  dueDate: date('due_date'),
+  paidAt: timestamp('paid_at'),
+  reference: text('reference'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const memberDocuments = pgTable('member_documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  uploadedBy: text('uploaded_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  category: text('category').notNull().default('other'),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileData: text('file_data').notNull(),
+  accessToken: uuid('access_token').notNull().defaultRandom(),
+  expiresOn: date('expires_on'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('member_documents_access_token_unique').on(t.accessToken)]);
+
+export const joinForms = pgTable('join_forms', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  description: text('description'),
+  fields: text('fields').notNull().default('[]'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const joinSubmissions = pgTable('join_submissions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  formId: uuid('form_id').notNull().references(() => joinForms.id, { onDelete: 'cascade' }),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+  answers: text('answers').notNull().default('{}'),
+  status: text('status').notNull().default('new'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const clubProfile = pgTable('club_profile', {
+  id: text('id').primaryKey().default('rft'),
+  name: text('name').notNull().default('Ronin Fight Team'),
+  description: text('description'),
+  address: text('address'),
+  latitude: doublePrecision('latitude'),
+  longitude: doublePrecision('longitude'),
+  phone: text('phone'),
+  email: text('email'),
+  website: text('website'),
+  disciplines: text('disciplines').notNull().default('[]'),
+  scheduleSummary: text('schedule_summary'),
+  joinButtonLabel: text('join_button_label').notNull().default('Rejoindre le club'),
+  joinFormId: uuid('join_form_id').references(() => joinForms.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const emailCampaigns = pgTable('email_campaigns', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  senderId: text('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  audience: text('audience').notNull().default('all'),
+  status: text('status').notNull().default('draft'),
+  sentCount: integer('sent_count').notNull().default(0),
+  sentAt: timestamp('sent_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});

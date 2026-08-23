@@ -142,6 +142,15 @@ function MemberAccueilScreen() {
             </Pressable>
           )}
 
+          <Pressable style={styles.clubCard} onPress={() => router.push('/club' as never)}>
+            <View style={styles.clubIcon}><Ionicons name="people" size={20} color="#FFF" /></View>
+            <View style={styles.clubCopy}>
+              <Text style={styles.clubTitle}>MON CLUB</Text>
+              <Text style={styles.clubSub}>Planning · inscriptions · adhésion · documents</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={t.crimson} />
+          </Pressable>
+
           {/* À venir section */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>À VENIR</Text>
@@ -317,6 +326,15 @@ function makeStyles(t: Theme) {
       borderRadius: 3, padding: 14, flexDirection: 'row', alignItems: 'center',
       gap: 12, marginBottom: 14,
     },
+    clubCard: {
+      minHeight: 68, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 11,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.crimson + '66', borderLeftWidth: 3, borderLeftColor: t.crimson,
+      marginBottom: 14,
+    },
+    clubIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson, borderRadius: 3 },
+    clubCopy: { flex: 1 },
+    clubTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+    clubSub: { color: t.textMute, fontSize: 10.5, marginTop: 3 },
     secondLeft: { flex: 1, minWidth: 0 },
     secondTagWrap: { marginBottom: 6 },
     secondTitle: {

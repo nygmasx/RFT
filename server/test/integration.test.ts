@@ -18,6 +18,8 @@ const { and, eq } = await import('drizzle-orm');
 
 before(async () => {
   await sqlClient.unsafe(`TRUNCATE TABLE
+    email_campaigns, join_submissions, club_profile, join_forms, member_documents, payments, member_memberships,
+    membership_plans, trial_registrations, class_bookings, class_sessions, family_profiles, seasons,
     notifications, message_mentions, channel_reads, result_reminders, competition_bookmarks, announcement_reads, announcement_reactions,
     announcement_replies, announcements, carpool_passengers, carpools, registrations,
     competitions, messages, channel_members, channels, calendar_events, push_tokens,
@@ -61,6 +63,85 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   await db.update(users).set({ status: 'approved' }).where(eq(users.id, member.id));
 
   assert.equal((await call('/api/profile', { token: member.token })).status, 200);
+
+  const seasonResponse = await call('/api/club/admin/seasons', { method: 'POST', token: coach.token, body: {
+    name: 'Saison intégration', startDate: '2098-09-01', endDate: '2099-08-31', status: 'active',
+  } });
+  assert.equal(seasonResponse.status, 201, await seasonResponse.clone().text());
+  const season = await seasonResponse.json() as { id: string };
+
+  const classResponse = await call('/api/club/admin/sessions', { method: 'POST', token: coach.token, body: {
+    title: 'Cours fonctionnel', sessionDate: '2099-05-06', startTime: '19:30', endTime: '21:00',
+    discipline: 'BJJ', place: 'Tatami intégration', capacity: 1, repeatWeeks: 2, seasonId: season.id,
+  } });
+  assert.equal(classResponse.status, 201, await classResponse.clone().text());
+  const classSession = await classResponse.json() as { id: string; createdCount: number };
+  assert.equal(classSession.createdCount, 2);
+
+  const bookingResponse = await call(`/api/club/sessions/${classSession.id}/book`, { method: 'POST', token: member.token, body: {} });
+  assert.equal(bookingResponse.status, 201, await bookingResponse.clone().text());
+  assert.equal((await bookingResponse.json() as { status: string }).status, 'booked');
+
+  const familyResponse = await call('/api/club/family', { method: 'POST', token: member.token, body: {
+    firstName: 'Enfant', lastName: 'Member', birthDate: '2090-04-12', category: 'Enfants',
+  } });
+  assert.equal(familyResponse.status, 201, await familyResponse.clone().text());
+  const family = await familyResponse.json() as { id: string };
+  const waitlistResponse = await call(`/api/club/sessions/${classSession.id}/book`, { method: 'POST', token: member.token, body: { familyProfileId: family.id } });
+  assert.equal(waitlistResponse.status, 201, await waitlistResponse.clone().text());
+  assert.equal((await waitlistResponse.json() as { status: string }).status, 'waitlist');
+
+  const rosterResponse = await call(`/api/club/admin/sessions/${classSession.id}/roster`, { token: coach.token });
+  assert.equal(rosterResponse.status, 200, await rosterResponse.clone().text());
+  const roster = await rosterResponse.json() as { bookings: { id: string; status: string }[] };
+  assert.equal(roster.bookings.length, 2);
+  assert.equal((await call(`/api/club/admin/bookings/${roster.bookings[0]!.id}/attendance`, { method: 'PUT', token: coach.token, body: { status: 'attended' } })).status, 200);
+
+  const planResponse = await call('/api/club/admin/plans', { method: 'POST', token: coach.token, body: {
+    name: 'Annuel intégration', priceCents: 35000, billingInterval: 'season', features: ['Cours illimités'],
+  } });
+  assert.equal(planResponse.status, 201, await planResponse.clone().text());
+  const plan = await planResponse.json() as { id: string };
+  const membershipResponse = await call('/api/club/admin/memberships', { method: 'POST', token: coach.token, body: {
+    userId: member.id, planId: plan.id, startDate: '2098-09-01', endDate: '2099-08-31',
+  } });
+  assert.equal(membershipResponse.status, 201, await membershipResponse.clone().text());
+  const membership = await membershipResponse.json() as { id: string; balanceCents: number };
+  assert.equal(membership.balanceCents, 35000);
+  assert.equal((await call('/api/club/admin/payments', { method: 'POST', token: coach.token, body: {
+    userId: member.id, membershipId: membership.id, amountCents: 10000, method: 'card', status: 'paid',
+  } })).status, 201);
+
+  const documentResponse = await call('/api/club/documents', { method: 'POST', token: member.token, body: {
+    title: 'Certificat intégration', category: 'medical', fileName: 'certificat.pdf',
+    dataUrl: 'data:application/pdf;base64,JVBERi0xLjQ=',
+  } });
+  assert.equal(documentResponse.status, 201, await documentResponse.clone().text());
+  const document = await documentResponse.json() as { url: string };
+  const documentUrl = new URL(document.url);
+  assert.equal((await call(`${documentUrl.pathname}${documentUrl.search}`)).status, 200);
+
+  const formResponse = await call('/api/club/admin/forms', { method: 'POST', token: coach.token, body: {
+    title: 'Rejoindre RFT', fields: [{ key: 'discipline', label: 'Discipline', type: 'text' }],
+  } });
+  assert.equal(formResponse.status, 201, await formResponse.clone().text());
+  const form = await formResponse.json() as { id: string };
+  assert.equal((await call('/api/club/admin/profile', { method: 'PUT', token: coach.token, body: {
+    name: 'Ronin Fight Team', description: 'Club test', disciplines: ['BJJ'], joinFormId: form.id,
+  } })).status, 200);
+  assert.equal((await call('/api/club/public')).status, 200);
+  assert.equal((await call(`/api/club/public/join/${form.id}`, { method: 'POST', body: {
+    firstName: 'Prospect', lastName: 'Test', email: 'prospect@example.com', answers: { discipline: 'BJJ' },
+  } })).status, 201);
+
+  const clubOverview = await call('/api/club/overview', { token: member.token });
+  assert.equal(clubOverview.status, 200, await clubOverview.clone().text());
+  const clubData = await clubOverview.json() as { sessions: unknown[]; familyProfiles: unknown[]; memberships: { balanceCents: number }[]; documents: unknown[]; attendance: { attended: number } };
+  assert.equal(clubData.sessions.length, 2);
+  assert.equal(clubData.familyProfiles.length, 1);
+  assert.equal(clubData.memberships[0]?.balanceCents, 25000);
+  assert.equal(clubData.documents.length, 1);
+  assert.equal(clubData.attendance.attended, 1);
 
   const announcementResponse = await call('/api/announcements', { method: 'POST', token: coach.token, body: {
     title: 'Test fonctionnel', body: 'Annonce créée par le test d’intégration.', tag: 'INFO', pinned: true,

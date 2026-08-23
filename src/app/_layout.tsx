@@ -33,10 +33,12 @@ const PRIVATE_ROUTES = [
   'add-result',
   'admin',
   'admin-content',
+  'admin-club',
   'admin-results',
   'admin-timer',
   'announcement',
   'calendar',
+  'club',
   'chat',
   'competition-detail',
   'create-carpool',
@@ -76,6 +78,7 @@ function RootNavigator() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="club-public" />
       <Stack.Protected guard={!canAccessMemberArea}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>

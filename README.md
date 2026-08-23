@@ -1,6 +1,6 @@
 # Ronin Fight Team
 
-Application mobile et web du club Ronin Fight Team. Elle centralise les membres, annonces, calendriers, compétitions, salons de discussion, grades, palmarès et covoiturages.
+Application mobile et web du club Ronin Fight Team. Elle centralise les membres, cours et présences, adhésions, documents, annonces, calendriers, compétitions, salons de discussion, grades, palmarès et covoiturages.
 
 Le produit est actuellement en phase bêta. Le backend de production est hébergé sur Fly.io et utilise Neon PostgreSQL.
 
@@ -73,9 +73,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260814_geolocatio
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260815_competition_results.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260818_result_validation_rankings.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260818_chat_media_receipts.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260823_club_management.sql
 ```
 
-La dernière migration active la soumission de résultats par les athlètes avec validation coach, les rappels automatiques à J+1 et les classements par ceinture/P4P. Les rappels sont contrôlables avec `DISABLE_RESULT_REMINDERS=true` dans les environnements où un autre ordonnanceur est utilisé.
+La migration `20260823_club_management.sql` ajoute les saisons, cours récurrents, réservations et listes d’attente, appels et essais, profils famille, formules d’adhésion et paiements, documents membres, page publique, formulaires de contact et campagnes email. Les migrations récentes activent aussi la soumission de résultats par les athlètes avec validation coach, les rappels automatiques à J+1 et les classements par ceinture/P4P. Les rappels sont contrôlables avec `DISABLE_RESULT_REMINDERS=true` dans les environnements où un autre ordonnanceur est utilisé.
 
 Après la migration de géolocalisation, compléter les coordonnées des données existantes :
 

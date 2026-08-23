@@ -6,6 +6,7 @@ import { sqlClient } from '../src/db/client';
 const files = [
   '20260818_result_validation_rankings.sql',
   '20260818_chat_media_receipts.sql',
+  '20260823_club_management.sql',
 ];
 
 try {

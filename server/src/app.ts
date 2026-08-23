@@ -19,6 +19,7 @@ import { profileRouter } from './routes/profile';
 import { pushRouter } from './routes/push';
 import { rankingsRouter } from './routes/rankings';
 import { settingsRouter } from './routes/settings';
+import { clubRouter } from './routes/club';
 
 export const app = new Hono();
 
@@ -70,6 +71,7 @@ app.route('/api/push-tokens', pushRouter);
 app.route('/api/rankings', rankingsRouter);
 app.route('/api/settings', settingsRouter);
 app.route('/api/notifications', notificationsRouter);
+app.route('/api/club', clubRouter);
 
 app.get('/health', (c) => c.json({ ok: true }));
 app.notFound((c) => c.json({ error: 'Route introuvable' }, 404));

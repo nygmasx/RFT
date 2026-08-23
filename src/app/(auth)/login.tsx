@@ -136,6 +136,11 @@ export default function LoginScreen() {
               <Pressable style={s.btnSecondary} onPress={() => router.push('/(auth)/register')}>
                 <Text style={s.btnSecondaryText}>CRÉER UN COMPTE</Text>
               </Pressable>
+
+              <Pressable style={s.clubLink} onPress={() => router.push('/club-public' as never)}>
+                <Ionicons name="globe-outline" size={15} color={t.crimson} />
+                <Text style={s.clubLinkText}>DÉCOUVRIR LE CLUB</Text>
+              </Pressable>
             </View>
 
             <Text style={s.footer}>Accès réservé aux membres du club</Text>
@@ -179,6 +184,8 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     paddingVertical: 14, alignItems: 'center',
   },
   btnSecondaryText: { fontSize: 13, fontWeight: '700', color: t.textDim, letterSpacing: 2 },
+  clubLink: { paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  clubLinkText: { color: t.crimson, fontSize: 10, fontWeight: '800', letterSpacing: 1.4 },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
   dividerLine: { flex: 1, height: 1, backgroundColor: t.hairline },
   dividerText: { fontSize: 9, color: t.textMute, letterSpacing: 1.5 },

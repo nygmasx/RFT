@@ -15,13 +15,14 @@ type CoachAction = {
   label: string;
   detail: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route: '/admin' | '/admin-results' | '/admin-content' | '/admin-timer';
+  route: '/admin' | '/admin-results' | '/admin-content' | '/admin-timer' | '/admin-club';
   accent?: boolean;
 };
 
 const ACTIONS: CoachAction[] = [
+  { label: 'CLUB', detail: 'Cours, présences & adhésions', icon: 'business-outline', route: '/admin-club', accent: true },
   { label: 'ÉLÈVES', detail: 'Demandes & profils', icon: 'people-outline', route: '/admin' },
-  { label: 'COMPÉTITIONS', detail: 'Inscrits & résultats', icon: 'trophy-outline', route: '/admin-results', accent: true },
+  { label: 'COMPÉTITIONS', detail: 'Inscrits & résultats', icon: 'trophy-outline', route: '/admin-results' },
   { label: 'CONTENU', detail: 'Annonces & événements', icon: 'megaphone-outline', route: '/admin-content' },
   { label: 'TIMER', detail: 'Lancer une séance', icon: 'timer-outline', route: '/admin-timer' },
 ];
