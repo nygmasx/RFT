@@ -48,6 +48,15 @@ function parseJson<T>(value: string | null | undefined, fallback: T): T {
   }
 }
 
+function requestOrigin(c: { req: { url: string; header(name: string): string | undefined } }) {
+  const url = new URL(c.req.url);
+  const forwardedHost = c.req.header('x-forwarded-host')?.split(',')[0]?.trim();
+  const forwardedProto = c.req.header('x-forwarded-proto')?.split(',')[0]?.trim();
+  if (forwardedHost) return `${forwardedProto === 'http' ? 'http' : 'https'}://${forwardedHost}`;
+  if (url.hostname.endsWith('.fly.dev')) return `https://${url.host}`;
+  return url.origin;
+}
+
 function publicDocument(row: typeof memberDocuments.$inferSelect, origin: string) {
   const { fileData: _fileData, accessToken, ...document } = row;
   return { ...document, url: `${origin}/api/club/documents/file/${row.id}/${accessToken}` };
@@ -55,7 +64,7 @@ function publicDocument(row: typeof memberDocuments.$inferSelect, origin: string
 
 // Public club page and public acquisition forms.
 app.get('/public', async (c) => {
-  const origin = new URL(c.req.url).origin;
+  const origin = requestOrigin(c);
   const [profile] = await db.select().from(clubProfile).where(eq(clubProfile.id, 'rft'));
   const plans = await db.select().from(membershipPlans)
     .where(eq(membershipPlans.active, true)).orderBy(asc(membershipPlans.priceCents));
@@ -160,7 +169,7 @@ app.get('/documents/file/:id/:token', async (c) => {
 app.get('/overview', requireApproved, async (c) => {
   const user = c.get('user');
   const today = new Date().toISOString().slice(0, 10);
-  const origin = new URL(c.req.url).origin;
+  const origin = requestOrigin(c);
   const [sessionsRows, profiles, memberships, paymentRows, documents, attendance] = await Promise.all([
     db.select({
       id: classSessions.id,
@@ -326,7 +335,7 @@ app.post('/documents', requireApproved, async (c) => {
     fileData: documentPayload.base64,
     expiresOn: DATE_RE.test(clean(body.expiresOn, 10)) ? clean(body.expiresOn, 10) : null,
   }).returning();
-  return c.json(publicDocument(document, new URL(c.req.url).origin), 201);
+  return c.json(publicDocument(document, requestOrigin(c)), 201);
 });
 
 app.delete('/documents/:id', requireApproved, async (c) => {
@@ -478,7 +487,7 @@ app.post('/admin/documents', requireCoach, async (c) => {
     expiresOn: DATE_RE.test(clean(body.expiresOn, 10)) ? clean(body.expiresOn, 10) : null,
   }).returning();
   void notifyUser(userId, 'Nouveau document', `${document.title} a été ajouté à ton dossier.`, { clubDocumentId: document.id }, 'document');
-  return c.json(publicDocument(document, new URL(c.req.url).origin), 201);
+  return c.json(publicDocument(document, requestOrigin(c)), 201);
 });
 
 app.delete('/admin/documents/:id', requireCoach, async (c) => {
