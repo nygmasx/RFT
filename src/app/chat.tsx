@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, type ViewToken, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
@@ -357,6 +357,8 @@ export default function ChatScreen() {
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [positionedChannel, setPositionedChannel] = useState<string | null>(null);
   const [dismissedUnreadChannel, setDismissedUnreadChannel] = useState<string | null>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
@@ -366,8 +368,29 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null);
   const focusedTargetRef = useRef<string | null>(null);
   const isNearEndRef = useRef(true);
+  const showJumpToLatestRef = useRef(false);
   const renderedMessageCountRef = useRef(0);
   const renderedChannelRef = useRef(channel);
+  const currentChannelRef = useRef(channel);
+  const positioningTargetRef = useRef<string | null>(null);
+  const [viewabilityConfig] = useState({ itemVisiblePercentThreshold: 1 });
+
+  const requestedTargetExists = Boolean(targetMessageId && messages.some(({ id }) => id === targetMessageId));
+  const positioningTarget = requestedTargetExists
+    ? targetMessageId!
+    : messages.at(-1)?.id ?? null;
+
+  useLayoutEffect(() => {
+    currentChannelRef.current = channel;
+    positioningTargetRef.current = positioningTarget;
+  }, [channel, positioningTarget]);
+
+  const [onViewableItemsChanged] = useState(() => ({ viewableItems }: { viewableItems: ViewToken<Message>[] }) => {
+    const target = positioningTargetRef.current;
+    if (target && viewableItems.some(({ isViewable, item }) => isViewable && item.id === target)) {
+      setPositionedChannel(currentChannelRef.current);
+    }
+  });
 
   const channelName = name ?? 'Salon';
 
@@ -384,6 +407,19 @@ export default function ChatScreen() {
     selectedMessage
     && (selectedMessage.userId === currentUserId || user?.role === 'coach' || user?.role === 'admin'),
   );
+
+  const updateJumpToLatestVisibility = (visible: boolean) => {
+    if (showJumpToLatestRef.current === visible) return;
+    showJumpToLatestRef.current = visible;
+    setShowJumpToLatest(visible);
+    if (!visible) setNewMessagesWhileAway(0);
+  };
+
+  const jumpToLatest = (animated = true) => {
+    isNearEndRef.current = true;
+    updateJumpToLatestVisibility(false);
+    flatListRef.current?.scrollToEnd({ animated });
+  };
 
   const handleSend = async () => {
     const body = messageText.trim();
@@ -673,6 +709,7 @@ export default function ChatScreen() {
         style={{ flex: 1 }}
         behavior="translate-with-padding"
       >
+      <View style={styles.messageListArea}>
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -700,7 +737,7 @@ export default function ChatScreen() {
               onPhotoPress={(url, fileName) => { haptics.light(); setViewingPhoto({ url, fileName }); }}
             />
         </>}
-        style={{ opacity: loading || (messages.length > 0 && positionedChannel !== channel) ? 0 : 1 }}
+        style={{ flex: 1, opacity: loading || (messages.length > 0 && positionedChannel !== channel) ? 0 : 1 }}
         contentContainerStyle={styles.messages}
         ListHeaderComponent={headerComponent}
         ListFooterComponent={footerComponent}
@@ -719,14 +756,21 @@ export default function ChatScreen() {
           renderedMessageCountRef.current = messages.length;
           if (loading) return;
           if (positionedChannel !== channel) {
-            if (messages.length > 0 && !targetMessageId) {
-              flatListRef.current?.scrollToEnd({ animated: false });
+            if (messages.length > 0) {
+              if (!requestedTargetExists) {
+                requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: false }));
+              }
+            } else {
+              setPositionedChannel(channel);
             }
-            requestAnimationFrame(() => setPositionedChannel(channel));
             return;
           }
-          if (messages.length > previousCount && isNearEndRef.current) {
-            requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
+          if (isNearEndRef.current) {
+            const hasNewMessages = messages.length > previousCount;
+            requestAnimationFrame(() => jumpToLatest(hasNewMessages));
+          } else if (messages.length > previousCount) {
+            setNewMessagesWhileAway((current) => current + messages.length - previousCount);
+            updateJumpToLatestVisibility(true);
           }
         }}
         onLayout={() => {
@@ -739,9 +783,16 @@ export default function ChatScreen() {
           const distanceFromEnd = nativeEvent.contentSize.height
             - nativeEvent.layoutMeasurement.height
             - nativeEvent.contentOffset.y;
-          isNearEndRef.current = distanceFromEnd < 140;
+          const isNearEnd = distanceFromEnd < 120;
+          isNearEndRef.current = isNearEnd;
+          if (positionedChannel === channel) {
+            if (isNearEnd) updateJumpToLatestVisibility(false);
+            else if (distanceFromEnd > 180) updateJumpToLatestVisibility(true);
+          }
         }}
         scrollEventThrottle={16}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
         onScrollToIndexFailed={({ index, averageItemLength }) => {
           flatListRef.current?.scrollToOffset({ offset: Math.max(0, index * averageItemLength), animated: false });
           setTimeout(() => flatListRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.35 }), 120);
@@ -761,6 +812,23 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       ) : null}
+
+      {showJumpToLatest && positionedChannel === channel ? (
+        <Pressable
+          accessibilityLabel="Revenir au dernier message"
+          style={styles.jumpToLatest}
+          onPress={() => {
+            haptics.light();
+            jumpToLatest(true);
+          }}
+        >
+          {newMessagesWhileAway > 0 ? (
+            <Text style={styles.jumpToLatestText}>{newMessagesWhileAway > 99 ? '99+' : newMessagesWhileAway}</Text>
+          ) : null}
+          <Ionicons name="arrow-down" size={20} color={t.bone} />
+        </Pressable>
+      ) : null}
+      </View>
 
       {/* Composer */}
       {!isReadOnly ? (
@@ -1024,6 +1092,7 @@ function makeStyles(t: Theme) {
     },
     pinnedLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 1.5, marginBottom: 4 },
     pinnedText: { fontFamily: FONTS.body, fontSize: 12.5, color: t.bone, lineHeight: 18 },
+    messageListArea: { flex: 1 },
     messages: { paddingHorizontal: 16, paddingTop: 8 },
     unreadDivider: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 4, marginBottom: 14 },
     unreadDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: t.crimson },
@@ -1038,6 +1107,14 @@ function makeStyles(t: Theme) {
     unreadBannerText: { flex: 1, color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 0.9 },
     unreadBannerAction: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
     unreadBannerClose: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
+    jumpToLatest: {
+      position: 'absolute', right: 16, bottom: 14, zIndex: 20,
+      minWidth: 46, height: 46, paddingHorizontal: 13, borderRadius: 23,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
+      shadowColor: '#000000', shadowOpacity: 0.3, shadowRadius: 9, shadowOffset: { width: 0, height: 4 }, elevation: 8,
+    },
+    jumpToLatestText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
     dateLine: { alignItems: 'center', marginVertical: 8 },
     dateStamp: {
       fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 2,
