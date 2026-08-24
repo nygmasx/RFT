@@ -369,6 +369,21 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     assert.equal(memberMessages.length, 1);
     assert.equal(memberMessages[0].readCount, 1);
 
+    const receiptResponse = await call(`/api/messages/item/${message.id}/receipts`, { token: coach.token });
+    assert.equal(receiptResponse.status, 200, await receiptResponse.clone().text());
+    const receiptDetails = await receiptResponse.json() as {
+      recipientCount: number;
+      readCount: number;
+      recipients: { id: string; status: string; distributedAt: string; readAt: string | null }[];
+    };
+    assert.equal(receiptDetails.recipientCount, 1);
+    assert.equal(receiptDetails.readCount, 1);
+    assert.equal(receiptDetails.recipients[0]?.id, member.id);
+    assert.equal(receiptDetails.recipients[0]?.status, 'read');
+    assert.ok(receiptDetails.recipients[0]?.distributedAt);
+    assert.ok(receiptDetails.recipients[0]?.readAt);
+    assert.equal((await call(`/api/messages/item/${message.id}/receipts`, { token: member.token })).status, 403);
+
     const mentionResponse = await call(`/api/messages/${channel.id}`, { method: 'POST', token: coach.token, body: {
       body: '@Test_Member à toi', mention_user_ids: [member.id],
     } });

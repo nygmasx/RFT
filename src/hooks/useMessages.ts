@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { MentionableMember, Message } from '@/lib/database.types';
+import { MentionableMember, Message, MessageReceiptDetails } from '@/lib/database.types';
 
 export function useMessages(channelId: string) {
   const { user } = useAuth();
@@ -77,5 +77,7 @@ export function useMessages(channelId: string) {
     setMessages((current) => current.map((message) => message.id === id ? { ...message, reactions } : message));
   };
 
-  return { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, refetch: fetchMessages, currentUserId: user?.id };
+  const getReceiptDetails = (id: string) => api.get<MessageReceiptDetails>(`/api/messages/item/${id}/receipts`);
+
+  return { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch: fetchMessages, currentUserId: user?.id };
 }

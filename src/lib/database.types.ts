@@ -71,6 +71,21 @@ export interface MentionableMember {
   avatarUrl: string | null;
 }
 
+export interface MessageReceiptDetails {
+  messageId: string;
+  recipientCount: number;
+  readCount: number;
+  recipients: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    avatarUrl: string | null;
+    status: 'read' | 'delivered';
+    distributedAt: string;
+    readAt: string | null;
+  }[];
+}
+
 export interface Announcement {
   id: string;
   authorId: string;

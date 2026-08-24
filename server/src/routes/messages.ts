@@ -123,6 +123,49 @@ app.get('/:channelId/members', requireApproved, async (c) => {
     .filter(({ id }) => id !== c.get('user').id));
 });
 
+app.get('/item/:id/receipts', requireApproved, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const [message] = await db.select({
+    id: messages.id,
+    channelId: messages.channelId,
+    userId: messages.userId,
+    createdAt: messages.createdAt,
+  }).from(messages).where(eq(messages.id, id));
+  if (!message) return c.json({ error: 'Message introuvable' }, 404);
+
+  const access = await getChannelAccess(message.channelId, user.id);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+  if (message.userId !== user.id && !isStaff(user)) return c.json({ error: 'Accès refusé' }, 403);
+
+  const [members, readRows] = await Promise.all([
+    eligibleMembers(message.channelId, access.isPrivate),
+    db.select({ userId: channelReads.userId, readAt: channelReads.readAt })
+      .from(channelReads)
+      .where(eq(channelReads.channelId, message.channelId)),
+  ]);
+  const readByUserId = new Map(readRows.map((row) => [row.userId, row.readAt]));
+  const recipients = members
+    .filter((member) => member.id !== message.userId)
+    .map((member) => {
+      const lastChannelReadAt = readByUserId.get(member.id);
+      const readAt = lastChannelReadAt && lastChannelReadAt >= message.createdAt ? lastChannelReadAt : null;
+      return {
+        ...member,
+        status: readAt ? 'read' as const : 'delivered' as const,
+        distributedAt: message.createdAt,
+        readAt,
+      };
+    });
+
+  return c.json({
+    messageId: message.id,
+    recipientCount: recipients.length,
+    readCount: recipients.filter(({ status }) => status === 'read').length,
+    recipients,
+  });
+});
+
 // GET /api/messages/:channelId
 app.get('/:channelId', requireApproved, async (c) => {
   const user = c.get('user');

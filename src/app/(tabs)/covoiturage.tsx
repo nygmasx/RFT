@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import RouteMapBanner from '@/components/route-map-banner';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
+import { haptics } from '@/lib/haptics';
 
 const FILTERS = ['Tous'];
 
@@ -275,6 +276,7 @@ export default function CovoiturageScreen() {
                 friction={1.7}
                 rightThreshold={42}
                 overshootRight={false}
+                onSwipeableOpen={() => haptics.medium()}
                 renderRightActions={(_progress, _translation, swipeable) => (
                   <View style={styles.swipeActions}>
                     <Pressable

@@ -7,6 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { haptics } from '@/lib/haptics';
 
 const TAB_CONFIG = [
   { name: 'accueil',      label: 'Accueil',      ios: 'house.fill',        android: 'home',          web: 'home' },
@@ -36,6 +37,7 @@ function RFTTabBar({ state, navigation }: { state: any; navigation: any }) {
             key={route.key}
             style={styles.tabItem}
             onPress={() => {
+              if (!focused) haptics.selection();
               const event = navigation.emit({
                 type: 'tabPress',
                 target: route.key,

@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Image as ExpoImage } from 'expo-image';
@@ -24,8 +25,9 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useMessages } from '@/hooks/useMessages';
 import { safeBack } from '@/lib/navigation';
-import { Message } from '@/lib/database.types';
+import { Message, MessageReceiptDetails } from '@/lib/database.types';
 import { useAuth } from '@/context/AuthContext';
+import { haptics } from '@/lib/haptics';
 
 interface MsgProps {
   msg: Message;
@@ -38,9 +40,21 @@ interface MsgProps {
   onVoiceActivate: (url: string | null) => void;
   onReplyPress: (messageId: string) => void;
   onReactionPress: (emoji: string) => void;
+  onSwipeReply: (message: Message) => void;
+  onPhotoPress: (url: string, fileName: string | null) => void;
 }
 
-function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl, onVoiceActivate, onReplyPress, onReactionPress }: MsgProps) {
+type PendingPhoto = {
+  uri: string;
+  base64: string;
+  mimeType: string;
+  fileName: string;
+  width: number;
+  height: number;
+};
+
+function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl, onVoiceActivate, onReplyPress, onReactionPress, onSwipeReply, onPhotoPress }: MsgProps) {
+  const swipeableRef = useRef<SwipeableMethods>(null);
   const authorName = msg.profiles
     ? `${msg.profiles.first_name} ${msg.profiles.last_name}`
     : 'Utilisateur';
@@ -50,7 +64,7 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
     <Text key={`${part}-${index}`} style={part.startsWith('@') ? msgStyles.mention : undefined}>{part}</Text>
   )) : null;
   const content = msg.messageType === 'image' && msg.mediaUrl
-    ? <ExpoImage source={{ uri: msg.mediaUrl }} style={msgStyles.photo} contentFit="cover" transition={150} />
+    ? <MessagePhoto url={msg.mediaUrl} fileName={msg.mediaFileName} styles={msgStyles} onPress={onPhotoPress} />
     : msg.messageType === 'audio' && msg.mediaUrl
       ? <VoiceBubble
           url={msg.mediaUrl}
@@ -84,8 +98,7 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
   ) : null;
   const edited = msg.updatedAt ? ' · MODIFIÉ' : '';
 
-  if (isMe) {
-    return (
+  const message = isMe ? (
       <Pressable style={[msgStyles.meWrap, highlighted && msgStyles.highlighted]} onLongPress={onLongPress}>
         <View style={msgStyles.meBubble}>
           {reply}
@@ -93,12 +106,9 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
           {body ? <Text style={msgStyles.meText}>{body}</Text> : null}
         </View>
         {reactions}
-        <Text style={msgStyles.meMeta}>{timeStr}{edited} · {msg.readCount > 0 ? 'LU' : 'ENVOYÉ'}</Text>
+        <Text style={msgStyles.meMeta}>{timeStr}{edited} · {msg.readCount > 0 ? `LU ${msg.readCount}/${msg.recipientCount}` : 'DISTRIBUÉ'}</Text>
       </Pressable>
-    );
-  }
-
-  return (
+  ) : (
     <Pressable style={[msgStyles.theirWrap, highlighted && msgStyles.highlighted]} onLongPress={onLongPress}>
       <View style={msgStyles.theirAvatar}>
         <Text style={msgStyles.theirInitial}>{authorName[0]}</Text>
@@ -117,7 +127,106 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
       </View>
     </Pressable>
   );
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      friction={1.8}
+      leftThreshold={46}
+      dragOffsetFromLeftEdge={14}
+      overshootLeft={false}
+      containerStyle={msgStyles.swipeContainer}
+      renderLeftActions={() => (
+        <View style={msgStyles.swipeReplyAction}>
+          <View style={msgStyles.swipeReplyIcon}>
+            <Ionicons name="arrow-undo" size={18} color={t.bone} />
+          </View>
+        </View>
+      )}
+      onSwipeableOpen={() => {
+        onSwipeReply(msg);
+        swipeableRef.current?.close();
+      }}
+    >
+      {message}
+    </Swipeable>
+  );
 }
+
+function MessagePhoto({ url, fileName, styles, onPress }: {
+  url: string;
+  fileName: string | null;
+  styles: ReturnType<typeof makeMsgStyles>;
+  onPress: (url: string, fileName: string | null) => void;
+}) {
+  const [ratio, setRatio] = useState(4 / 3);
+  const height = Math.min(360, Math.max(150, 268 / ratio));
+
+  return (
+    <Pressable
+      accessibilityRole="imagebutton"
+      accessibilityLabel="Ouvrir la photo en plein écran"
+      style={styles.photoFrame}
+      onPress={() => onPress(url, fileName)}
+    >
+      <ExpoImage
+        source={{ uri: url }}
+        style={[styles.photo, { height }]}
+        contentFit="contain"
+        transition={150}
+        onLoad={({ source }) => {
+          if (source.width > 0 && source.height > 0) setRatio(source.width / source.height);
+        }}
+      />
+      <View style={styles.photoExpand}>
+        <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+      </View>
+    </Pressable>
+  );
+}
+
+function PhotoViewer({ photo, onClose }: {
+  photo: { url: string; fileName: string | null } | null;
+  onClose: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+
+  return (
+    <Modal visible={Boolean(photo)} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={viewerStyles.container}>
+        <SafeAreaView edges={['top']} style={viewerStyles.header}>
+          <Pressable accessibilityLabel="Fermer la photo" style={viewerStyles.viewerButton} onPress={onClose}>
+            <Ionicons name="close" size={26} color="#FFFFFF" />
+          </Pressable>
+          <Text style={viewerStyles.title} numberOfLines={1}>{photo?.fileName || 'Photo'}</Text>
+          <View style={viewerStyles.viewerButton} />
+        </SafeAreaView>
+        <ScrollView
+          style={viewerStyles.zoom}
+          contentContainerStyle={viewerStyles.zoomContent}
+          minimumZoomScale={1}
+          maximumZoomScale={4}
+          centerContent
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+        >
+          {photo ? <ExpoImage source={{ uri: photo.url }} style={{ width, height: height - 100 }} contentFit="contain" /> : null}
+        </ScrollView>
+        <SafeAreaView edges={['bottom']}><Text style={viewerStyles.hint}>PINCE POUR ZOOMER</Text></SafeAreaView>
+      </View>
+    </Modal>
+  );
+}
+
+const viewerStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000000' },
+  header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' },
+  viewerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, textAlign: 'center', color: '#FFFFFF', fontFamily: FONTS.body, fontSize: 14, fontWeight: '700' },
+  zoom: { flex: 1 },
+  zoomContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
+  hint: { color: 'rgba(255,255,255,0.55)', fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.8, textAlign: 'center', paddingVertical: 10 },
+});
 
 function VoiceBubble({ url, durationMs, t, styles, active, onActivate }: {
   url: string;
@@ -175,15 +284,18 @@ function VoiceBubble({ url, durationMs, t, styles, active, onActivate }: {
 
 function makeMsgStyles(t: Theme) {
   return StyleSheet.create({
-    meWrap: { alignItems: 'flex-end' },
+    swipeContainer: { overflow: 'visible' },
+    swipeReplyAction: { width: 64, alignItems: 'center', justifyContent: 'center' },
+    swipeReplyIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson },
+    meWrap: { alignItems: 'flex-end', width: '100%' },
     highlighted: { backgroundColor: t.crimson + '20', borderRadius: 10, padding: 6, marginHorizontal: -6 },
     meBubble: {
-      backgroundColor: t.crimson, paddingHorizontal: 12, paddingVertical: 8,
-      borderRadius: 12, borderBottomRightRadius: 2, maxWidth: 260,
+      backgroundColor: t.crimson, paddingHorizontal: 13, paddingVertical: 9,
+      borderRadius: 16, borderBottomRightRadius: 4, maxWidth: '88%', minWidth: 68,
     },
-    meText: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, lineHeight: 19 },
-    meMeta: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1, marginTop: 3 },
-    theirWrap: { flexDirection: 'row', gap: 8 },
+    meText: { fontFamily: FONTS.body, fontSize: 15, color: t.bone, lineHeight: 21 },
+    meMeta: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 0.8, marginTop: 4 },
+    theirWrap: { flexDirection: 'row', gap: 8, width: '100%' },
     theirAvatar: {
       width: 30, height: 30, borderRadius: 3, backgroundColor: t.elevated,
       alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
@@ -193,11 +305,11 @@ function makeMsgStyles(t: Theme) {
     theirName: { fontFamily: FONTS.body, fontSize: 11.5, fontWeight: '700', color: t.bone },
     theirTime: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1 },
     theirBubble: {
-      backgroundColor: t.surface, paddingHorizontal: 12, paddingVertical: 8,
-      borderRadius: 2, borderTopLeftRadius: 0, borderTopRightRadius: 12, borderBottomRightRadius: 12,
-      borderBottomLeftRadius: 12, borderWidth: 1, borderColor: t.hairline, maxWidth: 260,
+      backgroundColor: t.surface, paddingHorizontal: 13, paddingVertical: 9,
+      borderRadius: 16, borderTopLeftRadius: 4,
+      borderWidth: 1, borderColor: t.hairline, maxWidth: '94%', minWidth: 68,
     },
-    theirText: { fontFamily: FONTS.body, fontSize: 13, lineHeight: 19, color: t.bone },
+    theirText: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 21, color: t.bone },
     mention: { color: '#FFD166', fontWeight: '800' },
     replyQuote: { borderLeftWidth: 3, borderLeftColor: '#FFD166', backgroundColor: 'rgba(0,0,0,0.16)', borderRadius: 5, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 6, minWidth: 150 },
     replyAuthor: { color: '#FFD166', fontFamily: FONTS.body, fontSize: 10, fontWeight: '800' },
@@ -207,7 +319,9 @@ function makeMsgStyles(t: Theme) {
     reactionChip: { borderRadius: 12, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong },
     reactionChipActive: { borderColor: t.crimson, backgroundColor: t.crimson + '24' },
     reactionText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9 },
-    photo: { width: 220, height: 180, borderRadius: 8, marginBottom: 4 },
+    photoFrame: { width: 268, maxWidth: '100%', minHeight: 150, borderRadius: 11, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.22)', marginBottom: 5 },
+    photo: { width: '100%', borderRadius: 11 },
+    photoExpand: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.52)' },
     voice: { minWidth: 210, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
     voiceTrack: { flex: 1, height: 3, backgroundColor: t.hairlineStrong, borderRadius: 2, overflow: 'hidden' },
     voiceProgress: { height: 3, backgroundColor: t.bone },
@@ -233,11 +347,18 @@ export default function ChatScreen() {
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [activeVoiceUrl, setActiveVoiceUrl] = useState<string | null>(null);
+  const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
+  const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
+  const [photoCaption, setPhotoCaption] = useState('');
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; fileName: string | null } | null>(null);
+  const [receiptMessage, setReceiptMessage] = useState<Message | null>(null);
+  const [receiptDetails, setReceiptDetails] = useState<MessageReceiptDetails | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
 
-  const { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, refetch, currentUserId } = useMessages(channel);
+  const { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch, currentUserId } = useMessages(channel);
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const focusedTargetRef = useRef<string | null>(null);
@@ -253,6 +374,10 @@ export default function ChatScreen() {
     && selectedMessage.userId === currentUserId
     && selectedMessage.messageType === 'text',
   );
+  const canViewSelectedReceipts = Boolean(
+    selectedMessage
+    && (selectedMessage.userId === currentUserId || user?.role === 'coach' || user?.role === 'admin'),
+  );
 
   const handleSend = async () => {
     const body = messageText.trim();
@@ -263,10 +388,12 @@ export default function ChatScreen() {
     try {
       if (editingMessage) await editMessage(editingMessage.id, body);
       else await sendMessage(body, selectedIds, replyingTo?.id);
+      haptics.light();
       setEditingMessage(null);
       setReplyingTo(null);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
     } catch (error) {
+      haptics.error();
       setMessageText(body);
       Alert.alert('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     }
@@ -278,41 +405,69 @@ export default function ChatScreen() {
   ).slice(0, 5);
 
   const insertMention = (member: typeof members[number]) => {
+    haptics.selection();
     const handle = `@${`${member.firstName}_${member.lastName}`.replace(/\s+/g, '_')}`;
     setMessageText((current) => current.replace(/@[\p{L}\d._-]*$/u, `${handle} `));
     setMentionIds((current) => current.includes(member.id) ? current : [...current, member.id]);
   };
 
-  const sendPickedImage = async (camera: boolean) => {
+  const pickImage = async (camera: boolean) => {
     try {
+      setAttachmentMenuVisible(false);
       const permission = camera
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) return Alert.alert('Autorisation requise', camera ? 'Autorise l’appareil photo pour prendre une photo.' : 'Autorise la photothèque pour envoyer une photo.');
       const result = camera
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], base64: true, quality: 0.65 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.65 });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], base64: true, quality: 0.8, allowsEditing: false })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.8, allowsEditing: false });
       const asset = result.canceled ? null : result.assets[0];
-      if (!asset?.base64) return;
-      setSendingMedia(true);
+      if (!asset) return;
+      const base64 = asset.base64 ?? await new File(asset.uri).base64();
+      setPendingPhoto({
+        uri: asset.uri,
+        base64,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+        fileName: asset.fileName ?? 'photo.jpg',
+        width: asset.width,
+        height: asset.height,
+      });
+      setPhotoCaption(messageText);
+      haptics.selection();
+    } catch (error) {
+      haptics.error();
+      Alert.alert('Photo indisponible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
+    }
+  };
+
+  const sendPendingImage = async () => {
+    if (!pendingPhoto || sendingMedia) return;
+    setSendingMedia(true);
+    try {
       await sendMedia({
-        data_url: `data:${asset.mimeType ?? 'image/jpeg'};base64,${asset.base64}`,
-        file_name: asset.fileName ?? 'photo.jpg',
-        caption: messageText.trim() || undefined,
+        data_url: `data:${pendingPhoto.mimeType};base64,${pendingPhoto.base64}`,
+        file_name: pendingPhoto.fileName,
+        caption: photoCaption.trim() || undefined,
         mention_user_ids: mentionIds,
         reply_to_id: replyingTo?.id,
       });
-      setMessageText(''); setMentionIds([]); setReplyingTo(null);
+      setPendingPhoto(null);
+      setPhotoCaption('');
+      setMessageText('');
+      setMentionIds([]);
+      setReplyingTo(null);
+      haptics.success();
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
     } catch (error) {
+      haptics.error();
       Alert.alert('Photo non envoyée', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally { setSendingMedia(false); }
   };
 
-  const openAttachments = () => Alert.alert('Ajouter au message', undefined, [
-    { text: 'Prendre une photo', onPress: () => void sendPickedImage(true) },
-    { text: 'Choisir une photo', onPress: () => void sendPickedImage(false) },
-    { text: 'Annuler', style: 'cancel' },
-  ]);
+  const openAttachments = () => {
+    haptics.light();
+    setAttachmentMenuVisible(true);
+  };
 
   const toggleRecording = async () => {
     try {
@@ -322,6 +477,7 @@ export default function ChatScreen() {
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await recorder.prepareToRecordAsync();
         recorder.record();
+        haptics.rigid();
         return;
       }
       const duration = recorderState.durationMillis;
@@ -332,7 +488,9 @@ export default function ChatScreen() {
       const base64 = await new File(recorder.uri).base64();
       await sendMedia({ data_url: `data:audio/mp4;base64,${base64}`, file_name: 'vocal.m4a', duration_ms: duration, reply_to_id: replyingTo?.id });
       setReplyingTo(null);
+      haptics.success();
     } catch (error) {
+      haptics.error();
       Alert.alert('Vocal non envoyé', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally { setSendingMedia(false); }
   };
@@ -351,7 +509,10 @@ export default function ChatScreen() {
     if (!allowed) return;
     Alert.alert('Supprimer ce message ?', 'Il disparaîtra pour tous les membres.', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: () => void deleteMessage(message.id) },
+      { text: 'Supprimer', style: 'destructive', onPress: () => {
+        haptics.warning();
+        void deleteMessage(message.id);
+      } },
     ]);
   };
 
@@ -373,6 +534,7 @@ export default function ChatScreen() {
   }, [messages, targetMessageId]);
 
   const startReply = (message: Message) => {
+    haptics.medium();
     setSelectedMessage(null);
     setEditingMessage(null);
     setReplyingTo(message);
@@ -380,6 +542,7 @@ export default function ChatScreen() {
   };
 
   const startEdit = (message: Message) => {
+    haptics.selection();
     setSelectedMessage(null);
     setReplyingTo(null);
     setEditingMessage(message);
@@ -389,7 +552,25 @@ export default function ChatScreen() {
 
   const copyMessage = async (message: Message) => {
     if (message.body) await Clipboard.setStringAsync(message.body);
+    haptics.selection();
     setSelectedMessage(null);
+  };
+
+  const openReceiptDetails = async (message: Message) => {
+    setSelectedMessage(null);
+    setReceiptMessage(message);
+    setReceiptDetails(null);
+    setReceiptLoading(true);
+    haptics.light();
+    try {
+      setReceiptDetails(await getReceiptDetails(message.id));
+    } catch (error) {
+      setReceiptMessage(null);
+      haptics.error();
+      Alert.alert('Détails indisponibles', error instanceof Error ? error.message : 'Réessaie dans un instant.');
+    } finally {
+      setReceiptLoading(false);
+    }
   };
 
   const headerComponent = (
@@ -482,12 +663,14 @@ export default function ChatScreen() {
             isMe={item.userId === currentUserId}
             t={t}
             msgStyles={msgStyles}
-            onLongPress={() => setSelectedMessage(item)}
+            onLongPress={() => { haptics.medium(); setSelectedMessage(item); }}
             highlighted={highlightedMessageId === item.id}
             activeVoiceUrl={activeVoiceUrl}
             onVoiceActivate={setActiveVoiceUrl}
             onReplyPress={scrollToMessage}
-            onReactionPress={(emoji) => void toggleReaction(item.id, emoji)}
+            onReactionPress={(emoji) => { haptics.selection(); void toggleReaction(item.id, emoji); }}
+            onSwipeReply={startReply}
+            onPhotoPress={(url, fileName) => { haptics.light(); setViewingPhoto({ url, fileName }); }}
           />
         )}
         contentContainerStyle={styles.messages}
@@ -574,6 +757,7 @@ export default function ChatScreen() {
             <View style={styles.quickReactions}>
               {['❤️', '👍', '🔥', '😂', '😮', '🙏'].map((emoji) => (
                 <Pressable key={emoji} style={styles.quickReaction} onPress={() => {
+                  haptics.selection();
                   if (selectedMessage) void toggleReaction(selectedMessage.id, emoji);
                   setSelectedMessage(null);
                 }}><Text style={styles.quickReactionText}>{emoji}</Text></Pressable>
@@ -590,6 +774,11 @@ export default function ChatScreen() {
                 <Ionicons name="pencil-outline" size={19} color={t.bone} /><Text style={styles.menuActionText}>Modifier</Text>
               </Pressable>
             ) : null}
+            {canViewSelectedReceipts ? (
+              <Pressable style={styles.menuAction} onPress={() => selectedMessage && void openReceiptDetails(selectedMessage)}>
+                <Ionicons name="information-circle-outline" size={20} color={t.bone} /><Text style={styles.menuActionText}>Infos du message</Text>
+              </Pressable>
+            ) : null}
             {(selectedMessage?.userId === currentUserId || user?.role === 'coach' || user?.role === 'admin') ? (
               <Pressable style={styles.menuAction} onPress={() => { const message = selectedMessage; setSelectedMessage(null); if (message) confirmDelete(message); }}>
                 <Ionicons name="trash-outline" size={19} color={t.crimson} /><Text style={[styles.menuActionText, { color: t.crimson }]}>Supprimer</Text>
@@ -598,6 +787,142 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={attachmentMenuVisible} transparent animationType="fade" onRequestClose={() => setAttachmentMenuVisible(false)}>
+        <View style={styles.menuOverlay}>
+          <Pressable accessibilityLabel="Fermer les pièces jointes" style={StyleSheet.absoluteFill} onPress={() => setAttachmentMenuVisible(false)} />
+          <SafeAreaView edges={['bottom']} style={styles.attachmentSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.attachmentTitle}>AJOUTER UNE PHOTO</Text>
+            <Text style={styles.attachmentSubtitle}>Tu pourras la vérifier et ajouter une légende avant l’envoi.</Text>
+            <View style={styles.attachmentOptions}>
+              <Pressable style={styles.attachmentOption} onPress={() => void pickImage(false)}>
+                <View style={[styles.attachmentOptionIcon, { backgroundColor: '#3B82F6' }]}><Ionicons name="images" size={25} color="#FFFFFF" /></View>
+                <Text style={styles.attachmentOptionText}>PHOTOTHÈQUE</Text>
+              </Pressable>
+              <Pressable style={styles.attachmentOption} onPress={() => void pickImage(true)}>
+                <View style={[styles.attachmentOptionIcon, { backgroundColor: t.crimson }]}><Ionicons name="camera" size={25} color="#FFFFFF" /></View>
+                <Text style={styles.attachmentOptionText}>APPAREIL PHOTO</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      <Modal visible={Boolean(pendingPhoto)} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => !sendingMedia && setPendingPhoto(null)}>
+        <KeyboardAvoidingView style={styles.photoPreview} behavior="padding" automaticOffset>
+          <SafeAreaView edges={['top']} style={styles.photoPreviewHeader}>
+            <Pressable accessibilityLabel="Annuler l’envoi de la photo" style={styles.photoPreviewClose} disabled={sendingMedia} onPress={() => setPendingPhoto(null)}>
+              <Ionicons name="close" size={27} color="#FFFFFF" />
+            </Pressable>
+            <Text style={styles.photoPreviewTitle}>APERÇU</Text>
+            <View style={styles.photoPreviewClose} />
+          </SafeAreaView>
+          <View style={styles.photoPreviewCanvas}>
+            {pendingPhoto ? (
+              <ExpoImage
+                source={{ uri: pendingPhoto.uri }}
+                style={styles.photoPreviewImage}
+                contentFit="contain"
+                transition={120}
+              />
+            ) : null}
+          </View>
+          <SafeAreaView edges={['bottom']} style={styles.photoPreviewComposer}>
+            {replyingTo ? (
+              <View style={styles.photoReplyContext}>
+                <Ionicons name="arrow-undo" size={15} color={t.crimson} />
+                <Text style={styles.photoReplyText} numberOfLines={1}>Réponse à {replyingTo.profiles ? `${replyingTo.profiles.first_name} ${replyingTo.profiles.last_name}` : 'un message'}</Text>
+              </View>
+            ) : null}
+            <View style={styles.photoCaptionRow}>
+              <TextInput
+                value={photoCaption}
+                onChangeText={setPhotoCaption}
+                placeholder="Ajouter une légende…"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                style={styles.photoCaptionInput}
+                multiline
+                maxLength={1000}
+                editable={!sendingMedia}
+              />
+              <Pressable accessibilityLabel="Envoyer la photo" style={styles.photoSendButton} disabled={sendingMedia} onPress={() => void sendPendingImage()}>
+                {sendingMedia ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="send" size={20} color="#FFFFFF" />}
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <PhotoViewer photo={viewingPhoto} onClose={() => setViewingPhoto(null)} />
+
+      <Modal visible={Boolean(receiptMessage)} transparent animationType="slide" onRequestClose={() => setReceiptMessage(null)}>
+        <View style={styles.receiptOverlay}>
+          <Pressable accessibilityLabel="Fermer les détails" style={StyleSheet.absoluteFill} onPress={() => setReceiptMessage(null)} />
+          <SafeAreaView edges={['bottom']} style={styles.receiptSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.receiptHeader}>
+              <View>
+                <Text style={styles.receiptTitle}>INFOS DU MESSAGE</Text>
+                <Text style={styles.receiptSubtitle}>{receiptMessage ? new Date(receiptMessage.createdAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : ''}</Text>
+              </View>
+              <Pressable accessibilityLabel="Fermer" onPress={() => setReceiptMessage(null)}><Ionicons name="close" size={22} color={t.textDim} /></Pressable>
+            </View>
+            {receiptLoading ? <ActivityIndicator color={t.crimson} style={{ marginVertical: 36 }} /> : (
+              <ScrollView style={styles.receiptScroll} showsVerticalScrollIndicator={false}>
+                <ReceiptSection
+                  title={`LU PAR (${receiptDetails?.readCount ?? 0})`}
+                  icon="checkmark-done"
+                  people={receiptDetails?.recipients.filter(({ status }) => status === 'read') ?? []}
+                  empty="Personne ne l’a encore lu."
+                  t={t}
+                  styles={styles}
+                />
+                <ReceiptSection
+                  title={`DISTRIBUÉ À (${(receiptDetails?.recipientCount ?? 0) - (receiptDetails?.readCount ?? 0)})`}
+                  icon="checkmark"
+                  people={receiptDetails?.recipients.filter(({ status }) => status === 'delivered') ?? []}
+                  empty="Tous les destinataires ont lu le message."
+                  t={t}
+                  styles={styles}
+                />
+              </ScrollView>
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function ReceiptSection({ title, icon, people, empty, t, styles }: {
+  title: string;
+  icon: 'checkmark-done' | 'checkmark';
+  people: MessageReceiptDetails['recipients'];
+  empty: string;
+  t: Theme;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View style={styles.receiptSection}>
+      <View style={styles.receiptSectionHeader}>
+        <Ionicons name={icon} size={17} color={t.crimson} />
+        <Text style={styles.receiptSectionTitle}>{title}</Text>
+      </View>
+      {people.length === 0 ? <Text style={styles.receiptEmpty}>{empty}</Text> : people.map((person) => (
+        <View key={person.id} style={styles.receiptPerson}>
+          <View style={styles.receiptAvatar}><Text style={styles.receiptAvatarText}>{person.firstName[0]}{person.lastName[0]}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.receiptName}>{person.firstName} {person.lastName}</Text>
+            <Text style={styles.receiptTime}>
+              {person.readAt
+                ? `Lu ${new Date(person.readAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`
+                : `Distribué ${new Date(person.distributedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}`}
+            </Text>
+          </View>
+          <Ionicons name={person.readAt ? 'checkmark-done' : 'checkmark'} size={19} color={person.readAt ? t.crimson : t.textMute} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -715,6 +1040,41 @@ function makeStyles(t: Theme) {
     quickReactionText: { fontSize: 23 },
     menuAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline, paddingHorizontal: 6 },
     menuActionText: { color: t.bone, fontFamily: FONTS.body, fontSize: 14, fontWeight: '600' },
+    sheetHandle: { width: 42, height: 4, borderRadius: 2, backgroundColor: t.hairlineStrong, alignSelf: 'center', marginBottom: 18 },
+    attachmentSheet: { backgroundColor: t.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, borderWidth: 1, borderColor: t.hairlineStrong },
+    attachmentTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900', letterSpacing: 1.2 },
+    attachmentSubtitle: { color: t.textDim, fontFamily: FONTS.body, fontSize: 12.5, lineHeight: 18, marginTop: 5 },
+    attachmentOptions: { flexDirection: 'row', gap: 14, marginTop: 22, marginBottom: 12 },
+    attachmentOption: { flex: 1, minHeight: 112, alignItems: 'center', justifyContent: 'center', gap: 11, borderRadius: 16, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong },
+    attachmentOptionIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+    attachmentOptionText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+    photoPreview: { flex: 1, backgroundColor: '#050505' },
+    photoPreviewHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' },
+    photoPreviewClose: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
+    photoPreviewTitle: { flex: 1, color: '#FFFFFF', textAlign: 'center', fontFamily: FONTS.display, fontSize: 13, fontWeight: '900', letterSpacing: 1.8 },
+    photoPreviewCanvas: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 10 },
+    photoPreviewImage: { width: '100%', height: '100%' },
+    photoPreviewComposer: { backgroundColor: 'rgba(15,15,15,0.98)', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.14)', paddingHorizontal: 14, paddingTop: 10 },
+    photoReplyContext: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: t.crimson, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 7 },
+    photoReplyText: { flex: 1, color: 'rgba(255,255,255,0.72)', fontFamily: FONTS.body, fontSize: 11.5 },
+    photoCaptionRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+    photoCaptionInput: { flex: 1, minHeight: 44, maxHeight: 100, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', color: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 11, fontFamily: FONTS.body, fontSize: 14 },
+    photoSendButton: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson },
+    receiptOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.48)' },
+    receiptSheet: { maxHeight: '78%', minHeight: 300, backgroundColor: t.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, borderWidth: 1, borderColor: t.hairlineStrong },
+    receiptHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline },
+    receiptTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 17, fontWeight: '900', letterSpacing: 1.2 },
+    receiptSubtitle: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, marginTop: 3 },
+    receiptScroll: { marginHorizontal: -4 },
+    receiptSection: { paddingVertical: 17 },
+    receiptSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9, paddingHorizontal: 4 },
+    receiptSectionTitle: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9.5, fontWeight: '800', letterSpacing: 1.2 },
+    receiptEmpty: { color: t.textMute, fontFamily: FONTS.body, fontSize: 12.5, paddingHorizontal: 4, paddingVertical: 10 },
+    receiptPerson: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline, paddingHorizontal: 4 },
+    receiptAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
+    receiptAvatarText: { color: t.bone, fontFamily: FONTS.display, fontSize: 11, fontWeight: '900' },
+    receiptName: { color: t.bone, fontFamily: FONTS.body, fontSize: 13.5, fontWeight: '700' },
+    receiptTime: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8.5, marginTop: 2 },
     readOnlyBar: {
       paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12,
       backgroundColor: t.surface, borderTopWidth: 1, borderTopColor: t.hairline,

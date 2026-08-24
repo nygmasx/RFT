@@ -1,6 +1,7 @@
 import { RefreshControl } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
+import { haptics } from '@/lib/haptics';
 
 type Props = {
   refreshing: boolean;
@@ -12,10 +13,15 @@ type Props = {
 export function SmoothRefreshControl({ refreshing, onRefresh, progressViewOffset = 8 }: Props) {
   const { theme } = useTheme();
 
+  const handleRefresh = () => {
+    haptics.light();
+    onRefresh();
+  };
+
   return (
     <RefreshControl
       refreshing={refreshing}
-      onRefresh={onRefresh}
+      onRefresh={handleRefresh}
       tintColor={theme.crimson}
       colors={[theme.crimson]}
       progressBackgroundColor={theme.surface}
