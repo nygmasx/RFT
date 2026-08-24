@@ -4,11 +4,12 @@ import { File } from 'expo-file-system';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { ClassSession, useClubOverview } from '@/hooks/useClubManagement';
@@ -133,7 +134,7 @@ export default function ClubScreen() {
       {loading ? <View style={styles.center}><ActivityIndicator color={t.crimson} /></View> : (
         <FormScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.crimson} />}
+          refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={refresh} />}
         >
           {!!(error || notice) && <Text style={[styles.notice, !!error && styles.error]}>{error || notice}</Text>}
 

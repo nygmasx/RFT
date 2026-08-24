@@ -7,7 +7,6 @@ import {
   Alert,
   Modal,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 
 import { FormScrollView } from '@/components/form-scroll-view';
 import { FONTS, Theme } from '@/constants/theme';
@@ -343,7 +343,7 @@ export default function AdminResultsScreen() {
       ) : (
         <FormScrollView
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.crimson} />}
+          refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={refresh} />}
         >
           {pendingSubmissions.length > 0 ? (
             <View style={styles.globalPending}>

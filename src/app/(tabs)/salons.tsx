@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { Ionicons } from '@expo/vector-icons';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useTheme } from '@/context/ThemeContext';
 import { useChannels } from '@/hooks/useChannels';
 import { useAuth } from '@/context/AuthContext';
@@ -90,7 +91,7 @@ export default function SalonsScreen() {
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+            refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
               setRefreshing(true); void refetch().finally(() => setRefreshing(false));
             }} />}
           >

@@ -12,6 +12,10 @@ export interface MyCarpoolEntry {
   seats_total: number;
 }
 
+function eventName(carpool: any) {
+  return carpool.competition?.name ?? carpool.calendarEvent?.title ?? 'Événement inconnu';
+}
+
 export function useMyCarpool() {
   const [data, setData]       = useState<MyCarpoolEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +26,7 @@ export function useMyCarpool() {
         const entries: MyCarpoolEntry[] = [
           ...driver.map((c) => ({
             id: c.id, role: 'driver' as const,
-            event:          c.competition?.name ?? 'Événement inconnu',
+            event:          eventName(c),
             departure_at:   c.departureAt,
             departure_city: c.departureCity,
             seats_taken:    c.seatsTaken,
@@ -30,7 +34,7 @@ export function useMyCarpool() {
           })),
           ...passenger.map((c) => ({
             id: c.id, role: 'passenger' as const,
-            event:          c.competition?.name ?? 'Événement inconnu',
+            event:          eventName(c),
             departure_at:   c.departureAt,
             departure_city: c.departureCity,
             seats_taken:    c.seatsTaken,

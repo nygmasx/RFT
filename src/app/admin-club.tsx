@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -135,7 +136,7 @@ export default function AdminClubScreen() {
       </SafeAreaView>
 
       {loading ? <View style={styles.center}><ActivityIndicator color={t.crimson} /></View> : (
-        <FormScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.crimson} />}>
+        <FormScrollView contentContainerStyle={styles.content} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={refresh} />}>
           {!!(error || notice) && <Text style={[styles.notice, !!error && styles.error]}>{error || notice}</Text>}
 
           {tab === 'planning' && <>

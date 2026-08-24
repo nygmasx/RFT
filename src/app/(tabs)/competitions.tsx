@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
 import { CoachCompetitions } from '@/components/coach-competitions';
 import { FONTS, Theme } from '@/constants/theme';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
@@ -136,7 +137,7 @@ function MemberCompetitionsScreen() {
           <ActivityIndicator color={t.crimson} />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+        <ScrollView alwaysBounceVertical bounces decelerationRate="normal" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true); void refetch().finally(() => setRefreshing(false));
         }} />}>
 

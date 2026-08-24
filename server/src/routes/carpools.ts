@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, eq, gte, asc, sql } from 'drizzle-orm';
 import { db } from '../db/client';
-import { carpools, carpoolPassengers, competitions, users } from '../db/schema';
+import { calendarEvents, carpools, carpoolPassengers, competitions, users } from '../db/schema';
 import { requireApproved } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { notifyMembers, notifyUser } from './push';
@@ -20,6 +20,7 @@ app.get('/', requireApproved, async (c) => {
       id:            carpools.id,
       driverId:      carpools.driverId,
       competitionId: carpools.competitionId,
+      calendarEventId: carpools.calendarEventId,
       departureCity: carpools.departureCity,
       departureLatitude: carpools.departureLatitude,
       departureLongitude: carpools.departureLongitude,
@@ -40,10 +41,20 @@ app.get('/', requireApproved, async (c) => {
         latitude: competitions.latitude,
         longitude: competitions.longitude,
       },
+      calendarEvent: {
+        title: calendarEvents.title,
+        eventDate: calendarEvents.eventDate,
+        eventTime: calendarEvents.eventTime,
+        place: calendarEvents.place,
+        latitude: calendarEvents.latitude,
+        longitude: calendarEvents.longitude,
+        type: calendarEvents.type,
+      },
     })
     .from(carpools)
     .leftJoin(users, eq(carpools.driverId, users.id))
     .leftJoin(competitions, eq(carpools.competitionId, competitions.id))
+    .leftJoin(calendarEvents, eq(carpools.calendarEventId, calendarEvents.id))
     .where(gte(carpools.departureAt, now))
     .orderBy(asc(carpools.departureAt));
 
@@ -60,6 +71,7 @@ app.get('/', requireApproved, async (c) => {
       id: row.id,
       driver_id: row.driverId,
       competition_id: row.competitionId,
+      calendar_event_id: row.calendarEventId,
       departure_city: row.departureCity,
       departure_latitude: row.departureLatitude,
       departure_longitude: row.departureLongitude,
@@ -71,6 +83,7 @@ app.get('/', requireApproved, async (c) => {
       created_at: row.createdAt,
       profiles: row.profiles,
       competitions: row.competitions,
+      calendar_event: row.calendarEvent,
     })),
     myPassengerCarpoolIds,
     currentUserId: user.id,
@@ -82,6 +95,7 @@ app.post('/', requireApproved, async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
     competition_id?: string | null;
+    calendar_event_id?: string | null;
     departure_city: string;
     departure_latitude?: number;
     departure_longitude?: number;
@@ -104,11 +118,23 @@ app.post('/', requireApproved, async (c) => {
     return c.json({ error: 'Participation invalide' }, 400);
   }
 
+  if (Boolean(body.competition_id) === Boolean(body.calendar_event_id)) {
+    return c.json({ error: 'Sélectionne une compétition ou un entraînement' }, 400);
+  }
+
   let competitionId: CompetitionId | null = null;
+  let calendarEventId: CompetitionId | null = null;
   if (body.competition_id) {
     competitionId = body.competition_id as CompetitionId;
     const competition = await ensureStoredCompetition(competitionId);
     if (!competition) return c.json({ error: 'Événement introuvable' }, 400);
+  } else if (body.calendar_event_id) {
+    calendarEventId = body.calendar_event_id as CompetitionId;
+    const [training] = await db.select({ id: calendarEvents.id, type: calendarEvents.type })
+      .from(calendarEvents).where(eq(calendarEvents.id, calendarEventId));
+    if (!training || training.type !== 'cours') {
+      return c.json({ error: 'Entraînement introuvable' }, 400);
+    }
   }
 
   const [row] = await db
@@ -116,6 +142,7 @@ app.post('/', requireApproved, async (c) => {
     .values({
       driverId:      user.id,
       competitionId,
+      calendarEventId,
       departureCity,
       departureLatitude: Number.isFinite(body.departure_latitude) ? body.departure_latitude : null,
       departureLongitude: Number.isFinite(body.departure_longitude) ? body.departure_longitude : null,
@@ -139,6 +166,7 @@ app.post('/', requireApproved, async (c) => {
     id: row.id,
     driver_id: row.driverId,
     competition_id: row.competitionId,
+    calendar_event_id: row.calendarEventId,
     departure_city: row.departureCity,
     departure_latitude: row.departureLatitude,
     departure_longitude: row.departureLongitude,
@@ -149,6 +177,28 @@ app.post('/', requireApproved, async (c) => {
     notes: row.notes,
     created_at: row.createdAt,
   }, 201);
+});
+
+// GET /api/carpools/:id/edit — editable data, restricted to the owner or staff
+app.get('/:id/edit', requireApproved, async (c) => {
+  const user = c.get('user');
+  const carpoolId = c.req.param('id') as CompetitionId;
+  const [row] = await db.select().from(carpools).where(eq(carpools.id, carpoolId));
+  if (!row) return c.json({ error: 'Introuvable' }, 404);
+  if (row.driverId !== user.id && !isStaff(user)) return c.json({ error: 'Accès refusé' }, 403);
+  return c.json({
+    id: row.id,
+    competition_id: row.competitionId,
+    calendar_event_id: row.calendarEventId,
+    departure_city: row.departureCity,
+    departure_latitude: row.departureLatitude,
+    departure_longitude: row.departureLongitude,
+    departure_at: row.departureAt,
+    seats_total: row.seatsTotal,
+    seats_taken: row.seatsTaken,
+    cost_per_seat: Number(row.costPerSeat ?? 0),
+    notes: row.notes,
+  });
 });
 
 // POST /api/carpools/:id/join
@@ -254,6 +304,7 @@ app.put('/:id', requireApproved, async (c) => {
   const body = await c.req.json<{
     departure_city: string; departure_at: string; seats_total: number; cost_per_seat?: number; notes?: string;
     departure_latitude?: number; departure_longitude?: number;
+    competition_id?: string | null; calendar_event_id?: string | null;
   }>();
   const departureAt = new Date(body.departure_at);
   if (!body.departure_city?.trim() || Number.isNaN(departureAt.getTime()) || departureAt <= new Date()) {
@@ -265,8 +316,30 @@ app.put('/:id', requireApproved, async (c) => {
   if (!Number.isInteger(body.seats_total) || body.seats_total < current.seatsTaken || body.seats_total > 8) {
     return c.json({ error: `Le trajet compte déjà ${current.seatsTaken} passager(s)` }, 409);
   }
+  if ((body.competition_id !== undefined || body.calendar_event_id !== undefined)
+    && Boolean(body.competition_id) === Boolean(body.calendar_event_id)) {
+    return c.json({ error: 'Sélectionne une compétition ou un entraînement' }, 400);
+  }
+
+  let competitionId = current.competitionId;
+  let calendarEventId = current.calendarEventId;
+  if (body.competition_id !== undefined || body.calendar_event_id !== undefined) {
+    competitionId = null;
+    calendarEventId = null;
+    if (body.competition_id) {
+      const requestedCompetitionId = body.competition_id as CompetitionId;
+      competitionId = requestedCompetitionId;
+      if (!await ensureStoredCompetition(requestedCompetitionId)) return c.json({ error: 'Compétition introuvable' }, 400);
+    } else if (body.calendar_event_id) {
+      calendarEventId = body.calendar_event_id as CompetitionId;
+      const [training] = await db.select({ type: calendarEvents.type }).from(calendarEvents)
+        .where(eq(calendarEvents.id, calendarEventId));
+      if (!training || training.type !== 'cours') return c.json({ error: 'Entraînement introuvable' }, 400);
+    }
+  }
   const [row] = await db.update(carpools).set({
     departureCity: body.departure_city.trim(), departureAt, seatsTotal: body.seats_total,
+    competitionId, calendarEventId,
     departureLatitude: Number.isFinite(body.departure_latitude) ? body.departure_latitude : null,
     departureLongitude: Number.isFinite(body.departure_longitude) ? body.departure_longitude : null,
     costPerSeat: String(body.cost_per_seat ?? 0), notes: body.notes?.trim() || null,
@@ -292,6 +365,7 @@ app.get('/mine', requireApproved, async (c) => {
     .select({
       id:            carpools.id,
       competitionId: carpools.competitionId,
+      calendarEventId: carpools.calendarEventId,
       departureCity: carpools.departureCity,
       departureAt:   carpools.departureAt,
       seatsTaken:    carpools.seatsTaken,
@@ -300,9 +374,14 @@ app.get('/mine', requireApproved, async (c) => {
         name:      competitions.name,
         comp_date: competitions.compDate,
       },
+      calendarEvent: {
+        title: calendarEvents.title,
+        eventDate: calendarEvents.eventDate,
+      },
     })
     .from(carpools)
     .leftJoin(competitions, eq(carpools.competitionId, competitions.id))
+    .leftJoin(calendarEvents, eq(carpools.calendarEventId, calendarEvents.id))
     .where(eq(carpools.driverId, user.id))
     .orderBy(carpools.departureAt);
 
@@ -310,6 +389,7 @@ app.get('/mine', requireApproved, async (c) => {
     .select({
       id:            carpools.id,
       competitionId: carpools.competitionId,
+      calendarEventId: carpools.calendarEventId,
       departureCity: carpools.departureCity,
       departureAt:   carpools.departureAt,
       seatsTaken:    carpools.seatsTaken,
@@ -318,10 +398,15 @@ app.get('/mine', requireApproved, async (c) => {
         name:      competitions.name,
         comp_date: competitions.compDate,
       },
+      calendarEvent: {
+        title: calendarEvents.title,
+        eventDate: calendarEvents.eventDate,
+      },
     })
     .from(carpoolPassengers)
     .innerJoin(carpools, eq(carpoolPassengers.carpoolId, carpools.id))
     .leftJoin(competitions, eq(carpools.competitionId, competitions.id))
+    .leftJoin(calendarEvents, eq(carpools.calendarEventId, calendarEvents.id))
     .where(eq(carpoolPassengers.userId, user.id));
 
   return c.json({

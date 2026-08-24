@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
 import { CoachHome } from '@/components/coach-home';
 import { FONTS, Theme } from '@/constants/theme';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
@@ -105,7 +106,7 @@ function MemberAccueilScreen() {
           <ActivityIndicator color={t.crimson} />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+        <ScrollView alwaysBounceVertical bounces decelerationRate="normal" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true); void Promise.all([refetchAnnouncements(), refetchNotifications(), refetchCalendar(), refetchChannels(), refetchRankings()]).finally(() => setRefreshing(false));
         }} />}>
 

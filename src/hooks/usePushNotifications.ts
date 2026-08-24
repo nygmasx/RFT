@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { api } from '@/lib/api';
+import { notificationHref } from '@/lib/notification-navigation';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -30,32 +31,8 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function openNotification(data: Record<string, unknown>) {
-  const channelId = stringValue(data.channelId);
-  const channelName = stringValue(data.channelName);
-  const announcementId = stringValue(data.announcementId);
-  const competitionId = stringValue(data.competitionId);
-  const screen = stringValue(data.screen);
-
-  if (screen === 'add_result') {
-    router.push({ pathname: '/add-result', params: competitionId ? { competitionId } : {} });
-  } else if (screen === 'admin_results') {
-    router.push({ pathname: '/admin-results', params: competitionId ? { competitionId } : {} });
-  } else if (channelId) {
-    router.push({
-      pathname: '/chat',
-      params: { channel: channelId, name: channelName ?? 'Salon' },
-    });
-  } else if (announcementId) {
-    router.push({ pathname: '/announcement', params: { id: announcementId } });
-  } else if (competitionId) {
-    router.push({ pathname: '/competition-detail', params: { id: competitionId } });
-  } else if (stringValue(data.calendarEventId)) {
-    router.push('/calendar');
-  } else if (stringValue(data.carpoolId)) {
-    router.push('/(tabs)/covoiturage');
-  } else {
-    router.push('/notifications');
-  }
+  const href = notificationHref(data);
+  if (href) router.push(href);
 }
 
 async function registerForPushNotifications(): Promise<string | null> {
@@ -118,7 +95,9 @@ export function usePushNotifications(userId: string | undefined) {
 
     // Handle tap on notification → navigate to chat
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
       openNotification(response.notification.request.content.data as Record<string, unknown>);
+      void Notifications.clearLastNotificationResponseAsync();
     });
 
     return () => {

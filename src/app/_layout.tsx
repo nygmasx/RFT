@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { InAppNotificationBanner } from '@/components/in-app-notification-banner';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -91,19 +92,22 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <KeyboardProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <StatusBar style="auto" />
-          <RootNavigator />
-          <PushNotificationRegistrar />
-        </AuthProvider>
-      </ThemeProvider>
-    </KeyboardProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <KeyboardProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <StatusBar style="auto" />
+            <RootNavigator />
+            <PushNotificationRegistrar />
+          </AuthProvider>
+        </ThemeProvider>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   loader: {
     flex: 1,
     alignItems: 'center',

@@ -44,13 +44,17 @@ export function useMessages(channelId: string) {
     };
   }, [channelId, fetchMembers, fetchMessages]);
 
-  const sendMessage = async (body: string, mentionUserIds: string[] = []) => {
+  const sendMessage = async (body: string, mentionUserIds: string[] = [], replyToId?: string) => {
     if (!user || !body.trim()) return;
-    const msg = await api.post<Message>(`/api/messages/${channelId}`, { body, mention_user_ids: mentionUserIds });
+    const msg = await api.post<Message>(`/api/messages/${channelId}`, {
+      body,
+      mention_user_ids: mentionUserIds,
+      reply_to_id: replyToId,
+    });
     setMessages((prev) => [...prev, msg]);
   };
 
-  const sendMedia = async (payload: { data_url: string; file_name?: string; duration_ms?: number; caption?: string; mention_user_ids?: string[] }) => {
+  const sendMedia = async (payload: { data_url: string; file_name?: string; duration_ms?: number; caption?: string; mention_user_ids?: string[]; reply_to_id?: string }) => {
     if (!user) return;
     const msg = await api.post<Message>(`/api/messages/${channelId}/media`, payload);
     setMessages((prev) => [...prev, msg]);
@@ -61,5 +65,17 @@ export function useMessages(channelId: string) {
     setMessages((current) => current.filter((message) => message.id !== id));
   };
 
-  return { messages, members, loading, sendMessage, sendMedia, deleteMessage, refetch: fetchMessages, currentUserId: user?.id };
+  const editMessage = async (id: string, body: string) => {
+    await api.put(`/api/messages/item/${id}`, { body });
+    setMessages((current) => current.map((message) => message.id === id
+      ? { ...message, body: body.trim(), updatedAt: new Date().toISOString() }
+      : message));
+  };
+
+  const toggleReaction = async (id: string, emoji: string) => {
+    const reactions = await api.put<Message['reactions']>(`/api/messages/item/${id}/reactions`, { emoji });
+    setMessages((current) => current.map((message) => message.id === id ? { ...message, reactions } : message));
+  };
+
+  return { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, refetch: fetchMessages, currentUserId: user?.id };
 }

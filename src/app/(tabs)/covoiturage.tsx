@@ -1,14 +1,16 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useCarpools } from '@/hooks/useCarpools';
 import { api } from '@/lib/api';
 import RouteMapBanner from '@/components/route-map-banner';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 
 const FILTERS = ['Tous'];
@@ -48,6 +50,7 @@ export default function CovoiturageScreen() {
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool, refetch } = useCarpools();
   const isCoach = user?.role === 'coach' || user?.role === 'admin';
@@ -63,6 +66,28 @@ export default function CovoiturageScreen() {
         { text: 'SMS', onPress: () => void Linking.openURL(`sms:${contact.phone.replace(/\s/g, '')}`) },
       ]);
     } catch (error: any) { Alert.alert('Contact indisponible', error.message); }
+  };
+
+  const deleteCarpool = (carpoolId: string, eventName: string, swipeable: SwipeableMethods) => {
+    Alert.alert(
+      'Supprimer ce covoiturage ?',
+      `Le trajet pour « ${eventName} » et toutes ses réservations seront supprimés.`,
+      [
+        { text: 'Annuler', style: 'cancel', onPress: () => swipeable.close() },
+        {
+          text: 'Supprimer', style: 'destructive', onPress: () => {
+            setDeletingId(carpoolId);
+            void api.delete(`/api/carpools/${carpoolId}`)
+              .then(() => refetch())
+              .catch((error: Error) => Alert.alert('Suppression impossible', error.message))
+              .finally(() => {
+                swipeable.close();
+                setDeletingId(null);
+              });
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -126,14 +151,25 @@ export default function CovoiturageScreen() {
           <ActivityIndicator color={t.crimson} />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+        <ScrollView alwaysBounceVertical bounces decelerationRate="normal" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true); void refetch().finally(() => setRefreshing(false));
         }} />}>
           {carpools.map((r) => {
             const driverName = r.profiles
               ? `${r.profiles.first_name} ${r.profiles.last_name}`
               : 'Conducteur';
-            const eventName = r.competitions?.name ?? 'Événement';
+            const eventName = r.competitions?.name ?? r.calendar_event?.title ?? 'Événement';
+            const destination = r.competitions
+              ? {
+                latitude: r.competitions.latitude,
+                longitude: r.competitions.longitude,
+                label: r.competitions.location ?? eventName,
+              }
+              : {
+                latitude: r.calendar_event?.latitude,
+                longitude: r.calendar_event?.longitude,
+                label: r.calendar_event?.place ?? eventName,
+              };
             const available = r.seats_total - r.seats_taken;
             const isFull = available <= 0;
 
@@ -146,7 +182,7 @@ export default function CovoiturageScreen() {
             let btnTextStyle = styles.reserveText;
 
             if (isDriver) {
-              btnLabel = 'MON TRAJET';
+              btnLabel = 'GLISSER POUR GÉRER';
               btnDisabled = true;
               btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnFull };
               btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
@@ -161,8 +197,8 @@ export default function CovoiturageScreen() {
               btnLabel = 'REJOINDRE';
             }
 
-            return (
-              <View key={r.id} style={styles.card}>
+            const card = (
+              <View style={styles.card}>
                 <View style={styles.driverRow}>
                   <View style={styles.driverAvatar}>
                     <Text style={styles.driverInitials}>{initials(driverName)}</Text>
@@ -175,7 +211,7 @@ export default function CovoiturageScreen() {
                 </View>
 
                 {r.departure_latitude != null && r.departure_longitude != null
-                  && r.competitions?.latitude != null && r.competitions?.longitude != null && (
+                  && destination.latitude != null && destination.longitude != null && (
                   <RouteMapBanner
                     compact
                     style={styles.routeMap}
@@ -185,9 +221,9 @@ export default function CovoiturageScreen() {
                       label: r.departure_city,
                     }}
                     destination={{
-                      latitude: r.competitions.latitude,
-                      longitude: r.competitions.longitude,
-                      label: r.competitions.location ?? eventName,
+                      latitude: destination.latitude,
+                      longitude: destination.longitude,
+                      label: destination.label,
                     }}
                   />
                 )}
@@ -200,7 +236,7 @@ export default function CovoiturageScreen() {
                   </View>
                   <View style={styles.routeLabels}>
                     <Text style={styles.routeCity}>{r.departure_city}</Text>
-                    <Text style={styles.routeCity}>{r.competitions?.name ?? '—'}</Text>
+                    <Text style={styles.routeCity}>{eventName}</Text>
                   </View>
                   <View style={styles.seats}>
                     <Text style={styles.seatCount}>
@@ -228,6 +264,46 @@ export default function CovoiturageScreen() {
                   </Pressable>
                 )}
               </View>
+            );
+
+            if (!isDriver) return <View key={r.id}>{card}</View>;
+
+            return (
+              <Swipeable
+                key={r.id}
+                containerStyle={styles.swipeContainer}
+                friction={1.7}
+                rightThreshold={42}
+                overshootRight={false}
+                renderRightActions={(_progress, _translation, swipeable) => (
+                  <View style={styles.swipeActions}>
+                    <Pressable
+                      accessibilityLabel="Modifier le covoiturage"
+                      style={[styles.swipeAction, styles.editAction]}
+                      onPress={() => {
+                        swipeable.close();
+                        router.push({ pathname: '/create-carpool', params: { id: r.id } });
+                      }}
+                    >
+                      <Ionicons name="pencil" size={21} color="#FFFFFF" />
+                      <Text style={styles.swipeActionLabel}>MODIFIER</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel="Supprimer le covoiturage"
+                      disabled={deletingId === r.id}
+                      style={[styles.swipeAction, styles.deleteAction]}
+                      onPress={() => deleteCarpool(r.id, eventName, swipeable)}
+                    >
+                      {deletingId === r.id
+                        ? <ActivityIndicator color="#FFFFFF" size="small" />
+                        : <Ionicons name="trash-outline" size={22} color="#FFFFFF" />}
+                      <Text style={styles.swipeActionLabel}>SUPPR.</Text>
+                    </Pressable>
+                  </View>
+                )}
+              >
+                {card}
+              </Swipeable>
             );
           })}
 
@@ -294,6 +370,12 @@ function makeStyles(t: Theme) {
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
       borderRadius: 3, padding: 14,
     },
+    swipeContainer: { borderRadius: 3, overflow: 'hidden' },
+    swipeActions: { width: 140, flexDirection: 'row' },
+    swipeAction: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
+    editAction: { backgroundColor: '#2563EB' },
+    deleteAction: { backgroundColor: '#DC2626' },
+    swipeActionLabel: { color: '#FFFFFF', fontFamily: FONTS.mono, fontSize: 7.5, fontWeight: '800', letterSpacing: 0.5 },
     driverRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
     driverAvatar: {
       width: 36, height: 36, borderRadius: 18, backgroundColor: t.elevated,

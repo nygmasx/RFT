@@ -9,6 +9,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { AppNotification, useNotifications } from '@/hooks/useNotifications';
 import { safeBack } from '@/lib/navigation';
+import { notificationHref } from '@/lib/notification-navigation';
 
 const TAG_COLORS: Record<string, string> = {
   'COMPÉTITION': '#C8362D',
@@ -40,14 +41,8 @@ export default function NotificationsScreen() {
   const { data: notifications, loading, markAllRead, markRead, unreadCount } = useNotifications();
 
   const openNotification = (item: AppNotification) => {
-    const data = item.data ?? {};
-    if (data.screen === 'add_result') router.push({ pathname: '/add-result', params: data.competitionId ? { competitionId: data.competitionId } : {} });
-    else if (data.screen === 'admin_results') router.push({ pathname: '/admin-results', params: data.competitionId ? { competitionId: data.competitionId } : {} });
-    else if (data.announcementId) router.push({ pathname: '/announcement', params: { id: data.announcementId } });
-    else if (data.channelId) router.push({ pathname: '/chat', params: { channel: data.channelId, name: data.channelName ?? 'Salon' } });
-    else if (data.competitionId) router.push({ pathname: '/competition-detail', params: { id: data.competitionId } });
-    else if (item.type === 'calendar') router.push('/calendar');
-    else if (item.type === 'carpool') router.push('/(tabs)/covoiturage');
+    const href = notificationHref(item.data ?? {});
+    if (href) router.push(href);
   };
 
   return (

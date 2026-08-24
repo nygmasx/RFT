@@ -43,10 +43,24 @@ export interface Message {
   mediaMimeType: string | null;
   mediaFileName: string | null;
   mediaDurationMs: number | null;
+  replyToId: string | null;
+  replyTo: {
+    id: string;
+    userId: string;
+    body: string;
+    messageType: 'text' | 'image' | 'audio';
+    authorName: string;
+  } | null;
+  reactions: {
+    emoji: string;
+    count: number;
+    reacted: boolean;
+  }[];
   mentionedUserIds: string[];
   readCount: number;
   recipientCount: number;
   createdAt: string;
+  updatedAt: string | null;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
 }
 
@@ -128,6 +142,7 @@ export interface Carpool {
   id: string;
   driver_id: string;
   competition_id: string | null;
+  calendar_event_id: string | null;
   departure_city: string;
   departure_latitude: number | null;
   departure_longitude: number | null;
@@ -139,6 +154,7 @@ export interface Carpool {
   created_at: string;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
   competitions?: Pick<Competition, 'name' | 'comp_date' | 'location' | 'latitude' | 'longitude'>;
+  calendar_event?: Pick<CalendarEvent, 'title' | 'eventDate' | 'eventTime' | 'place' | 'latitude' | 'longitude' | 'type'>;
 }
 
 export interface PalmaresEntry {

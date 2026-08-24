@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
@@ -80,7 +81,7 @@ export function CoachHome() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.crimson} />}
+          refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={refresh} />}
         >
           <Pressable
             style={[styles.attentionCard, attentionCount === 0 && styles.attentionCardClear]}

@@ -20,7 +20,7 @@ before(async () => {
   await sqlClient.unsafe(`TRUNCATE TABLE
     email_campaigns, join_submissions, club_profile, join_forms, member_documents, payments, member_memberships,
     membership_plans, trial_registrations, class_bookings, class_sessions, family_profiles, seasons,
-    notifications, message_mentions, channel_reads, result_reminders, competition_bookmarks, announcement_reads, announcement_reactions,
+    notifications, message_reactions, message_mentions, channel_reads, result_reminders, competition_bookmarks, announcement_reads, announcement_reactions,
     announcement_replies, announcements, carpool_passengers, carpools, registrations,
     competitions, messages, channel_members, channels, calendar_events, push_tokens,
     user_settings, palmares, belt_records, sessions, accounts, verifications, users
@@ -267,6 +267,49 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.equal(createdCalendarCarpool.competitions?.name, 'Calendar Open Integration');
   assert.equal(createdCalendarCarpool.competitions?.latitude, 45.7579);
   assert.equal(createdCalendarCarpool.competitions?.longitude, 4.8320);
+
+  const calendarTrainingResponse = await call('/api/calendar', { method: 'POST', token: coach.token, body: {
+    type: 'cours', title: 'Entraînement No-Gi Integration', event_date: '2099-07-15', event_time: '19:30',
+    place: 'Dojo Ronin, Montataire', latitude: 49.2559, longitude: 2.4371,
+  } });
+  assert.equal(calendarTrainingResponse.status, 201, await calendarTrainingResponse.clone().text());
+  const calendarTraining = await calendarTrainingResponse.json() as { id: string };
+  const trainingCarpoolResponse = await call('/api/carpools', { method: 'POST', token: coach.token, body: {
+    calendar_event_id: calendarTraining.id,
+    departure_city: 'Gare de Creil', departure_latitude: 49.2647, departure_longitude: 2.4692,
+    departure_at: '2099-07-15T18:30:00.000Z', seats_total: 3, cost_per_seat: 0,
+  } });
+  assert.equal(trainingCarpoolResponse.status, 201, await trainingCarpoolResponse.clone().text());
+  const trainingCarpool = await trainingCarpoolResponse.json() as { id: string; calendar_event_id: string };
+  assert.equal(trainingCarpool.calendar_event_id, calendarTraining.id);
+
+  const carpoolsWithTrainingResponse = await call('/api/carpools', { token: member.token });
+  const carpoolsWithTraining = await carpoolsWithTrainingResponse.json() as {
+    carpools: { id: string; calendar_event_id: string | null; calendar_event?: { title: string } }[];
+  };
+  const listedTrainingCarpool = carpoolsWithTraining.carpools.find(({ id }) => id === trainingCarpool.id);
+  assert.equal(listedTrainingCarpool?.calendar_event_id, calendarTraining.id);
+  assert.equal(listedTrainingCarpool?.calendar_event?.title, 'Entraînement No-Gi Integration');
+
+  assert.equal((await call(`/api/carpools/${trainingCarpool.id}/edit`, { token: member.token })).status, 403);
+  const trainingUpdateBody = {
+    calendar_event_id: calendarTraining.id, competition_id: null,
+    departure_city: 'Gare de Creil — quai principal',
+    departure_latitude: 49.2647, departure_longitude: 2.4692,
+    departure_at: '2099-07-15T18:45:00.000Z', seats_total: 4, cost_per_seat: 2, notes: 'Départ ponctuel',
+  };
+  assert.equal((await call(`/api/carpools/${trainingCarpool.id}`, {
+    method: 'PUT', token: member.token, body: trainingUpdateBody,
+  })).status, 403);
+  const trainingUpdate = await call(`/api/carpools/${trainingCarpool.id}`, {
+    method: 'PUT', token: coach.token, body: trainingUpdateBody,
+  });
+  assert.equal(trainingUpdate.status, 200, await trainingUpdate.clone().text());
+  assert.equal((await trainingUpdate.json() as { departureCity: string }).departureCity, 'Gare de Creil — quai principal');
+  assert.equal((await call(`/api/carpools/${trainingCarpool.id}`, { method: 'DELETE', token: member.token })).status, 403);
+  assert.equal((await call(`/api/carpools/${trainingCarpool.id}`, { method: 'DELETE', token: coach.token })).status, 200);
+  assert.equal((await call(`/api/carpools/${trainingCarpool.id}/edit`, { token: coach.token })).status, 404);
+
   const calendarRegistration = await call(`/api/competitions/${calendarCompetition.id}/register`, {
     method: 'POST', token: member.token, body: {},
   });
@@ -302,6 +345,7 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   };
 
   let messageResponse!: Response;
+  let replyMessage!: { id: string; replyTo: { id: string } };
   try {
     messageResponse = await call(`/api/messages/${channel.id}`, {
       method: 'POST', token: coach.token, body: { body: 'Oss !' },
@@ -310,9 +354,10 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     assert.equal(messageResponse.status, 201, await messageResponse.clone().text());
     const message = await messageResponse.json() as { id: string; readCount: number };
     assert.equal(message.readCount, 0);
-    const sentPushes = expoPushPayloads.flat() as { to: string; data?: { senderId?: string } }[];
+    const sentPushes = expoPushPayloads.flat() as { to: string; data?: { senderId?: string; messageId?: string } }[];
     assert.deepEqual(sentPushes.map(({ to }) => to), ['ExponentPushToken[member-integration]']);
     assert.equal(sentPushes[0]?.data?.senderId, coach.id);
+    assert.equal(sentPushes[0]?.data?.messageId, message.id);
 
     const membersResponse = await call(`/api/messages/${channel.id}/members`, { token: coach.token });
     assert.equal(membersResponse.status, 200);
@@ -329,6 +374,17 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     } });
     assert.equal(mentionResponse.status, 201, await mentionResponse.clone().text());
     assert.deepEqual((await mentionResponse.json() as { mentionedUserIds: string[] }).mentionedUserIds, [member.id]);
+
+    const replyResponse = await call(`/api/messages/${channel.id}`, { method: 'POST', token: member.token, body: {
+      body: 'Bien reçu', reply_to_id: message.id,
+    } });
+    assert.equal(replyResponse.status, 201, await replyResponse.clone().text());
+    replyMessage = await replyResponse.json() as { id: string; replyTo: { id: string } };
+    assert.equal(replyMessage.replyTo.id, message.id);
+
+    const reactionResponse = await call(`/api/messages/item/${message.id}/reactions`, { method: 'PUT', token: member.token, body: { emoji: '🔥' } });
+    assert.equal(reactionResponse.status, 200, await reactionResponse.clone().text());
+    assert.deepEqual(await reactionResponse.json(), [{ emoji: '🔥', count: 1, reacted: true }]);
 
     const mediaResponse = await call(`/api/messages/${channel.id}/media`, { method: 'POST', token: coach.token, body: {
       data_url: 'data:audio/mp4;base64,AAAA', file_name: 'vocal.m4a', duration_ms: 500,
@@ -352,7 +408,8 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
       eq(notificationsTable.type, 'message'),
     )),
   ]);
-  assert.equal(senderMessageNotification.length, 0);
+  assert.equal(senderMessageNotification.length, 1);
+  assert.equal(JSON.parse(senderMessageNotification[0].data ?? '{}').messageId, replyMessage.id);
   assert.equal(recipientMessageNotification.length, 3);
   assert.ok(recipientMessageNotification.some(({ title }) => title.includes('mentionné')));
   const carpoolResponse = await call('/api/carpools', { method: 'POST', token: coach.token, body: {

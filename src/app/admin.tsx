@@ -2,11 +2,12 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Modal, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FormScrollView } from '@/components/form-scroll-view';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { FONTS, Theme } from '@/constants/theme';
@@ -240,7 +241,7 @@ export default function AdminScreen() {
       ) : (
         <FormScrollView
           contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.crimson} />}
+          refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {tab === 'pending' && (
             pending.length === 0

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FONTS, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { takeInitialNotificationHref } from '@/lib/initial-notification';
 
 export default function WelcomeScreen() {
   const { theme: t } = useTheme();
@@ -14,6 +15,7 @@ export default function WelcomeScreen() {
   const { user, profileStatus, loading } = useAuth();
 
   useEffect(() => {
+    let active = true;
     if (loading) return;
     if (!user) {
       router.replace('/(auth)/login');
@@ -21,10 +23,13 @@ export default function WelcomeScreen() {
     }
     const isCoach = user?.role === 'coach' || user?.role === 'admin';
     if (isCoach || profileStatus === 'approved') {
-      router.replace('/(tabs)/accueil');
+      void takeInitialNotificationHref(user.id).then((href) => {
+        if (active) router.replace(href ?? '/(tabs)/accueil');
+      });
     } else if (profileStatus === 'pending' || profileStatus === null) {
       router.replace('/(auth)/pending');
     }
+    return () => { active = false; };
   }, [user, profileStatus, loading]);
 
   if (loading || user) {

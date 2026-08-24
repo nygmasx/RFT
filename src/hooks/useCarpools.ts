@@ -7,6 +7,7 @@ import { Carpool } from '@/lib/database.types';
 type CarpoolApiRow = Partial<Carpool> & {
   driverId?: string;
   competitionId?: string | null;
+  calendarEventId?: string | null;
   departureCity?: string;
   departureLatitude?: number | null;
   departureLongitude?: number | null;
@@ -28,6 +29,7 @@ function normalizeCarpool(row: CarpoolApiRow): Carpool | null {
     id: row.id,
     driver_id: row.driver_id ?? row.driverId ?? '',
     competition_id: row.competition_id ?? row.competitionId ?? null,
+    calendar_event_id: row.calendar_event_id ?? row.calendarEventId ?? null,
     departure_city: row.departure_city ?? row.departureCity ?? '',
     departure_latitude: row.departure_latitude ?? row.departureLatitude ?? null,
     departure_longitude: row.departure_longitude ?? row.departureLongitude ?? null,
@@ -39,6 +41,7 @@ function normalizeCarpool(row: CarpoolApiRow): Carpool | null {
     created_at: row.created_at ?? row.createdAt ?? '',
     profiles: row.profiles,
     competitions: row.competitions,
+    calendar_event: row.calendar_event,
   };
 }
 

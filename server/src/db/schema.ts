@@ -1,6 +1,7 @@
 import {
   pgTable, text, boolean, integer, numeric,
   timestamp, date, time, uuid, primaryKey, uniqueIndex, doublePrecision,
+  check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -88,6 +89,7 @@ export const messages = pgTable('messages', {
   mediaFileName: text('media_file_name'),
   mediaDurationMs: integer('media_duration_ms'),
   mediaToken: uuid('media_token'),
+  replyToId: uuid('reply_to_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at'),
 }, (t) => [uniqueIndex('messages_media_token_unique').on(t.mediaToken)]);
@@ -102,6 +104,13 @@ export const messageMentions = pgTable('message_mentions', {
   messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
   userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.messageId, t.userId] })]);
+
+export const messageReactions = pgTable('message_reactions', {
+  messageId: uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  emoji: text('emoji').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] })]);
 
 export const announcements = pgTable('announcements', {
   id:        uuid('id').primaryKey().defaultRandom(),
@@ -181,6 +190,7 @@ export const carpools = pgTable('carpools', {
   id:            uuid('id').primaryKey().defaultRandom(),
   driverId:      text('driver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   competitionId: uuid('competition_id').references(() => competitions.id),
+  calendarEventId: uuid('calendar_event_id').references(() => calendarEvents.id, { onDelete: 'set null' }),
   departureCity: text('departure_city').notNull(),
   departureLatitude:  doublePrecision('departure_latitude'),
   departureLongitude: doublePrecision('departure_longitude'),
@@ -190,7 +200,9 @@ export const carpools = pgTable('carpools', {
   costPerSeat:   numeric('cost_per_seat', { precision: 6, scale: 2 }).default('0'),
   notes:         text('notes'),
   createdAt:     timestamp('created_at').notNull().defaultNow(),
-});
+}, (t) => [
+  check('carpools_single_destination_check', sql`${t.competitionId} IS NULL OR ${t.calendarEventId} IS NULL`),
+]);
 
 export const carpoolPassengers = pgTable('carpool_passengers', {
   carpoolId: uuid('carpool_id').notNull().references(() => carpools.id, { onDelete: 'cascade' }),

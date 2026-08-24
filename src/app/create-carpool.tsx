@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -10,17 +11,21 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
+import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { api } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
 
 export default function CreateCarpoolScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const { user } = useAuth();
 
   const { upcoming } = useCompetitions();
+  const { data: calendarEvents } = useCalendarEvents();
+  const trainings = useMemo(() => calendarEvents.filter((event) => event.type === 'cours'), [calendarEvents]);
 
-  const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<{ kind: 'competition' | 'training'; id: string } | null>(null);
   const [showEventList, setShowEventList] = useState(false);
   const [departureAddress, setDepartureAddress] = useState('');
   const [departurePoint, setDeparturePoint] = useState<AddressSuggestion | null>(null);
@@ -34,8 +39,56 @@ export default function CreateCarpoolScreen() {
   const [cost, setCost] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingCarpool, setLoadingCarpool] = useState(Boolean(id));
 
-  const selectedComp = upcoming.find((c) => c.id === selectedEvent);
+  const selectedComp = selectedEvent?.kind === 'competition'
+    ? upcoming.find((c) => c.id === selectedEvent.id)
+    : undefined;
+  const selectedTraining = selectedEvent?.kind === 'training'
+    ? trainings.find((event) => event.id === selectedEvent.id)
+    : undefined;
+  const selectedEventName = selectedComp?.name ?? selectedTraining?.title;
+
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    api.get<{
+      competition_id: string | null;
+      calendar_event_id: string | null;
+      departure_city: string;
+      departure_latitude: number | null;
+      departure_longitude: number | null;
+      departure_at: string;
+      seats_total: number;
+      cost_per_seat: number;
+      notes: string | null;
+    }>(`/api/carpools/${id}/edit`).then((carpool) => {
+      if (!active) return;
+      if (carpool.competition_id) setSelectedEvent({ kind: 'competition', id: carpool.competition_id });
+      else if (carpool.calendar_event_id) setSelectedEvent({ kind: 'training', id: carpool.calendar_event_id });
+      setDepartureAddress(carpool.departure_city);
+      setDeparturePoint({
+        label: carpool.departure_city,
+        latitude: carpool.departure_latitude ?? Number.NaN,
+        longitude: carpool.departure_longitude ?? Number.NaN,
+      });
+      const departure = new Date(carpool.departure_at);
+      if (!Number.isNaN(departure.getTime())) {
+        setDate(departure);
+        setTime(departure);
+      }
+      setSeats(carpool.seats_total);
+      setCost(carpool.cost_per_seat ? String(carpool.cost_per_seat) : '');
+      setNotes(carpool.notes ?? '');
+    }).catch((error: Error) => {
+      if (active) Alert.alert('Covoiturage indisponible', error.message, [
+        { text: 'Retour', onPress: () => safeBack('/(tabs)/covoiturage') },
+      ]);
+    }).finally(() => {
+      if (active) setLoadingCarpool(false);
+    });
+    return () => { active = false; };
+  }, [id]);
 
   const handleSubmit = async () => {
     if (!user || !selectedEvent || !departurePoint) return;
@@ -48,8 +101,9 @@ export default function CreateCarpoolScreen() {
     const costNum = parseFloat(cost.replace(',', '.')) || 0;
 
     try {
-      await api.post('/api/carpools', {
-        competition_id:  selectedEvent,
+      const payload = {
+        competition_id: selectedEvent.kind === 'competition' ? selectedEvent.id : null,
+        calendar_event_id: selectedEvent.kind === 'training' ? selectedEvent.id : null,
         departure_city:  departurePoint.label,
         departure_latitude: departurePoint.latitude,
         departure_longitude: departurePoint.longitude,
@@ -57,7 +111,9 @@ export default function CreateCarpoolScreen() {
         seats_total:     seats,
         cost_per_seat:   costNum,
         notes:           notes.trim() || null,
-      });
+      };
+      if (id) await api.put(`/api/carpools/${id}`, payload);
+      else await api.post('/api/carpools', payload);
       setSaving(false);
       safeBack('/(tabs)/covoiturage');
     } catch (e: any) {
@@ -66,7 +122,7 @@ export default function CreateCarpoolScreen() {
     }
   };
 
-  const canSubmit = !!selectedEvent && !!departurePoint && !saving;
+  const canSubmit = !!selectedEvent && !!departurePoint && !saving && !loadingCarpool;
 
   return (
     <View style={styles.container}>
@@ -75,12 +131,14 @@ export default function CreateCarpoolScreen() {
           <Pressable onPress={() => safeBack('/(tabs)/covoiturage')} style={styles.backBtn}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>PROPOSER UN COVOIT</Text>
+          <Text style={styles.headerTitle}>{id ? 'MODIFIER LE COVOIT' : 'PROPOSER UN COVOIT'}</Text>
           <View style={styles.headerSpacer} />
         </View>
       </SafeAreaView>
 
-      <FormScrollView
+      {loadingCarpool ? (
+        <View style={styles.loader}><ActivityIndicator color={t.crimson} /></View>
+      ) : <FormScrollView
         contentContainerStyle={styles.scroll}
       >
         {/* Événement */}
@@ -89,14 +147,15 @@ export default function CreateCarpoolScreen() {
           style={styles.dropdown}
           onPress={() => setShowEventList((v) => !v)}
         >
-          <Text style={selectedComp ? styles.dropdownValue : styles.dropdownPlaceholder}>
-            {selectedComp ? selectedComp.name : 'Sélectionner une compétition…'}
+          <Text style={selectedEventName ? styles.dropdownValue : styles.dropdownPlaceholder}>
+            {selectedEventName ?? 'Sélectionner une compétition ou un entraînement…'}
           </Text>
           <Text style={styles.dropdownArrow}>{showEventList ? '▲' : '▼'}</Text>
         </Pressable>
 
         {showEventList && (
           <View style={styles.eventList}>
+            {upcoming.length > 0 && <Text style={styles.eventGroupLabel}>COMPÉTITIONS</Text>}
             {upcoming.map((c, i) => {
               const d = new Date(c.comp_date);
               const day = String(d.getDate()).padStart(2, '0');
@@ -104,9 +163,9 @@ export default function CreateCarpoolScreen() {
               return (
                 <Pressable
                   key={c.id}
-                  style={[styles.eventOption, i > 0 && styles.eventOptionBorder]}
+                  style={[styles.eventOption, (i > 0) && styles.eventOptionBorder]}
                   onPress={() => {
-                    setSelectedEvent(c.id);
+                    setSelectedEvent({ kind: 'competition', id: c.id });
                     setShowEventList(false);
                   }}
                 >
@@ -118,12 +177,41 @@ export default function CreateCarpoolScreen() {
                     <Text style={styles.eventOptionName}>{c.name}</Text>
                     {c.location && <Text style={styles.eventOptionLoc}>{c.location}</Text>}
                   </View>
-                  {selectedEvent === c.id && (
+                  {selectedEvent?.kind === 'competition' && selectedEvent.id === c.id && (
                     <Ionicons name="checkmark" size={16} color={t.crimson} />
                   )}
                 </Pressable>
               );
             })}
+            {trainings.length > 0 && <Text style={styles.eventGroupLabel}>ENTRAÎNEMENTS</Text>}
+            {trainings.map((event) => {
+              const d = new Date(`${event.eventDate}T12:00:00`);
+              return (
+                <Pressable
+                  key={event.id}
+                  style={[styles.eventOption, styles.eventOptionBorder]}
+                  onPress={() => {
+                    setSelectedEvent({ kind: 'training', id: event.id });
+                    setShowEventList(false);
+                  }}
+                >
+                  <View style={styles.eventOptionDate}>
+                    <Text style={styles.eventOptionDay}>{String(d.getDate()).padStart(2, '0')}</Text>
+                    <Text style={styles.eventOptionMonth}>{d.toLocaleString('fr-FR', { month: 'short' }).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.eventOptionInfo}>
+                    <Text style={styles.eventOptionName}>{event.title}</Text>
+                    {!!event.place && <Text style={styles.eventOptionLoc}>{event.place}</Text>}
+                  </View>
+                  {selectedEvent?.kind === 'training' && selectedEvent.id === event.id && (
+                    <Ionicons name="checkmark" size={16} color={t.crimson} />
+                  )}
+                </Pressable>
+              );
+            })}
+            {upcoming.length === 0 && trainings.length === 0 && (
+              <Text style={styles.emptyEvents}>AUCUN ÉVÉNEMENT À VENIR</Text>
+            )}
           </View>
         )}
 
@@ -136,7 +224,7 @@ export default function CreateCarpoolScreen() {
           onSelect={(suggestion) => { setDepartureAddress(suggestion.label); setDeparturePoint(suggestion); }}
         />
         <Text style={[styles.addressHint, departurePoint && styles.addressHintValid]}>
-          {departurePoint ? '✓ ADRESSE LOCALISÉE' : 'SÉLECTIONNE UNE ADRESSE DANS LA LISTE'}
+          {departurePoint ? '✓ ADRESSE PRÊTE' : 'SÉLECTIONNE UNE ADRESSE DANS LA LISTE'}
         </Text>
 
         {/* Date & Heure */}
@@ -219,7 +307,7 @@ export default function CreateCarpoolScreen() {
         />
 
         <View style={{ height: 100 }} />
-      </FormScrollView>
+      </FormScrollView>}
 
       <SafeAreaView edges={['bottom']} style={styles.ctaWrap}>
         <Pressable
@@ -228,7 +316,7 @@ export default function CreateCarpoolScreen() {
           disabled={!canSubmit}
         >
           <Text style={styles.ctaBtnText}>
-            {saving ? 'ENREGISTREMENT…' : 'PROPOSER CE COVOITURAGE'}
+            {saving ? 'ENREGISTREMENT…' : id ? 'ENREGISTRER LES MODIFICATIONS' : 'PROPOSER CE COVOITURAGE'}
           </Text>
         </Pressable>
       </SafeAreaView>
@@ -253,6 +341,7 @@ function makeStyles(t: Theme) {
     },
     headerSpacer: { width: 36 },
     scroll: { paddingHorizontal: 20, paddingTop: 24 },
+    loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     fieldLabel: {
       fontFamily: FONTS.mono, fontSize: 10, color: t.textMute,
       letterSpacing: 2, marginBottom: 8,
@@ -278,6 +367,14 @@ function makeStyles(t: Theme) {
       backgroundColor: t.elevated,
       borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3,
       marginTop: 4, overflow: 'hidden',
+    },
+    eventGroupLabel: {
+      paddingHorizontal: 14, paddingVertical: 8, backgroundColor: t.surface,
+      fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1.5,
+    },
+    emptyEvents: {
+      padding: 18, textAlign: 'center', fontFamily: FONTS.mono,
+      fontSize: 9, color: t.textMute, letterSpacing: 1,
     },
     eventOption: {
       flexDirection: 'row', alignItems: 'center', gap: 12,

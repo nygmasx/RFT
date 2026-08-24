@@ -7,6 +7,7 @@ import {
   channelMembers,
   channelReads,
   messageMentions,
+  messageReactions,
   channels,
   pushTokens,
   userSettings,
@@ -24,6 +25,7 @@ const ALLOWED_MEDIA_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/webp',
   'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/3gpp', 'audio/webm',
 ]);
+const ALLOWED_REACTIONS = new Set(['❤️', '👍', '🔥', '😂', '😮', '🙏', '✊']);
 
 type MentionableMember = {
   id: string;
@@ -59,6 +61,37 @@ async function validatedMentions(channelId: string, isPrivate: boolean, requeste
   if (!uniqueIds.length) return [];
   const allowedIds = new Set((await eligibleMembers(channelId, isPrivate)).map(({ id }) => id));
   return uniqueIds.filter((id) => allowedIds.has(id));
+}
+
+async function validatedReply(channelId: string, requested: unknown) {
+  if (typeof requested !== 'string' || !requested) return null;
+  const [reply] = await db.select({
+    id: messages.id,
+    userId: messages.userId,
+    body: messages.body,
+    messageType: messages.messageType,
+    authorFirstName: users.firstName,
+    authorLastName: users.lastName,
+  }).from(messages)
+    .innerJoin(users, eq(messages.userId, users.id))
+    .where(and(eq(messages.id, requested as `${string}-${string}-${string}-${string}-${string}`), eq(messages.channelId, channelId)));
+  return reply ?? null;
+}
+
+function summarizeReactions(
+  rows: { messageId: string; userId: string; emoji: string }[],
+  messageId: string,
+  currentUserId: string,
+) {
+  const grouped = new Map<string, { emoji: string; count: number; reacted: boolean }>();
+  for (const row of rows) {
+    if (row.messageId !== messageId) continue;
+    const current = grouped.get(row.emoji) ?? { emoji: row.emoji, count: 0, reacted: false };
+    current.count += 1;
+    current.reacted ||= row.userId === currentUserId;
+    grouped.set(row.emoji, current);
+  }
+  return [...grouped.values()].sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji));
 }
 
 function mediaUrl(messageId: string, token: string | null) {
@@ -104,7 +137,7 @@ app.get('/:channelId', requireApproved, async (c) => {
       set: { readAt: new Date() },
     });
 
-  const [rows, readRows, mentionRows, members] = await Promise.all([
+  const [rows, readRows, mentionRows, reactionRows, members] = await Promise.all([
     db
     .select({
       id:        messages.id,
@@ -116,7 +149,9 @@ app.get('/:channelId', requireApproved, async (c) => {
       mediaFileName: messages.mediaFileName,
       mediaDurationMs: messages.mediaDurationMs,
       mediaToken: messages.mediaToken,
+      replyToId: messages.replyToId,
       createdAt: messages.createdAt,
+      updatedAt: messages.updatedAt,
       profiles: {
         first_name: users.firstName,
         last_name:  users.lastName,
@@ -131,14 +166,31 @@ app.get('/:channelId', requireApproved, async (c) => {
       .from(messageMentions)
       .innerJoin(messages, eq(messageMentions.messageId, messages.id))
       .where(eq(messages.channelId, channelId)),
+    db.select({ messageId: messageReactions.messageId, userId: messageReactions.userId, emoji: messageReactions.emoji })
+      .from(messageReactions)
+      .innerJoin(messages, eq(messageReactions.messageId, messages.id))
+      .where(eq(messages.channelId, channelId)),
     eligibleMembers(channelId, access.isPrivate),
   ]);
+
+  const repliesById = new Map(rows.map((row) => [row.id, row]));
 
   return c.json(rows.map((row) => ({
     ...row,
     mediaToken: undefined,
     mediaUrl: mediaUrl(row.id, row.mediaToken),
     mentionedUserIds: mentionRows.filter(({ messageId }) => messageId === row.id).map(({ userId }) => userId),
+    reactions: summarizeReactions(reactionRows, row.id, user.id),
+    replyTo: row.replyToId ? (() => {
+      const reply = repliesById.get(row.replyToId);
+      return reply ? {
+        id: reply.id,
+        userId: reply.userId,
+        body: reply.body,
+        messageType: reply.messageType,
+        authorName: `${reply.profiles.first_name} ${reply.profiles.last_name}`.trim(),
+      } : null;
+    })() : null,
     readCount: readRows.filter(({ userId, readAt }) => userId !== row.userId && readAt >= row.createdAt).length,
     recipientCount: members.filter(({ id }) => id !== row.userId).length,
   })));
@@ -148,7 +200,7 @@ app.get('/:channelId', requireApproved, async (c) => {
 app.post('/:channelId', requireApproved, async (c) => {
   const user = c.get('user');
   const channelId = c.req.param('channelId');
-  const { body, mention_user_ids } = await c.req.json<{ body: string; mention_user_ids?: string[] }>();
+  const { body, mention_user_ids, reply_to_id } = await c.req.json<{ body: string; mention_user_ids?: string[]; reply_to_id?: string }>();
 
   const access = await getChannelAccess(channelId, user.id);
   if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
@@ -158,10 +210,11 @@ app.post('/:channelId', requireApproved, async (c) => {
   if (!body?.trim()) return c.json({ error: 'Message vide' }, 400);
   if (body.trim().length > 4_000) return c.json({ error: 'Message trop long' }, 400);
   const mentionedUserIds = await validatedMentions(channelId, access.isPrivate, mention_user_ids);
+  const replyTo = await validatedReply(channelId, reply_to_id);
 
   const [msg] = await db
     .insert(messages)
-    .values({ channelId, userId: user.id, body: body.trim() })
+    .values({ channelId, userId: user.id, body: body.trim(), replyToId: replyTo?.id ?? null })
     .returning();
 
   if (mentionedUserIds.length) {
@@ -176,13 +229,22 @@ app.post('/:channelId', requireApproved, async (c) => {
     profiles: { first_name: user.firstName, last_name: user.lastName },
     mediaUrl: null,
     mentionedUserIds,
+    reactions: [],
+    replyTo: replyTo ? {
+      id: replyTo.id,
+      userId: replyTo.userId,
+      body: replyTo.body,
+      messageType: replyTo.messageType,
+      authorName: `${replyTo.authorFirstName} ${replyTo.authorLastName}`.trim(),
+    } : null,
     readCount: 0,
+    recipientCount: (await eligibleMembers(channelId, access.isPrivate)).filter(({ id }) => id !== user.id).length,
   };
 
   void createChannelNotifications(channelId, user, body.trim(), msg.id, mentionedUserIds);
 
   // Send push notification to channel members — fire and forget
-  notifyChannelMembers(channelId, user, body.trim(), mentionedUserIds).catch(() => {});
+  notifyChannelMembers(channelId, user, body.trim(), msg.id, mentionedUserIds).catch(() => {});
 
   return c.json(response, 201);
 });
@@ -196,6 +258,7 @@ app.post('/:channelId/media', requireApproved, async (c) => {
     duration_ms?: number;
     caption?: string;
     mention_user_ids?: string[];
+    reply_to_id?: string;
   }>();
   const access = await getChannelAccess(channelId, user.id);
   if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
@@ -214,6 +277,7 @@ app.post('/:channelId/media', requireApproved, async (c) => {
   const caption = payload.caption?.trim() ?? '';
   if (caption.length > 1_000) return c.json({ error: 'Légende trop longue' }, 400);
   const mentionedUserIds = await validatedMentions(channelId, access.isPrivate, payload.mention_user_ids);
+  const replyTo = await validatedReply(channelId, payload.reply_to_id);
   const mediaToken = crypto.randomUUID();
   const [msg] = await db.insert(messages).values({
     channelId,
@@ -225,6 +289,7 @@ app.post('/:channelId/media', requireApproved, async (c) => {
     mediaFileName: payload.file_name?.slice(0, 200) || null,
     mediaDurationMs: durationMs,
     mediaToken,
+    replyToId: replyTo?.id ?? null,
   }).returning();
 
   if (mentionedUserIds.length) {
@@ -236,16 +301,50 @@ app.post('/:channelId/media', requireApproved, async (c) => {
 
   const notificationBody = messageType === 'audio' ? '🎤 Message vocal' : '📷 Photo';
   void createChannelNotifications(channelId, user, notificationBody, msg.id, mentionedUserIds);
-  notifyChannelMembers(channelId, user, notificationBody, mentionedUserIds).catch(() => {});
+  notifyChannelMembers(channelId, user, notificationBody, msg.id, mentionedUserIds).catch(() => {});
   return c.json({
     ...msg,
     mediaData: undefined,
     mediaToken: undefined,
     mediaUrl: mediaUrl(msg.id, mediaToken),
     mentionedUserIds,
+    reactions: [],
+    replyTo: replyTo ? {
+      id: replyTo.id,
+      userId: replyTo.userId,
+      body: replyTo.body,
+      messageType: replyTo.messageType,
+      authorName: `${replyTo.authorFirstName} ${replyTo.authorLastName}`.trim(),
+    } : null,
     readCount: 0,
+    recipientCount: (await eligibleMembers(channelId, access.isPrivate)).filter(({ id }) => id !== user.id).length,
     profiles: { first_name: user.firstName, last_name: user.lastName },
   }, 201);
+});
+
+app.put('/item/:id/reactions', requireApproved, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const { emoji } = await c.req.json<{ emoji?: string }>();
+  if (!emoji || !ALLOWED_REACTIONS.has(emoji)) return c.json({ error: 'Réaction non acceptée' }, 400);
+  const [message] = await db.select({ id: messages.id, channelId: messages.channelId }).from(messages).where(eq(messages.id, id));
+  if (!message) return c.json({ error: 'Introuvable' }, 404);
+  const access = await getChannelAccess(message.channelId, user.id);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+
+  const [existing] = await db.select().from(messageReactions).where(and(
+    eq(messageReactions.messageId, id), eq(messageReactions.userId, user.id), eq(messageReactions.emoji, emoji),
+  ));
+  if (existing) {
+    await db.delete(messageReactions).where(and(
+      eq(messageReactions.messageId, id), eq(messageReactions.userId, user.id), eq(messageReactions.emoji, emoji),
+    ));
+  } else {
+    await db.insert(messageReactions).values({ messageId: id, userId: user.id, emoji });
+  }
+  const rows = await db.select({ messageId: messageReactions.messageId, userId: messageReactions.userId, emoji: messageReactions.emoji })
+    .from(messageReactions).where(eq(messageReactions.messageId, id));
+  return c.json(summarizeReactions(rows, id, user.id));
 });
 
 app.put('/item/:id', requireApproved, async (c) => {
@@ -324,6 +423,7 @@ async function notifyChannelMembers(
   channelId: string,
   sender: AuthUser,
   messageBody: string,
+  messageId: string,
   mentionedUserIds: string[] = [],
 ) {
   const [channel] = await db
@@ -382,7 +482,15 @@ async function notifyChannelMembers(
     title: mentionedIds.has(t.userId) ? `${senderName} t’a mentionné` : senderName,
     subtitle: `#${channel.name}`,
     body: messageBody,
-    data: { channelId, channelName: channel.name, senderId: sender.id, mentioned: mentionedIds.has(t.userId) },
+    data: {
+      screen: 'chat',
+      channelId,
+      channelName: channel.name,
+      messageId,
+      senderId: sender.id,
+      mentioned: mentionedIds.has(t.userId),
+      url: `/chat?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channel.name)}&message=${encodeURIComponent(messageId)}`,
+    },
     ...(avatarUrl ? { attachments: [{ url: avatarUrl }] } : {}),
   }));
 

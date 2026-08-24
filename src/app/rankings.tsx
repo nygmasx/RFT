@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
@@ -84,7 +85,7 @@ export default function RankingsScreen() {
       </SafeAreaView>
 
       {loading ? <View style={styles.center}><ActivityIndicator color={t.crimson} /></View> : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+        <ScrollView alwaysBounceVertical bounces decelerationRate="normal" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true); void load(true).finally(() => setRefreshing(false));
         }} />}>
           <View style={styles.modeTabs}>

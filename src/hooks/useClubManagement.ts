@@ -98,7 +98,10 @@ export function useClubOverview() {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { void refetch(); }, [refetch]);
+  useEffect(() => {
+    const initialFetch = setTimeout(refetch, 0);
+    return () => clearTimeout(initialFetch);
+  }, [refetch]);
   return { data, loading, error, refetch };
 }
 
@@ -128,6 +131,9 @@ export function useAdminClub() {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { void refetch(); }, [refetch]);
+  useEffect(() => {
+    const initialFetch = setTimeout(refetch, 0);
+    return () => clearTimeout(initialFetch);
+  }, [refetch]);
   return { data, loading, error, refetch };
 }

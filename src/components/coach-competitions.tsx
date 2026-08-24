@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS, Theme } from '@/constants/theme';
+import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useTheme } from '@/context/ThemeContext';
 import { CoachCompetitionOverview, useCoachOverview } from '@/hooks/useCoachOverview';
 
@@ -67,7 +68,7 @@ export function CoachCompetitions() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} tintColor={t.crimson} onRefresh={() => {
+          refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
             setRefreshing(true); void refetch().finally(() => setRefreshing(false));
           }} />}
         >
