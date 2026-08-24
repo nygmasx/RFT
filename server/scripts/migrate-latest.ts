@@ -9,6 +9,7 @@ const files = [
   '20260823_club_management.sql',
   '20260824_messaging_ux.sql',
   '20260824_carpool_training.sql',
+  '20260824_chat_polls.sql',
 ];
 
 try {

@@ -76,9 +76,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260818_chat_media
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260823_club_management.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260824_messaging_ux.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260824_carpool_training.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f server/migrations/20260824_chat_polls.sql
 ```
 
-La migration `20260823_club_management.sql` ajoute les saisons, cours récurrents, réservations et listes d’attente, appels et essais, profils famille, formules d’adhésion et paiements, documents membres, page publique, formulaires de contact et campagnes email. Les migrations récentes activent aussi la soumission de résultats par les athlètes avec validation coach, les rappels automatiques à J+1, les classements par ceinture/P4P, les réponses/réactions dans le chat et les covoiturages liés aux entraînements. Les rappels sont contrôlables avec `DISABLE_RESULT_REMINDERS=true` dans les environnements où un autre ordonnanceur est utilisé.
+La migration `20260823_club_management.sql` ajoute les saisons, cours récurrents, réservations et listes d’attente, appels et essais, profils famille, formules d’adhésion et paiements, documents membres, page publique, formulaires de contact et campagnes email. Les migrations récentes activent aussi la soumission de résultats par les athlètes avec validation coach, les rappels automatiques à J+1, les classements par ceinture/P4P, les réponses/réactions et sondages dans le chat, ainsi que les covoiturages liés aux entraînements. Les rappels sont contrôlables avec `DISABLE_RESULT_REMINDERS=true` dans les environnements où un autre ordonnanceur est utilisé.
 
 Après la migration de géolocalisation, compléter les coordonnées des données existantes :
 

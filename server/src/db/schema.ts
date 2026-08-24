@@ -112,6 +112,24 @@ export const messageReactions = pgTable('message_reactions', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] })]);
 
+export const messagePolls = pgTable('message_polls', {
+  messageId: uuid('message_id').primaryKey().references(() => messages.id, { onDelete: 'cascade' }),
+  allowsMultiple: boolean('allows_multiple').notNull().default(false),
+});
+
+export const messagePollOptions = pgTable('message_poll_options', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').notNull().references(() => messagePolls.messageId, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  position: integer('position').notNull(),
+}, (t) => [uniqueIndex('message_poll_options_position_unique').on(t.messageId, t.position)]);
+
+export const messagePollVotes = pgTable('message_poll_votes', {
+  optionId: uuid('option_id').notNull().references(() => messagePollOptions.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.optionId, t.userId] })]);
+
 export const announcements = pgTable('announcements', {
   id:        uuid('id').primaryKey().defaultRandom(),
   authorId:  text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

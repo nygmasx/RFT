@@ -38,7 +38,7 @@ export interface Message {
   channelId: string;
   userId: string;
   body: string;
-  messageType: 'text' | 'image' | 'audio';
+  messageType: 'text' | 'image' | 'audio' | 'poll';
   mediaUrl: string | null;
   mediaMimeType: string | null;
   mediaFileName: string | null;
@@ -48,7 +48,7 @@ export interface Message {
     id: string;
     userId: string;
     body: string;
-    messageType: 'text' | 'image' | 'audio';
+    messageType: 'text' | 'image' | 'audio' | 'poll';
     authorName: string;
   } | null;
   reactions: {
@@ -56,12 +56,24 @@ export interface Message {
     count: number;
     reacted: boolean;
   }[];
+  poll: MessagePoll | null;
   mentionedUserIds: string[];
   readCount: number;
   recipientCount: number;
   createdAt: string;
   updatedAt: string | null;
   profiles?: Pick<Profile, 'first_name' | 'last_name'>;
+}
+
+export interface MessagePoll {
+  allowsMultiple: boolean;
+  totalVoters: number;
+  options: {
+    id: string;
+    label: string;
+    voteCount: number;
+    voted: boolean;
+  }[];
 }
 
 export interface MentionableMember {

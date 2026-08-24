@@ -72,6 +72,17 @@ export function useMessages(channelId: string) {
     setMessages((prev) => [...prev, msg]);
   };
 
+  const createPoll = async (payload: { question: string; options: string[]; allows_multiple: boolean }) => {
+    if (!user) return;
+    const msg = await api.post<Message>(`/api/messages/${channelId}/polls`, payload);
+    setMessages((prev) => [...prev, msg]);
+  };
+
+  const votePoll = async (messageId: string, optionId: string) => {
+    const poll = await api.put<NonNullable<Message['poll']>>(`/api/messages/item/${messageId}/poll-vote`, { option_id: optionId });
+    setMessages((current) => current.map((message) => message.id === messageId ? { ...message, poll } : message));
+  };
+
   const deleteMessage = async (id: string) => {
     await api.delete(`/api/messages/item/${id}`);
     setMessages((current) => current.filter((message) => message.id !== id));
@@ -91,5 +102,5 @@ export function useMessages(channelId: string) {
 
   const getReceiptDetails = (id: string) => api.get<MessageReceiptDetails>(`/api/messages/item/${id}/receipts`);
 
-  return { messages, members, unreadMarker, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch: fetchMessages, currentUserId: user?.id };
+  return { messages, members, unreadMarker, loading, sendMessage, sendMedia, createPoll, votePoll, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch: fetchMessages, currentUserId: user?.id };
 }

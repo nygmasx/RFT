@@ -20,7 +20,7 @@ before(async () => {
   await sqlClient.unsafe(`TRUNCATE TABLE
     email_campaigns, join_submissions, club_profile, join_forms, member_documents, payments, member_memberships,
     membership_plans, trial_registrations, class_bookings, class_sessions, family_profiles, seasons,
-    notifications, message_reactions, message_mentions, channel_reads, result_reminders, competition_bookmarks, announcement_reads, announcement_reactions,
+    notifications, message_poll_votes, message_poll_options, message_polls, message_reactions, message_mentions, channel_reads, result_reminders, competition_bookmarks, announcement_reads, announcement_reactions,
     announcement_replies, announcements, carpool_passengers, carpools, registrations,
     competitions, messages, channel_members, channels, calendar_events, push_tokens,
     user_settings, palmares, belt_records, sessions, accounts, verifications, users
@@ -422,6 +422,55 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     assert.equal(reactionResponse.status, 200, await reactionResponse.clone().text());
     assert.deepEqual(await reactionResponse.json(), [{ emoji: '🔥', count: 1, reacted: true }]);
 
+    const invalidPollResponse = await call(`/api/messages/${channel.id}/polls`, { method: 'POST', token: coach.token, body: {
+      question: 'Créneau ?', options: ['18 h', ' 18 H '],
+    } });
+    assert.equal(invalidPollResponse.status, 400);
+
+    const pollResponse = await call(`/api/messages/${channel.id}/polls`, { method: 'POST', token: coach.token, body: {
+      question: 'Quel créneau ?', options: ['18 h', '20 h'], allows_multiple: false,
+    } });
+    assert.equal(pollResponse.status, 201, await pollResponse.clone().text());
+    const pollMessage = await pollResponse.json() as {
+      id: string;
+      messageType: string;
+      poll: { totalVoters: number; options: { id: string; voteCount: number; voted: boolean }[] };
+    };
+    assert.equal(pollMessage.messageType, 'poll');
+    assert.equal(pollMessage.poll.options.length, 2);
+    assert.equal(pollMessage.poll.totalVoters, 0);
+
+    const firstVoteResponse = await call(`/api/messages/item/${pollMessage.id}/poll-vote`, { method: 'PUT', token: member.token, body: {
+      option_id: pollMessage.poll.options[0]!.id,
+    } });
+    assert.equal(firstVoteResponse.status, 200, await firstVoteResponse.clone().text());
+    const firstVote = await firstVoteResponse.json() as typeof pollMessage.poll;
+    assert.equal(firstVote.options[0]!.voted, true);
+    assert.equal(firstVote.totalVoters, 1);
+
+    const changedVoteResponse = await call(`/api/messages/item/${pollMessage.id}/poll-vote`, { method: 'PUT', token: member.token, body: {
+      option_id: pollMessage.poll.options[1]!.id,
+    } });
+    const changedVote = await changedVoteResponse.json() as typeof pollMessage.poll;
+    assert.equal(changedVote.options[0]!.voteCount, 0);
+    assert.equal(changedVote.options[1]!.voteCount, 1);
+    assert.equal(changedVote.totalVoters, 1);
+
+    const multiplePollResponse = await call(`/api/messages/${channel.id}/polls`, { method: 'POST', token: coach.token, body: {
+      question: 'Quels cours ?', options: ['Gi', 'No-Gi'], allows_multiple: true,
+    } });
+    const multiplePollMessage = await multiplePollResponse.json() as typeof pollMessage;
+    for (const option of multiplePollMessage.poll.options) {
+      assert.equal((await call(`/api/messages/item/${multiplePollMessage.id}/poll-vote`, { method: 'PUT', token: member.token, body: {
+        option_id: option.id,
+      } })).status, 200);
+    }
+    const messagesWithPolls = await call(`/api/messages/${channel.id}`, { token: member.token });
+    const pollMessages = (await messagesWithPolls.json() as typeof pollMessage[]).filter(({ messageType }) => messageType === 'poll');
+    assert.equal(pollMessages.length, 2);
+    assert.equal(pollMessages.find(({ id }) => id === multiplePollMessage.id)?.poll.totalVoters, 1);
+    assert.ok(pollMessages.find(({ id }) => id === multiplePollMessage.id)?.poll.options.every(({ voted }) => voted));
+
     const mediaResponse = await call(`/api/messages/${channel.id}/media`, { method: 'POST', token: coach.token, body: {
       data_url: 'data:audio/mp4;base64,AAAA', file_name: 'vocal.m4a', duration_ms: 500,
     } });
@@ -446,7 +495,7 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   ]);
   assert.equal(senderMessageNotification.length, 1);
   assert.equal(JSON.parse(senderMessageNotification[0].data ?? '{}').messageId, replyMessage.id);
-  assert.equal(recipientMessageNotification.length, 3);
+  assert.equal(recipientMessageNotification.length, 5);
   assert.ok(recipientMessageNotification.some(({ title }) => title.includes('mentionné')));
   const carpoolResponse = await call('/api/carpools', { method: 'POST', token: coach.token, body: {
     competition_id: competition.id, departure_city: '12 Rue de la République 60160 Montataire',

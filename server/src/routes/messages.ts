@@ -7,6 +7,9 @@ import {
   channelMembers,
   channelReads,
   messageMentions,
+  messagePollOptions,
+  messagePolls,
+  messagePollVotes,
   messageReactions,
   channels,
   pushTokens,
@@ -17,6 +20,7 @@ import type { AuthUser } from '../auth';
 import { getChannelAccess } from '../lib/channel-access';
 import { isStaff } from '../lib/access';
 import { notifications } from '../db/schema';
+import { validatePollInput } from '../lib/polls';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -96,6 +100,50 @@ function summarizeReactions(
 
 function mediaUrl(messageId: string, token: string | null) {
   return token ? `${API_BASE_URL}/api/messages/media/${messageId}/${token}` : null;
+}
+
+type PollRow = { messageId: string; allowsMultiple: boolean };
+type PollOptionRow = { id: string; messageId: string; label: string; position: number };
+type PollVoteRow = { optionId: string; userId: string };
+
+function summarizePoll(
+  messageId: string,
+  pollRows: PollRow[],
+  optionRows: PollOptionRow[],
+  voteRows: PollVoteRow[],
+  currentUserId: string,
+) {
+  const poll = pollRows.find((row) => row.messageId === messageId);
+  if (!poll) return null;
+  const options = optionRows
+    .filter((option) => option.messageId === messageId)
+    .sort((a, b) => a.position - b.position)
+    .map((option) => {
+      const votes = voteRows.filter((vote) => vote.optionId === option.id);
+      return {
+        id: option.id,
+        label: option.label,
+        voteCount: votes.length,
+        voted: votes.some(({ userId }) => userId === currentUserId),
+      };
+    });
+  const optionIds = new Set(options.map(({ id }) => id));
+  const totalVoters = new Set(voteRows
+    .filter(({ optionId }) => optionIds.has(optionId))
+    .map(({ userId }) => userId)).size;
+  return { allowsMultiple: poll.allowsMultiple, totalVoters, options };
+}
+
+async function getPoll(messageId: string, currentUserId: string) {
+  const pollRows = await db.select().from(messagePolls).where(eq(messagePolls.messageId, messageId as `${string}-${string}-${string}-${string}-${string}`));
+  if (!pollRows.length) return null;
+  const optionRows = await db.select().from(messagePollOptions)
+    .where(eq(messagePollOptions.messageId, messageId as `${string}-${string}-${string}-${string}-${string}`));
+  const optionIds = optionRows.map(({ id }) => id);
+  const voteRows = optionIds.length
+    ? await db.select().from(messagePollVotes).where(inArray(messagePollVotes.optionId, optionIds))
+    : [];
+  return summarizePoll(messageId, pollRows, optionRows, voteRows, currentUserId);
 }
 
 // Opaque media URLs let native image/audio players stream without exposing auth tokens.
@@ -217,7 +265,7 @@ app.get('/:channelId', requireApproved, async (c) => {
       set: { readAt: new Date() },
     });
 
-  const [rows, readRows, mentionRows, reactionRows, members] = await Promise.all([
+  const [rows, readRows, mentionRows, reactionRows, members, pollRows, pollOptionRows, pollVoteRows] = await Promise.all([
     db
     .select({
       id:        messages.id,
@@ -251,6 +299,23 @@ app.get('/:channelId', requireApproved, async (c) => {
       .innerJoin(messages, eq(messageReactions.messageId, messages.id))
       .where(eq(messages.channelId, channelId)),
     eligibleMembers(channelId, access.isPrivate),
+    db.select({ messageId: messagePolls.messageId, allowsMultiple: messagePolls.allowsMultiple })
+      .from(messagePolls)
+      .innerJoin(messages, eq(messagePolls.messageId, messages.id))
+      .where(eq(messages.channelId, channelId)),
+    db.select({
+      id: messagePollOptions.id,
+      messageId: messagePollOptions.messageId,
+      label: messagePollOptions.label,
+      position: messagePollOptions.position,
+    }).from(messagePollOptions)
+      .innerJoin(messages, eq(messagePollOptions.messageId, messages.id))
+      .where(eq(messages.channelId, channelId)),
+    db.select({ optionId: messagePollVotes.optionId, userId: messagePollVotes.userId })
+      .from(messagePollVotes)
+      .innerJoin(messagePollOptions, eq(messagePollVotes.optionId, messagePollOptions.id))
+      .innerJoin(messages, eq(messagePollOptions.messageId, messages.id))
+      .where(eq(messages.channelId, channelId)),
   ]);
 
   const repliesById = new Map(rows.map((row) => [row.id, row]));
@@ -261,6 +326,7 @@ app.get('/:channelId', requireApproved, async (c) => {
     mediaUrl: mediaUrl(row.id, row.mediaToken),
     mentionedUserIds: mentionRows.filter(({ messageId }) => messageId === row.id).map(({ userId }) => userId),
     reactions: summarizeReactions(reactionRows, row.id, user.id),
+    poll: summarizePoll(row.id, pollRows, pollOptionRows, pollVoteRows, user.id),
     replyTo: row.replyToId ? (() => {
       const reply = repliesById.get(row.replyToId);
       return reply ? {
@@ -310,6 +376,7 @@ app.post('/:channelId', requireApproved, async (c) => {
     mediaUrl: null,
     mentionedUserIds,
     reactions: [],
+    poll: null,
     replyTo: replyTo ? {
       id: replyTo.id,
       userId: replyTo.userId,
@@ -327,6 +394,60 @@ app.post('/:channelId', requireApproved, async (c) => {
   notifyChannelMembers(channelId, user, body.trim(), msg.id, mentionedUserIds).catch(() => {});
 
   return c.json(response, 201);
+});
+
+app.post('/:channelId/polls', requireApproved, async (c) => {
+  const user = c.get('user');
+  const channelId = c.req.param('channelId');
+  const access = await getChannelAccess(channelId, user.id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+  if (access.isLocked && !isStaff(user)) return c.json({ error: 'Salon verrouillé' }, 403);
+
+  const validation = validatePollInput(await c.req.json<unknown>());
+  if (!validation.ok) return c.json({ error: validation.error }, 400);
+  const { question, options, allowsMultiple } = validation.value;
+
+  const { msg, optionRows } = await db.transaction(async (transaction) => {
+    const [createdMessage] = await transaction.insert(messages).values({
+      channelId,
+      userId: user.id,
+      body: question,
+      messageType: 'poll',
+    }).returning();
+    await transaction.insert(messagePolls).values({ messageId: createdMessage.id, allowsMultiple });
+    const createdOptions = await transaction.insert(messagePollOptions).values(options.map((label, position) => ({
+      messageId: createdMessage.id,
+      label,
+      position,
+    }))).returning();
+    return { msg: createdMessage, optionRows: createdOptions };
+  });
+
+  const notificationBody = `📊 ${question}`;
+  void createChannelNotifications(channelId, user, notificationBody, msg.id);
+  notifyChannelMembers(channelId, user, notificationBody, msg.id).catch(() => {});
+
+  return c.json({
+    ...msg,
+    profiles: { first_name: user.firstName, last_name: user.lastName },
+    mediaUrl: null,
+    mentionedUserIds: [],
+    reactions: [],
+    replyTo: null,
+    poll: {
+      allowsMultiple,
+      totalVoters: 0,
+      options: optionRows.sort((a, b) => a.position - b.position).map((option) => ({
+        id: option.id,
+        label: option.label,
+        voteCount: 0,
+        voted: false,
+      })),
+    },
+    readCount: 0,
+    recipientCount: (await eligibleMembers(channelId, access.isPrivate)).filter(({ id }) => id !== user.id).length,
+  }, 201);
 });
 
 app.post('/:channelId/media', requireApproved, async (c) => {
@@ -389,6 +510,7 @@ app.post('/:channelId/media', requireApproved, async (c) => {
     mediaUrl: mediaUrl(msg.id, mediaToken),
     mentionedUserIds,
     reactions: [],
+    poll: null,
     replyTo: replyTo ? {
       id: replyTo.id,
       userId: replyTo.userId,
@@ -400,6 +522,53 @@ app.post('/:channelId/media', requireApproved, async (c) => {
     recipientCount: (await eligibleMembers(channelId, access.isPrivate)).filter(({ id }) => id !== user.id).length,
     profiles: { first_name: user.firstName, last_name: user.lastName },
   }, 201);
+});
+
+app.put('/item/:id/poll-vote', requireApproved, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id') as `${string}-${string}-${string}-${string}-${string}`;
+  const { option_id: optionId } = await c.req.json<{ option_id?: string }>();
+  if (!optionId) return c.json({ error: 'Choix invalide' }, 400);
+
+  const [option] = await db.select({
+    optionId: messagePollOptions.id,
+    messageId: messagePollOptions.messageId,
+    channelId: messages.channelId,
+    allowsMultiple: messagePolls.allowsMultiple,
+  }).from(messagePollOptions)
+    .innerJoin(messagePolls, eq(messagePollOptions.messageId, messagePolls.messageId))
+    .innerJoin(messages, eq(messagePollOptions.messageId, messages.id))
+    .where(and(eq(messagePollOptions.id, optionId as `${string}-${string}-${string}-${string}-${string}`), eq(messages.id, id)));
+  if (!option) return c.json({ error: 'Sondage ou choix introuvable' }, 404);
+  const access = await getChannelAccess(option.channelId, user.id);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+
+  const [existingVote] = await db.select().from(messagePollVotes).where(and(
+    eq(messagePollVotes.optionId, option.optionId),
+    eq(messagePollVotes.userId, user.id),
+  ));
+  if (existingVote) {
+    await db.delete(messagePollVotes).where(and(
+      eq(messagePollVotes.optionId, option.optionId),
+      eq(messagePollVotes.userId, user.id),
+    ));
+  } else {
+    await db.transaction(async (transaction) => {
+      if (!option.allowsMultiple) {
+        const siblingOptions = await transaction.select({ id: messagePollOptions.id })
+          .from(messagePollOptions).where(eq(messagePollOptions.messageId, id));
+        if (siblingOptions.length) {
+          await transaction.delete(messagePollVotes).where(and(
+            eq(messagePollVotes.userId, user.id),
+            inArray(messagePollVotes.optionId, siblingOptions.map(({ id: siblingId }) => siblingId)),
+          ));
+        }
+      }
+      await transaction.insert(messagePollVotes).values({ optionId: option.optionId, userId: user.id }).onConflictDoNothing();
+    });
+  }
+
+  return c.json(await getPoll(id, user.id));
 });
 
 app.put('/item/:id/reactions', requireApproved, async (c) => {

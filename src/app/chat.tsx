@@ -42,6 +42,8 @@ interface MsgProps {
   onReactionPress: (emoji: string) => void;
   onSwipeReply: (message: Message) => void;
   onPhotoPress: (url: string, fileName: string | null) => void;
+  pollVotingOptionId: string | null;
+  onPollVote: (messageId: string, optionId: string) => void;
 }
 
 type PendingPhoto = {
@@ -53,19 +55,21 @@ type PendingPhoto = {
   height: number;
 };
 
-function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl, onVoiceActivate, onReplyPress, onReactionPress, onSwipeReply, onPhotoPress }: MsgProps) {
+function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl, onVoiceActivate, onReplyPress, onReactionPress, onSwipeReply, onPhotoPress, pollVotingOptionId, onPollVote }: MsgProps) {
   const swipeableRef = useRef<SwipeableMethods>(null);
   const authorName = msg.profiles
     ? `${msg.profiles.first_name} ${msg.profiles.last_name}`
     : 'Utilisateur';
   const timeStr = new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-  const body = msg.body ? msg.body.split(/(@[\p{L}\d._-]+)/gu).map((part, index) => (
+  const body = msg.body && msg.messageType !== 'poll' ? msg.body.split(/(@[\p{L}\d._-]+)/gu).map((part, index) => (
     <Text key={`${part}-${index}`} style={part.startsWith('@') ? msgStyles.mention : undefined}>{part}</Text>
   )) : null;
-  const content = msg.messageType === 'image' && msg.mediaUrl
-    ? <MessagePhoto url={msg.mediaUrl} fileName={msg.mediaFileName} styles={msgStyles} onPress={onPhotoPress} />
-    : msg.messageType === 'audio' && msg.mediaUrl
+  const content = msg.messageType === 'poll' && msg.poll
+    ? <PollBubble messageId={msg.id} question={msg.body} poll={msg.poll} styles={msgStyles} pendingOptionId={pollVotingOptionId} onVote={onPollVote} />
+    : msg.messageType === 'image' && msg.mediaUrl
+      ? <MessagePhoto url={msg.mediaUrl} fileName={msg.mediaFileName} styles={msgStyles} onPress={onPhotoPress} />
+      : msg.messageType === 'audio' && msg.mediaUrl
       ? <VoiceBubble
           url={msg.mediaUrl}
           durationMs={msg.mediaDurationMs}
@@ -79,7 +83,7 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
     <Pressable style={msgStyles.replyQuote} onPress={() => onReplyPress(msg.replyTo!.id)}>
       <Text style={msgStyles.replyAuthor} numberOfLines={1}>{msg.replyTo.authorName}</Text>
       <Text style={msgStyles.replyBody} numberOfLines={1}>
-        {msg.replyTo.messageType === 'audio' ? '🎤 Message vocal' : msg.replyTo.messageType === 'image' ? '📷 Photo' : msg.replyTo.body}
+        {msg.replyTo.messageType === 'audio' ? '🎤 Message vocal' : msg.replyTo.messageType === 'image' ? '📷 Photo' : msg.replyTo.messageType === 'poll' ? `📊 ${msg.replyTo.body}` : msg.replyTo.body}
       </Text>
     </Pressable>
   ) : null;
@@ -150,6 +154,49 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
     >
       {message}
     </Swipeable>
+  );
+}
+
+function PollBubble({ messageId, question, poll, styles, pendingOptionId, onVote }: {
+  messageId: string;
+  question: string;
+  poll: NonNullable<Message['poll']>;
+  styles: ReturnType<typeof makeMsgStyles>;
+  pendingOptionId: string | null;
+  onVote: (messageId: string, optionId: string) => void;
+}) {
+  return (
+    <View style={styles.poll}>
+      <View style={styles.pollHeading}>
+        <Ionicons name="stats-chart" size={16} color="#FFD166" />
+        <Text style={styles.pollQuestion}>{question}</Text>
+      </View>
+      <Text style={styles.pollHint}>{poll.allowsMultiple ? 'PLUSIEURS RÉPONSES POSSIBLES' : 'UNE SEULE RÉPONSE'}</Text>
+      <View style={styles.pollOptions}>
+        {poll.options.map((option) => {
+          const percentage = poll.totalVoters > 0 ? Math.round(option.voteCount / poll.totalVoters * 100) : 0;
+          const pending = pendingOptionId === option.id;
+          return (
+            <Pressable
+              key={option.id}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: option.voted, disabled: Boolean(pendingOptionId) }}
+              style={[styles.pollOption, option.voted && styles.pollOptionSelected]}
+              disabled={Boolean(pendingOptionId)}
+              onPress={() => onVote(messageId, option.id)}
+            >
+              <View style={[styles.pollProgress, { width: `${percentage}%` }]} />
+              <View style={[styles.pollCheck, option.voted && styles.pollCheckSelected]}>
+                {option.voted ? <Ionicons name="checkmark" size={12} color="#111111" /> : null}
+              </View>
+              <Text style={styles.pollOptionLabel}>{option.label}</Text>
+              {pending ? <ActivityIndicator size="small" color="#FFD166" /> : <Text style={styles.pollPercentage}>{percentage}%</Text>}
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.pollTotal}>{poll.totalVoters} VOTANT{poll.totalVoters > 1 ? 'S' : ''}</Text>
+    </View>
   );
 }
 
@@ -312,6 +359,23 @@ function makeMsgStyles(t: Theme) {
     },
     theirText: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 21, color: t.bone },
     mention: { color: '#FFD166', fontWeight: '800' },
+    poll: { width: 268, maxWidth: '100%' },
+    pollHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    pollQuestion: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 15, lineHeight: 20, fontWeight: '800' },
+    pollHint: { color: 'rgba(255,255,255,0.58)', fontFamily: FONTS.mono, fontSize: 7.5, letterSpacing: 0.8, marginTop: 5 },
+    pollOptions: { gap: 7, marginTop: 12 },
+    pollOption: {
+      minHeight: 43, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 9,
+      paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9,
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.14)',
+    },
+    pollOptionSelected: { borderColor: '#FFD166' },
+    pollProgress: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(255,209,102,0.16)' },
+    pollCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.65)', alignItems: 'center', justifyContent: 'center' },
+    pollCheckSelected: { backgroundColor: '#FFD166', borderColor: '#FFD166' },
+    pollOptionLabel: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 13, lineHeight: 17, fontWeight: '600' },
+    pollPercentage: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800' },
+    pollTotal: { color: 'rgba(255,255,255,0.62)', fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1, marginTop: 9, textAlign: 'right' },
     replyQuote: { borderLeftWidth: 3, borderLeftColor: '#FFD166', backgroundColor: 'rgba(0,0,0,0.16)', borderRadius: 5, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 6, minWidth: 150 },
     replyAuthor: { color: '#FFD166', fontFamily: FONTS.body, fontSize: 10, fontWeight: '800' },
     replyBody: { color: t.bone, opacity: 0.78, fontFamily: FONTS.body, fontSize: 10, marginTop: 1 },
@@ -359,11 +423,17 @@ export default function ChatScreen() {
   const [dismissedUnreadChannel, setDismissedUnreadChannel] = useState<string | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [newMessagesWhileAway, setNewMessagesWhileAway] = useState(0);
+  const [pollComposerVisible, setPollComposerVisible] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollAllowsMultiple, setPollAllowsMultiple] = useState(false);
+  const [sendingPoll, setSendingPoll] = useState(false);
+  const [pollVotingOptionId, setPollVotingOptionId] = useState<string | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
 
-  const { messages, members, unreadMarker, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch, currentUserId } = useMessages(channel);
+  const { messages, members, unreadMarker, loading, sendMessage, sendMedia, createPoll, votePoll, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch, currentUserId } = useMessages(channel);
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const focusedTargetRef = useRef<string | null>(null);
@@ -393,6 +463,8 @@ export default function ChatScreen() {
   });
 
   const channelName = name ?? 'Salon';
+  const validPollOptionCount = pollOptions.filter((option) => option.trim()).length;
+  const canSubmitPoll = Boolean(pollQuestion.trim() && validPollOptionCount >= 2 && !sendingPoll);
 
   const isAnnonces = channel === 'annonces';
   const isParentsEnfants = channel === 'parents-enfants';
@@ -509,6 +581,51 @@ export default function ChatScreen() {
   const openAttachments = () => {
     haptics.light();
     setAttachmentMenuVisible(true);
+  };
+
+  const openPollComposer = () => {
+    setAttachmentMenuVisible(false);
+    setPollComposerVisible(true);
+    haptics.selection();
+  };
+
+  const closePollComposer = () => {
+    setPollComposerVisible(false);
+    setPollQuestion('');
+    setPollOptions(['', '']);
+    setPollAllowsMultiple(false);
+  };
+
+  const submitPoll = async () => {
+    const options = pollOptions.map((option) => option.trim()).filter(Boolean);
+    if (!pollQuestion.trim() || options.length < 2 || sendingPoll) return;
+    setSendingPoll(true);
+    try {
+      await createPoll({ question: pollQuestion.trim(), options, allows_multiple: pollAllowsMultiple });
+      haptics.success();
+      closePollComposer();
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+    } catch (error) {
+      haptics.error();
+      Alert.alert('Sondage non créé', error instanceof Error ? error.message : 'Réessaie dans un instant.');
+    } finally {
+      setSendingPoll(false);
+    }
+  };
+
+  const handlePollVote = async (messageId: string, optionId: string) => {
+    if (pollVotingOptionId) return;
+    setPollVotingOptionId(optionId);
+    haptics.selection();
+    try {
+      await votePoll(messageId, optionId);
+      haptics.light();
+    } catch (error) {
+      haptics.error();
+      Alert.alert('Vote impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
+    } finally {
+      setPollVotingOptionId(null);
+    }
   };
 
   const toggleRecording = async () => {
@@ -735,6 +852,8 @@ export default function ChatScreen() {
               onReactionPress={(emoji) => { haptics.selection(); void toggleReaction(item.id, emoji); }}
               onSwipeReply={startReply}
               onPhotoPress={(url, fileName) => { haptics.light(); setViewingPhoto({ url, fileName }); }}
+              pollVotingOptionId={pollVotingOptionId}
+              onPollVote={(messageId, optionId) => void handlePollVote(messageId, optionId)}
             />
         </>}
         style={{ flex: 1, opacity: loading || (messages.length > 0 && positionedChannel !== channel) ? 0 : 1 }}
@@ -924,8 +1043,8 @@ export default function ChatScreen() {
           <Pressable accessibilityLabel="Fermer les pièces jointes" style={StyleSheet.absoluteFill} onPress={() => setAttachmentMenuVisible(false)} />
           <SafeAreaView edges={['bottom']} style={styles.attachmentSheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.attachmentTitle}>AJOUTER UNE PHOTO</Text>
-            <Text style={styles.attachmentSubtitle}>Tu pourras la vérifier et ajouter une légende avant l’envoi.</Text>
+            <Text style={styles.attachmentTitle}>AJOUTER AU MESSAGE</Text>
+            <Text style={styles.attachmentSubtitle}>Envoie une photo ou lance un sondage dans le salon.</Text>
             <View style={styles.attachmentOptions}>
               <Pressable style={styles.attachmentOption} onPress={() => void pickImage(false)}>
                 <View style={[styles.attachmentOptionIcon, { backgroundColor: '#3B82F6' }]}><Ionicons name="images" size={25} color="#FFFFFF" /></View>
@@ -936,8 +1055,101 @@ export default function ChatScreen() {
                 <Text style={styles.attachmentOptionText}>APPAREIL PHOTO</Text>
               </Pressable>
             </View>
+            <Pressable style={styles.attachmentPollOption} onPress={openPollComposer}>
+              <View style={[styles.attachmentOptionIcon, { backgroundColor: '#8B5CF6' }]}><Ionicons name="stats-chart" size={24} color="#FFFFFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.attachmentPollTitle}>SONDAGE</Text>
+                <Text style={styles.attachmentPollSubtitle}>Pose une question et laisse le groupe voter.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={t.textMute} />
+            </Pressable>
           </SafeAreaView>
         </View>
+      </Modal>
+
+      <Modal
+        visible={pollComposerVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => { if (!sendingPoll) closePollComposer(); }}
+      >
+        <KeyboardAvoidingView style={styles.pollComposerScreen} behavior="padding" automaticOffset>
+          <SafeAreaView edges={['top', 'bottom']} style={styles.pollComposerSafe}>
+            <View style={styles.pollComposerHeader}>
+              <Pressable disabled={sendingPoll} style={styles.pollHeaderAction} onPress={closePollComposer}>
+                <Text style={styles.pollCancelText}>ANNULER</Text>
+              </Pressable>
+              <Text style={styles.pollComposerTitle}>NOUVEAU SONDAGE</Text>
+              <Pressable disabled={!canSubmitPoll} style={styles.pollHeaderAction} onPress={() => void submitPoll()}>
+                {sendingPoll ? <ActivityIndicator size="small" color={t.crimson} /> : <Text style={[styles.pollCreateText, !canSubmitPoll && styles.pollCreateTextDisabled]}>CRÉER</Text>}
+              </Pressable>
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.pollComposerContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.pollFieldLabel}>QUESTION</Text>
+              <TextInput
+                autoFocus
+                value={pollQuestion}
+                onChangeText={setPollQuestion}
+                placeholder="Ex. Quel jour pour l’entraînement ?"
+                placeholderTextColor={t.textMute}
+                style={styles.pollQuestionInput}
+                maxLength={240}
+                multiline
+              />
+              <Text style={styles.pollCharacterCount}>{pollQuestion.length}/240</Text>
+
+              <Text style={[styles.pollFieldLabel, { marginTop: 24 }]}>CHOIX</Text>
+              <View style={styles.pollOptionInputs}>
+                {pollOptions.map((option, index) => (
+                  <View key={`poll-option-${index}`} style={styles.pollOptionInputRow}>
+                    <View style={styles.pollOptionBullet}><Text style={styles.pollOptionBulletText}>{index + 1}</Text></View>
+                    <TextInput
+                      value={option}
+                      onChangeText={(value) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? value : item))}
+                      placeholder={`Choix ${index + 1}`}
+                      placeholderTextColor={t.textMute}
+                      style={styles.pollOptionInput}
+                      maxLength={120}
+                      returnKeyType="next"
+                    />
+                    {pollOptions.length > 2 ? (
+                      <Pressable accessibilityLabel={`Supprimer le choix ${index + 1}`} hitSlop={8} onPress={() => {
+                        haptics.selection();
+                        setPollOptions((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                      }}><Ionicons name="close-circle" size={21} color={t.textMute} /></Pressable>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+              {pollOptions.length < 10 ? (
+                <Pressable style={styles.pollAddOption} onPress={() => {
+                  haptics.selection();
+                  setPollOptions((current) => [...current, '']);
+                }}>
+                  <Ionicons name="add" size={19} color={t.crimson} />
+                  <Text style={styles.pollAddOptionText}>AJOUTER UN CHOIX</Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable style={styles.pollMultipleRow} onPress={() => {
+                haptics.selection();
+                setPollAllowsMultiple((current) => !current);
+              }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pollMultipleTitle}>RÉPONSES MULTIPLES</Text>
+                  <Text style={styles.pollMultipleSubtitle}>Les membres pourront sélectionner plusieurs choix.</Text>
+                </View>
+                <View style={[styles.pollToggle, pollAllowsMultiple && styles.pollToggleActive]}>
+                  <View style={[styles.pollToggleThumb, pollAllowsMultiple && styles.pollToggleThumbActive]} />
+                </View>
+              </Pressable>
+            </ScrollView>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={Boolean(pendingPhoto)} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => !sendingMedia && setPendingPhoto(null)}>
@@ -1202,6 +1414,35 @@ function makeStyles(t: Theme) {
     attachmentOption: { flex: 1, minHeight: 112, alignItems: 'center', justifyContent: 'center', gap: 11, borderRadius: 16, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong },
     attachmentOptionIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
     attachmentOptionText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+    attachmentPollOption: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 16, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong, paddingHorizontal: 14, marginBottom: 12 },
+    attachmentPollTitle: { color: t.bone, fontFamily: FONTS.mono, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+    attachmentPollSubtitle: { color: t.textDim, fontFamily: FONTS.body, fontSize: 11.5, marginTop: 3 },
+    pollComposerScreen: { flex: 1, backgroundColor: t.ink },
+    pollComposerSafe: { flex: 1, backgroundColor: t.ink },
+    pollComposerHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline, paddingHorizontal: 8 },
+    pollHeaderAction: { width: 76, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+    pollCancelText: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
+    pollComposerTitle: { flex: 1, color: t.bone, textAlign: 'center', fontFamily: FONTS.display, fontSize: 15, fontWeight: '900', letterSpacing: 1.2 },
+    pollCreateText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+    pollCreateTextDisabled: { color: t.textMute },
+    pollComposerContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40 },
+    pollFieldLabel: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1.6, marginBottom: 9 },
+    pollQuestionInput: { minHeight: 104, maxHeight: 160, color: t.bone, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 14, paddingHorizontal: 15, paddingVertical: 14, fontFamily: FONTS.body, fontSize: 16, lineHeight: 22, textAlignVertical: 'top' },
+    pollCharacterCount: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, textAlign: 'right', marginTop: 5 },
+    pollOptionInputs: { gap: 9 },
+    pollOptionInputRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 12, paddingHorizontal: 12 },
+    pollOptionBullet: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson + '24', borderWidth: 1, borderColor: t.crimson },
+    pollOptionBulletText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900' },
+    pollOptionInput: { flex: 1, minHeight: 50, color: t.bone, fontFamily: FONTS.body, fontSize: 14, paddingVertical: 10 },
+    pollAddOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
+    pollAddOptionText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+    pollMultipleRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 15, marginTop: 22, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 14 },
+    pollMultipleTitle: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9.5, fontWeight: '900', letterSpacing: 1 },
+    pollMultipleSubtitle: { color: t.textDim, fontFamily: FONTS.body, fontSize: 11.5, lineHeight: 16, marginTop: 4 },
+    pollToggle: { width: 48, height: 28, borderRadius: 14, justifyContent: 'center', paddingHorizontal: 3, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong },
+    pollToggleActive: { backgroundColor: t.crimson, borderColor: t.crimson },
+    pollToggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.textMute },
+    pollToggleThumbActive: { alignSelf: 'flex-end', backgroundColor: t.bone },
     photoPreview: { flex: 1, backgroundColor: '#050505' },
     photoPreviewHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' },
     photoPreviewClose: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
