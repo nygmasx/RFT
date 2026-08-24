@@ -429,6 +429,10 @@ export default function ChatScreen() {
   const [pollAllowsMultiple, setPollAllowsMultiple] = useState(false);
   const [sendingPoll, setSendingPoll] = useState(false);
   const [pollVotingOptionId, setPollVotingOptionId] = useState<string | null>(null);
+  const [channelMenuVisible, setChannelMenuVisible] = useState(false);
+  const [channelMembersVisible, setChannelMembersVisible] = useState(false);
+  const [messageSearchVisible, setMessageSearchVisible] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
@@ -465,6 +469,13 @@ export default function ChatScreen() {
   const channelName = name ?? 'Salon';
   const validPollOptionCount = pollOptions.filter((option) => option.trim()).length;
   const canSubmitPoll = Boolean(pollQuestion.trim() && validPollOptionCount >= 2 && !sendingPoll);
+  const normalizedMessageSearch = messageSearchQuery.trim().toLocaleLowerCase('fr-FR');
+  const messageSearchResults = normalizedMessageSearch.length > 0
+    ? messages.filter((message) => {
+        const author = message.profiles ? `${message.profiles.first_name} ${message.profiles.last_name}` : '';
+        return `${author} ${message.body}`.toLocaleLowerCase('fr-FR').includes(normalizedMessageSearch);
+      }).slice(-50).reverse()
+    : [];
 
   const isAnnonces = channel === 'annonces';
   const isParentsEnfants = channel === 'parents-enfants';
@@ -815,8 +826,16 @@ export default function ChatScreen() {
               SALON{isCoachs ? ' · PRIVÉ' : ''}
             </Text>
           </View>
-          <Pressable>
-            <Text style={styles.moreIcon}>···</Text>
+          <Pressable
+            accessibilityLabel="Options du salon"
+            hitSlop={10}
+            style={styles.moreButton}
+            onPress={() => {
+              haptics.light();
+              setChannelMenuVisible(true);
+            }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={22} color={t.bone} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1035,6 +1054,131 @@ export default function ChatScreen() {
               </Pressable>
             ) : null}
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={channelMenuVisible} transparent animationType="fade" onRequestClose={() => setChannelMenuVisible(false)}>
+        <View style={styles.menuOverlay}>
+          <Pressable accessibilityLabel="Fermer les options du salon" style={StyleSheet.absoluteFill} onPress={() => setChannelMenuVisible(false)} />
+          <SafeAreaView edges={['bottom']} style={styles.channelMenuSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.channelMenuTitle}>{channelName.toLocaleUpperCase('fr-FR')}</Text>
+            <Text style={styles.channelMenuSubtitle}>{messages.length} MESSAGE{messages.length > 1 ? 'S' : ''} · {members.length + (user ? 1 : 0)} MEMBRE{members.length + (user ? 1 : 0) > 1 ? 'S' : ''}</Text>
+            <Pressable style={styles.channelMenuAction} onPress={() => {
+              setChannelMenuVisible(false);
+              setMessageSearchVisible(true);
+              haptics.selection();
+            }}>
+              <View style={styles.channelMenuIcon}><Ionicons name="search" size={19} color={t.bone} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.channelMenuActionTitle}>Rechercher</Text><Text style={styles.channelMenuActionSubtitle}>Retrouver un message dans ce salon</Text></View>
+              <Ionicons name="chevron-forward" size={18} color={t.textMute} />
+            </Pressable>
+            <Pressable style={styles.channelMenuAction} onPress={() => {
+              setChannelMenuVisible(false);
+              setChannelMembersVisible(true);
+              haptics.selection();
+            }}>
+              <View style={styles.channelMenuIcon}><Ionicons name="people" size={19} color={t.bone} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.channelMenuActionTitle}>Membres du salon</Text><Text style={styles.channelMenuActionSubtitle}>Voir les participants</Text></View>
+              <Ionicons name="chevron-forward" size={18} color={t.textMute} />
+            </Pressable>
+            <Pressable style={styles.channelMenuAction} onPress={() => {
+              setChannelMenuVisible(false);
+              haptics.light();
+              jumpToLatest(true);
+            }}>
+              <View style={styles.channelMenuIcon}><Ionicons name="arrow-down" size={19} color={t.bone} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.channelMenuActionTitle}>Dernier message</Text><Text style={styles.channelMenuActionSubtitle}>Revenir immédiatement en bas</Text></View>
+            </Pressable>
+            <Pressable style={styles.channelMenuAction} onPress={() => {
+              setChannelMenuVisible(false);
+              setRefreshing(true);
+              haptics.light();
+              void refetch().finally(() => {
+                setRefreshing(false);
+                haptics.success();
+              });
+            }}>
+              <View style={styles.channelMenuIcon}><Ionicons name="refresh" size={19} color={t.bone} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.channelMenuActionTitle}>Actualiser</Text><Text style={styles.channelMenuActionSubtitle}>Charger les derniers messages</Text></View>
+            </Pressable>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      <Modal visible={messageSearchVisible} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setMessageSearchVisible(false)}>
+        <KeyboardAvoidingView style={styles.messageSearchScreen} behavior="padding" automaticOffset>
+          <SafeAreaView edges={['top', 'bottom']} style={styles.messageSearchSafe}>
+            <View style={styles.messageSearchHeader}>
+              <Pressable accessibilityLabel="Fermer la recherche" hitSlop={8} style={styles.messageSearchBack} onPress={() => setMessageSearchVisible(false)}>
+                <Ionicons name="chevron-back" size={25} color={t.bone} />
+              </Pressable>
+              <View style={styles.messageSearchInputWrap}>
+                <Ionicons name="search" size={17} color={t.textMute} />
+                <TextInput
+                  autoFocus
+                  value={messageSearchQuery}
+                  onChangeText={setMessageSearchQuery}
+                  placeholder="Rechercher dans le salon"
+                  placeholderTextColor={t.textMute}
+                  style={styles.messageSearchInput}
+                  returnKeyType="search"
+                />
+                {messageSearchQuery ? <Pressable accessibilityLabel="Effacer la recherche" onPress={() => setMessageSearchQuery('')}><Ionicons name="close-circle" size={18} color={t.textMute} /></Pressable> : null}
+              </View>
+            </View>
+            {normalizedMessageSearch ? (
+              <FlatList
+                data={messageSearchResults}
+                keyExtractor={(item) => item.id}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.messageSearchResults}
+                ListHeaderComponent={<Text style={styles.messageSearchCount}>{messageSearchResults.length} RÉSULTAT{messageSearchResults.length > 1 ? 'S' : ''}</Text>}
+                ListEmptyComponent={<View style={styles.messageSearchEmpty}><Ionicons name="search-outline" size={30} color={t.textMute} /><Text style={styles.messageSearchEmptyText}>Aucun message trouvé</Text></View>}
+                renderItem={({ item }) => {
+                  const preview = item.messageType === 'audio' ? '🎤 Message vocal' : item.messageType === 'image' ? `📷 ${item.body || 'Photo'}` : item.messageType === 'poll' ? `📊 ${item.body}` : item.body;
+                  const author = item.profiles ? `${item.profiles.first_name} ${item.profiles.last_name}` : 'Utilisateur';
+                  return <Pressable style={styles.messageSearchResult} onPress={() => {
+                    setMessageSearchVisible(false);
+                    haptics.selection();
+                    setTimeout(() => scrollToMessage(item.id, false), 180);
+                  }}>
+                    <View style={styles.messageSearchAvatar}><Text style={styles.messageSearchAvatarText}>{author[0]}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.messageSearchMeta}><Text style={styles.messageSearchAuthor}>{author}</Text><Text style={styles.messageSearchDate}>{new Date(item.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</Text></View>
+                      <Text style={styles.messageSearchPreview} numberOfLines={2}>{preview}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={17} color={t.textMute} />
+                  </Pressable>;
+                }}
+              />
+            ) : (
+              <View style={styles.messageSearchEmpty}><Ionicons name="chatbubble-ellipses-outline" size={34} color={t.textMute} /><Text style={styles.messageSearchEmptyTitle}>RECHERCHE DE MESSAGES</Text><Text style={styles.messageSearchEmptyText}>Saisis un mot, un nom ou une phrase.</Text></View>
+            )}
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={channelMembersVisible} transparent animationType="slide" onRequestClose={() => setChannelMembersVisible(false)}>
+        <View style={styles.menuOverlay}>
+          <Pressable accessibilityLabel="Fermer la liste des membres" style={StyleSheet.absoluteFill} onPress={() => setChannelMembersVisible(false)} />
+          <SafeAreaView edges={['bottom']} style={styles.membersSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.membersHeader}>
+              <View><Text style={styles.membersTitle}>MEMBRES DU SALON</Text><Text style={styles.membersSubtitle}>{members.length + (user ? 1 : 0)} PARTICIPANT{members.length + (user ? 1 : 0) > 1 ? 'S' : ''}</Text></View>
+              <Pressable accessibilityLabel="Fermer" hitSlop={8} onPress={() => setChannelMembersVisible(false)}><Ionicons name="close" size={22} color={t.textDim} /></Pressable>
+            </View>
+            <ScrollView style={styles.membersScroll} showsVerticalScrollIndicator={false}>
+              {user ? <View style={styles.memberRow}>
+                <View style={[styles.memberAvatar, { backgroundColor: t.crimson }]}><Text style={styles.memberAvatarText}>{user.firstName[0]}{user.lastName[0]}</Text></View>
+                <View style={{ flex: 1 }}><Text style={styles.memberName}>{user.firstName} {user.lastName}</Text><Text style={styles.memberRole}>VOUS</Text></View>
+              </View> : null}
+              {members.map((member) => <View key={member.id} style={styles.memberRow}>
+                <View style={styles.memberAvatar}><Text style={styles.memberAvatarText}>{member.firstName[0]}{member.lastName[0]}</Text></View>
+                <Text style={styles.memberName}>{member.firstName} {member.lastName}</Text>
+              </View>)}
+            </ScrollView>
+          </SafeAreaView>
         </View>
       </Modal>
 
@@ -1289,7 +1433,7 @@ function makeStyles(t: Theme) {
     chanInfo: { flex: 1, minWidth: 0 },
     chanName: { fontFamily: FONTS.body, fontSize: 14, fontWeight: '700', color: t.bone },
     chanMeta: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.2, marginTop: 1 },
-    moreIcon: { fontSize: 18, color: t.bone, letterSpacing: 2 },
+    moreButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     privateNotice: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       marginHorizontal: 16, marginTop: 12, marginBottom: 6, padding: 10,
@@ -1401,6 +1545,41 @@ function makeStyles(t: Theme) {
     mentionName: { color: t.bone, fontFamily: FONTS.body, fontSize: 13, fontWeight: '600' },
     menuOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
     messageMenu: { backgroundColor: t.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 34, borderWidth: 1, borderColor: t.hairlineStrong },
+    channelMenuSheet: { backgroundColor: t.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12, borderWidth: 1, borderColor: t.hairlineStrong },
+    channelMenuTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900', letterSpacing: 1.2 },
+    channelMenuSubtitle: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8.5, letterSpacing: 1.1, marginTop: 4, marginBottom: 12 },
+    channelMenuAction: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.hairline, paddingHorizontal: 2 },
+    channelMenuIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
+    channelMenuActionTitle: { color: t.bone, fontFamily: FONTS.body, fontSize: 14, fontWeight: '700' },
+    channelMenuActionSubtitle: { color: t.textMute, fontFamily: FONTS.body, fontSize: 11.5, marginTop: 2 },
+    messageSearchScreen: { flex: 1, backgroundColor: t.ink },
+    messageSearchSafe: { flex: 1, backgroundColor: t.ink },
+    messageSearchHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline, paddingHorizontal: 10 },
+    messageSearchBack: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+    messageSearchInputWrap: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 22, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, paddingHorizontal: 13 },
+    messageSearchInput: { flex: 1, minHeight: 42, color: t.bone, fontFamily: FONTS.body, fontSize: 14, paddingVertical: 9 },
+    messageSearchResults: { paddingHorizontal: 16, paddingBottom: 30 },
+    messageSearchCount: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8.5, letterSpacing: 1.2, paddingVertical: 15 },
+    messageSearchResult: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline, paddingVertical: 10 },
+    messageSearchAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
+    messageSearchAvatarText: { color: t.bone, fontFamily: FONTS.display, fontSize: 12, fontWeight: '900' },
+    messageSearchMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    messageSearchAuthor: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 12.5, fontWeight: '700' },
+    messageSearchDate: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8 },
+    messageSearchPreview: { color: t.textDim, fontFamily: FONTS.body, fontSize: 12, lineHeight: 17, marginTop: 3 },
+    messageSearchEmpty: { flex: 1, minHeight: 260, alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 30 },
+    messageSearchEmptyTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
+    messageSearchEmptyText: { color: t.textMute, fontFamily: FONTS.body, fontSize: 12.5, textAlign: 'center' },
+    membersSheet: { maxHeight: '76%', minHeight: 280, backgroundColor: t.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 12, borderWidth: 1, borderColor: t.hairlineStrong },
+    membersHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline },
+    membersTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 17, fontWeight: '900', letterSpacing: 1.1 },
+    membersSubtitle: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8.5, letterSpacing: 1, marginTop: 3 },
+    membersScroll: { marginHorizontal: -2 },
+    memberRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline, paddingHorizontal: 2 },
+    memberAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
+    memberAvatarText: { color: t.bone, fontFamily: FONTS.display, fontSize: 11, fontWeight: '900' },
+    memberName: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 13.5, fontWeight: '700' },
+    memberRole: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1, marginTop: 2 },
     quickReactions: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.elevated, borderRadius: 24, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 12 },
     quickReaction: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
     quickReactionText: { fontSize: 23 },
