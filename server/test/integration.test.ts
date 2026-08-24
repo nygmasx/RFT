@@ -63,6 +63,14 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   await db.update(users).set({ status: 'approved' }).where(eq(users.id, member.id));
 
   assert.equal((await call('/api/profile', { token: member.token })).status, 200);
+  const avatarDataUrl = 'data:image/jpeg;base64,/9j/2Q==';
+  const avatarUpload = await call('/api/profile/avatar', { method: 'PUT', token: member.token, body: { dataUrl: avatarDataUrl } });
+  assert.equal(avatarUpload.status, 200, await avatarUpload.clone().text());
+  assert.equal((await avatarUpload.json() as { avatarUrl: string }).avatarUrl, avatarDataUrl);
+  const avatarDownload = await call(`/api/profile/${member.id}/avatar`);
+  assert.equal(avatarDownload.status, 200);
+  assert.equal(avatarDownload.headers.get('content-type'), 'image/jpeg');
+  assert.ok((await call('/api/profile', { token: member.token }).then((response) => response.json()) as { avatarUrl: string }).avatarUrl);
 
   const seasonResponse = await call('/api/club/admin/seasons', { method: 'POST', token: coach.token, body: {
     name: 'Saison intégration', startDate: '2098-09-01', endDate: '2099-08-31', status: 'active',
@@ -359,6 +367,14 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     assert.equal(sentPushes[0]?.data?.senderId, coach.id);
     assert.equal(sentPushes[0]?.data?.messageId, message.id);
 
+    const unreadMarkerResponse = await call(`/api/messages/${channel.id}/unread-marker`, { token: member.token });
+    assert.equal(unreadMarkerResponse.status, 200, await unreadMarkerResponse.clone().text());
+    assert.deepEqual(await unreadMarkerResponse.json(), {
+      firstUnreadMessageId: message.id,
+      count: 1,
+      since: null,
+    });
+
     const membersResponse = await call(`/api/messages/${channel.id}/members`, { token: coach.token });
     assert.equal(membersResponse.status, 200);
     assert.ok((await membersResponse.json() as { id: string }[]).some(({ id }) => id === member.id));
@@ -368,6 +384,11 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
     const memberMessages = await messages.json() as { id: string; readCount: number }[];
     assert.equal(memberMessages.length, 1);
     assert.equal(memberMessages[0].readCount, 1);
+    assert.deepEqual(await (await call(`/api/messages/${channel.id}/unread-marker`, { token: member.token })).json(), {
+      firstUnreadMessageId: null,
+      count: 0,
+      since: (await (await call(`/api/messages/item/${message.id}/receipts`, { token: coach.token })).json() as { recipients: { readAt: string }[] }).recipients[0].readAt,
+    });
 
     const receiptResponse = await call(`/api/messages/item/${message.id}/receipts`, { token: coach.token });
     assert.equal(receiptResponse.status, 200, await receiptResponse.clone().text());

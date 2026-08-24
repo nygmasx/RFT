@@ -16,13 +16,13 @@ export function objectStorageConfigured() {
 }
 
 export async function uploadAvatar(userId: string, dataUrl: string) {
-  const storage = config();
-  if (!storage) throw new Error('OBJECT_STORAGE_NOT_CONFIGURED');
   const match = dataUrl.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/s);
   if (!match) throw new Error('INVALID_AVATAR');
   const extension = match[1] === 'jpeg' ? 'jpg' : match[1];
   const body = Buffer.from(match[2], 'base64');
   if (!body.length || body.length > 2_000_000) throw new Error('INVALID_AVATAR');
+  const storage = config();
+  if (!storage) return `data:image/${match[1]};base64,${match[2]}`;
   const key = `avatars/${userId}/${crypto.randomUUID()}.${extension}`;
   const client = new S3Client({
     endpoint: storage.endpoint,

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, asc, and, inArray, isNull, ne, or } from 'drizzle-orm';
+import { eq, asc, and, desc, gt, inArray, isNull, ne, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   messages,
@@ -121,6 +121,43 @@ app.get('/:channelId/members', requireApproved, async (c) => {
   if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
   return c.json((await eligibleMembers(channelId, access.isPrivate))
     .filter(({ id }) => id !== c.get('user').id));
+});
+
+app.get('/:channelId/unread-marker', requireApproved, async (c) => {
+  const user = c.get('user');
+  const channelId = c.req.param('channelId');
+  const access = await getChannelAccess(channelId, user.id);
+  if (!access.exists) return c.json({ error: 'Salon introuvable' }, 404);
+  if (!access.allowed) return c.json({ error: 'Accès refusé' }, 403);
+
+  const [[readRow], [lastOwnMessage]] = await Promise.all([
+    db.select({ readAt: channelReads.readAt })
+      .from(channelReads)
+      .where(and(eq(channelReads.channelId, channelId), eq(channelReads.userId, user.id)))
+      .limit(1),
+    db.select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(and(eq(messages.channelId, channelId), eq(messages.userId, user.id)))
+      .orderBy(desc(messages.createdAt))
+      .limit(1),
+  ]);
+  const cutoff = [readRow?.readAt, lastOwnMessage?.createdAt]
+    .filter((value): value is Date => Boolean(value))
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const unread = await db.select({ id: messages.id, createdAt: messages.createdAt })
+    .from(messages)
+    .where(and(
+      eq(messages.channelId, channelId),
+      ne(messages.userId, user.id),
+      cutoff ? gt(messages.createdAt, cutoff) : undefined,
+    ))
+    .orderBy(asc(messages.createdAt));
+
+  return c.json({
+    firstUnreadMessageId: unread[0]?.id ?? null,
+    count: unread.length,
+    since: cutoff ?? null,
+  });
 });
 
 app.get('/item/:id/receipts', requireApproved, async (c) => {

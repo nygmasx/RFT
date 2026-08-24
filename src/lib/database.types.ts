@@ -86,6 +86,12 @@ export interface MessageReceiptDetails {
   }[];
 }
 
+export interface MessageUnreadMarker {
+  firstUnreadMessageId: string | null;
+  count: number;
+  since: string | null;
+}
+
 export interface Announcement {
   id: string;
   authorId: string;

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { MentionableMember, Message, MessageReceiptDetails } from '@/lib/database.types';
+import { MentionableMember, Message, MessageReceiptDetails, MessageUnreadMarker } from '@/lib/database.types';
 
 export function useMessages(channelId: string) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading]   = useState(true);
   const [members, setMembers] = useState<MentionableMember[]>([]);
+  const [unreadMarker, setUnreadMarker] = useState<MessageUnreadMarker | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchMessages = useCallback(async () => {
@@ -31,9 +32,20 @@ export function useMessages(channelId: string) {
     }
   }, [channelId]);
 
+  const fetchUnreadMarker = useCallback(async () => {
+    if (!channelId) return;
+    try {
+      setUnreadMarker(await api.get<MessageUnreadMarker>(`/api/messages/${channelId}/unread-marker`));
+    } catch (e: any) {
+      console.error('[useMessages:unread-marker]', e.message);
+    }
+  }, [channelId]);
+
   useEffect(() => {
     if (!channelId) return;
-    const initialFetch = setTimeout(fetchMessages, 0);
+    const initialFetch = setTimeout(() => {
+      void fetchUnreadMarker().finally(fetchMessages);
+    }, 0);
     const memberFetch = setTimeout(fetchMembers, 0);
     // Poll every 3s for new messages
     pollRef.current = setInterval(fetchMessages, 3000);
@@ -42,7 +54,7 @@ export function useMessages(channelId: string) {
       clearTimeout(memberFetch);
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [channelId, fetchMembers, fetchMessages]);
+  }, [channelId, fetchMembers, fetchMessages, fetchUnreadMarker]);
 
   const sendMessage = async (body: string, mentionUserIds: string[] = [], replyToId?: string) => {
     if (!user || !body.trim()) return;
@@ -79,5 +91,5 @@ export function useMessages(channelId: string) {
 
   const getReceiptDetails = (id: string) => api.get<MessageReceiptDetails>(`/api/messages/item/${id}/receipts`);
 
-  return { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch: fetchMessages, currentUserId: user?.id };
+  return { messages, members, unreadMarker, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch: fetchMessages, currentUserId: user?.id };
 }

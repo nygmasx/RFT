@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -190,17 +190,18 @@ function PhotoViewer({ photo, onClose }: {
   onClose: () => void;
 }) {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={Boolean(photo)} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={viewerStyles.container}>
-        <SafeAreaView edges={['top']} style={viewerStyles.header}>
-          <Pressable accessibilityLabel="Fermer la photo" style={viewerStyles.viewerButton} onPress={onClose}>
-            <Ionicons name="close" size={26} color="#FFFFFF" />
+        <View style={[viewerStyles.header, { paddingTop: Math.max(insets.top, 12) }]}>
+          <Pressable accessibilityLabel="Fermer la photo" hitSlop={12} style={viewerStyles.viewerButton} onPress={onClose}>
+            <Ionicons name="close" size={29} color="#FFFFFF" />
           </Pressable>
           <Text style={viewerStyles.title} numberOfLines={1}>{photo?.fileName || 'Photo'}</Text>
           <View style={viewerStyles.viewerButton} />
-        </SafeAreaView>
+        </View>
         <ScrollView
           style={viewerStyles.zoom}
           contentContainerStyle={viewerStyles.zoomContent}
@@ -212,7 +213,7 @@ function PhotoViewer({ photo, onClose }: {
         >
           {photo ? <ExpoImage source={{ uri: photo.url }} style={{ width, height: height - 100 }} contentFit="contain" /> : null}
         </ScrollView>
-        <SafeAreaView edges={['bottom']}><Text style={viewerStyles.hint}>PINCE POUR ZOOMER</Text></SafeAreaView>
+        <Text style={[viewerStyles.hint, { paddingBottom: Math.max(insets.bottom, 10) }]}>PINCE POUR ZOOMER</Text>
       </View>
     </Modal>
   );
@@ -220,12 +221,12 @@ function PhotoViewer({ photo, onClose }: {
 
 const viewerStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000000' },
-  header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' },
-  viewerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.16)' },
+  viewerButton: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center', color: '#FFFFFF', fontFamily: FONTS.body, fontSize: 14, fontWeight: '700' },
   zoom: { flex: 1 },
   zoomContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
-  hint: { color: 'rgba(255,255,255,0.55)', fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.8, textAlign: 'center', paddingVertical: 10 },
+  hint: { color: 'rgba(255,255,255,0.55)', fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.8, textAlign: 'center', paddingTop: 10 },
 });
 
 function VoiceBubble({ url, durationMs, t, styles, active, onActivate }: {
@@ -354,14 +355,19 @@ export default function ChatScreen() {
   const [receiptMessage, setReceiptMessage] = useState<Message | null>(null);
   const [receiptDetails, setReceiptDetails] = useState<MessageReceiptDetails | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [positionedChannel, setPositionedChannel] = useState<string | null>(null);
+  const [dismissedUnreadChannel, setDismissedUnreadChannel] = useState<string | null>(null);
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
 
-  const { messages, members, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch, currentUserId } = useMessages(channel);
+  const { messages, members, unreadMarker, loading, sendMessage, sendMedia, deleteMessage, editMessage, toggleReaction, getReceiptDetails, refetch, currentUserId } = useMessages(channel);
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const focusedTargetRef = useRef<string | null>(null);
+  const isNearEndRef = useRef(true);
+  const renderedMessageCountRef = useRef(0);
+  const renderedChannelRef = useRef(channel);
 
   const channelName = name ?? 'Salon';
 
@@ -516,22 +522,36 @@ export default function ChatScreen() {
     ]);
   };
 
-  const scrollToMessage = (messageId: string) => {
+  const scrollToMessage = (messageId: string, animated = true) => {
     const index = messages.findIndex((item) => item.id === messageId);
     if (index < 0) return;
     setHighlightedMessageId(messageId);
-    flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    flatListRef.current?.scrollToIndex({ index, animated, viewPosition: 0.35 });
     setTimeout(() => setHighlightedMessageId((current) => current === messageId ? null : current), 2200);
   };
 
   useEffect(() => {
     if (!targetMessageId || messages.length === 0 || focusedTargetRef.current === targetMessageId) return;
     focusedTargetRef.current = targetMessageId;
-    const timer = setTimeout(() => scrollToMessage(targetMessageId), 120);
+    const timer = setTimeout(() => scrollToMessage(targetMessageId, false), 120);
     return () => clearTimeout(timer);
     // scrollToMessage intentionally follows the latest loaded messages.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, targetMessageId]);
+
+  const showMissedMessages = () => {
+    if (!unreadMarker?.firstUnreadMessageId) return;
+    haptics.medium();
+    setDismissedUnreadChannel(channel);
+    scrollToMessage(unreadMarker.firstUnreadMessageId, false);
+  };
+
+  const unreadBannerVisible = Boolean(
+    unreadMarker?.firstUnreadMessageId
+    && unreadMarker.count > 0
+    && dismissedUnreadChannel !== channel
+    && positionedChannel === channel,
+  );
 
   const startReply = (message: Message) => {
     haptics.medium();
@@ -651,28 +671,36 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         automaticOffset
         style={{ flex: 1 }}
-        behavior="padding"
+        behavior="translate-with-padding"
       >
       <FlatList
         ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
+        renderItem={({ item }) => <>
+          {item.id === unreadMarker?.firstUnreadMessageId ? (
+            <View style={styles.unreadDivider}>
+              <View style={styles.unreadDividerLine} />
+              <Text style={styles.unreadDividerText}>NOUVEAUX MESSAGES</Text>
+              <View style={styles.unreadDividerLine} />
+            </View>
+          ) : null}
           <Msg
-            msg={item}
-            isMe={item.userId === currentUserId}
-            t={t}
-            msgStyles={msgStyles}
-            onLongPress={() => { haptics.medium(); setSelectedMessage(item); }}
-            highlighted={highlightedMessageId === item.id}
-            activeVoiceUrl={activeVoiceUrl}
-            onVoiceActivate={setActiveVoiceUrl}
-            onReplyPress={scrollToMessage}
-            onReactionPress={(emoji) => { haptics.selection(); void toggleReaction(item.id, emoji); }}
-            onSwipeReply={startReply}
-            onPhotoPress={(url, fileName) => { haptics.light(); setViewingPhoto({ url, fileName }); }}
-          />
-        )}
+              msg={item}
+              isMe={item.userId === currentUserId}
+              t={t}
+              msgStyles={msgStyles}
+              onLongPress={() => { haptics.medium(); setSelectedMessage(item); }}
+              highlighted={highlightedMessageId === item.id}
+              activeVoiceUrl={activeVoiceUrl}
+              onVoiceActivate={setActiveVoiceUrl}
+              onReplyPress={scrollToMessage}
+              onReactionPress={(emoji) => { haptics.selection(); void toggleReaction(item.id, emoji); }}
+              onSwipeReply={startReply}
+              onPhotoPress={(url, fileName) => { haptics.light(); setViewingPhoto({ url, fileName }); }}
+            />
+        </>}
+        style={{ opacity: loading || (messages.length > 0 && positionedChannel !== channel) ? 0 : 1 }}
         contentContainerStyle={styles.messages}
         ListHeaderComponent={headerComponent}
         ListFooterComponent={footerComponent}
@@ -683,21 +711,56 @@ export default function ChatScreen() {
           setRefreshing(true); void refetch().finally(() => setRefreshing(false));
         }} />}
         onContentSizeChange={() => {
-          if (messages.length > 0 && !targetMessageId && !focusedTargetRef.current) {
-            flatListRef.current?.scrollToEnd({ animated: true });
+          if (renderedChannelRef.current !== channel) {
+            renderedChannelRef.current = channel;
+            renderedMessageCountRef.current = 0;
+          }
+          const previousCount = renderedMessageCountRef.current;
+          renderedMessageCountRef.current = messages.length;
+          if (loading) return;
+          if (positionedChannel !== channel) {
+            if (messages.length > 0 && !targetMessageId) {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            }
+            requestAnimationFrame(() => setPositionedChannel(channel));
+            return;
+          }
+          if (messages.length > previousCount && isNearEndRef.current) {
+            requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
           }
         }}
         onLayout={() => {
-          if (messages.length > 0 && !targetMessageId) {
+          if (!loading && positionedChannel !== channel && messages.length === 0) {
             flatListRef.current?.scrollToEnd({ animated: false });
+            requestAnimationFrame(() => setPositionedChannel(channel));
           }
         }}
+        onScroll={({ nativeEvent }) => {
+          const distanceFromEnd = nativeEvent.contentSize.height
+            - nativeEvent.layoutMeasurement.height
+            - nativeEvent.contentOffset.y;
+          isNearEndRef.current = distanceFromEnd < 140;
+        }}
+        scrollEventThrottle={16}
         onScrollToIndexFailed={({ index, averageItemLength }) => {
           flatListRef.current?.scrollToOffset({ offset: Math.max(0, index * averageItemLength), animated: false });
-          setTimeout(() => flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 }), 120);
+          setTimeout(() => flatListRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.35 }), 120);
         }}
         ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
       />
+
+      {unreadBannerVisible ? (
+        <View style={styles.unreadBanner}>
+          <Pressable accessibilityLabel="Voir les messages manqués" style={styles.unreadBannerMain} onPress={showMissedMessages}>
+            <Ionicons name="arrow-up" size={16} color={t.bone} />
+            <Text style={styles.unreadBannerText}>{unreadMarker!.count} MESSAGE{unreadMarker!.count > 1 ? 'S' : ''} MANQUÉ{unreadMarker!.count > 1 ? 'S' : ''}</Text>
+            <Text style={styles.unreadBannerAction}>VOIR</Text>
+          </Pressable>
+          <Pressable accessibilityLabel="Masquer" hitSlop={8} style={styles.unreadBannerClose} onPress={() => setDismissedUnreadChannel(channel)}>
+            <Ionicons name="close" size={17} color={t.textDim} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Composer */}
       {!isReadOnly ? (
@@ -962,6 +1025,19 @@ function makeStyles(t: Theme) {
     pinnedLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 1.5, marginBottom: 4 },
     pinnedText: { fontFamily: FONTS.body, fontSize: 12.5, color: t.bone, lineHeight: 18 },
     messages: { paddingHorizontal: 16, paddingTop: 8 },
+    unreadDivider: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 4, marginBottom: 14 },
+    unreadDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: t.crimson },
+    unreadDividerText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '800', letterSpacing: 1.2 },
+    unreadBanner: {
+      position: 'absolute', top: 10, left: 16, right: 16, zIndex: 20,
+      minHeight: 46, flexDirection: 'row', alignItems: 'center',
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.crimson, borderRadius: 23,
+      shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8,
+    },
+    unreadBannerMain: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 14 },
+    unreadBannerText: { flex: 1, color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 0.9 },
+    unreadBannerAction: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+    unreadBannerClose: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
     dateLine: { alignItems: 'center', marginVertical: 8 },
     dateStamp: {
       fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 2,
@@ -1006,27 +1082,28 @@ function makeStyles(t: Theme) {
     composerContextTitle: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
     composerContextBody: { color: t.textDim, fontFamily: FONTS.body, fontSize: 11, marginTop: 2 },
     composer: {
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
+      flexDirection: 'row', alignItems: 'flex-end', gap: 9,
+      paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
       backgroundColor: t.ink,
     },
     attachBtn: {
-      width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: t.hairlineStrong,
+      width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: t.hairlineStrong,
       alignItems: 'center', justifyContent: 'center',
     },
-    attachIcon: { color: t.bone, fontSize: 18, lineHeight: 20 },
+    attachIcon: { color: t.bone, fontSize: 22, lineHeight: 24 },
     input: {
-      flex: 1, minHeight: 36, maxHeight: 92, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 18,
-      paddingHorizontal: 14, paddingVertical: 8, fontFamily: FONTS.body, fontSize: 13, color: t.bone,
+      flex: 1, minHeight: 46, maxHeight: 112, backgroundColor: t.surface,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: 23,
+      paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11,
+      fontFamily: FONTS.body, fontSize: 15, lineHeight: 22, color: t.bone,
     },
     sendBtn: {
-      width: 36, height: 36, borderRadius: 18, backgroundColor: t.crimson,
+      width: 42, height: 42, borderRadius: 21, backgroundColor: t.crimson,
       alignItems: 'center', justifyContent: 'center',
     },
     sendBtnDisabled: { backgroundColor: t.elevated },
     sendIcon: { color: t.bone, fontSize: 14 },
-    recordingBtn: { width: 62, borderRadius: 18, backgroundColor: '#D63A31' },
+    recordingBtn: { width: 68, borderRadius: 21, backgroundColor: '#D63A31' },
     recordingTime: { color: '#fff', fontFamily: FONTS.mono, fontSize: 10, fontWeight: '800' },
     mentionPanel: { marginHorizontal: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 6, overflow: 'hidden' },
     mentionRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline },

@@ -7,7 +7,7 @@ import type { AuthUser } from '../auth';
 import { notifyCoaches, notifyUser } from './push';
 import { parseProfileUpdate } from '../lib/profile-input';
 import { isStaff } from '../lib/access';
-import { objectStorageConfigured, uploadAvatar } from '../lib/object-storage';
+import { uploadAvatar } from '../lib/object-storage';
 
 const app = new Hono<{ Variables: { user: AuthUser } }>();
 
@@ -104,7 +104,6 @@ app.get('/:id/avatar', async (c) => {
 });
 
 app.put('/avatar', requireSession, async (c) => {
-  if (!objectStorageConfigured()) return c.json({ error: 'Stockage média non configuré' }, 503);
   const { dataUrl } = await c.req.json<{ dataUrl?: string }>();
   if (!dataUrl || dataUrl.length > 2_800_000) return c.json({ error: 'Avatar invalide ou trop volumineux' }, 400);
   try {
