@@ -83,7 +83,7 @@ export const messages = pgTable('messages', {
   channelId: text('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   body:      text('body').notNull(),
-  messageType: text('message_type').notNull().default('text'), // text | image | audio
+  messageType: text('message_type').notNull().default('text'), // text | image | audio | poll
   mediaData: text('media_data'),
   mediaMimeType: text('media_mime_type'),
   mediaFileName: text('media_file_name'),

@@ -10,6 +10,7 @@ const files = [
   '20260824_messaging_ux.sql',
   '20260824_carpool_training.sql',
   '20260824_chat_polls.sql',
+  '20260825_poll_message_type.sql',
 ];
 
 try {
