@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
-import { FONTS, Theme } from '@/constants/theme';
+import { FONTS, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { authClient } from '@/lib/auth-client';
 
@@ -43,8 +43,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 18 },
   title: { color: t.bone, fontFamily: FONTS.display, fontSize: 26, fontWeight: '900', letterSpacing: 2 },
   message: { color: t.textDim, textAlign: 'center', fontSize: 14, lineHeight: 21 },
-  primary: { width: '100%', backgroundColor: t.crimson, padding: 15, borderRadius: 4, alignItems: 'center' },
-  primaryText: { color: '#fff', fontWeight: '900', letterSpacing: 1.4 },
-  secondary: { width: '100%', borderWidth: 1, borderColor: t.hairlineStrong, padding: 14, borderRadius: 4, alignItems: 'center' },
+  primary: { width: '100%', minHeight: 50, backgroundColor: t.crimson, padding: 15, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { color: t.onAccent, fontWeight: '900', letterSpacing: 1.4 },
+  secondary: { width: '100%', minHeight: 50, borderWidth: 1, borderColor: t.hairlineStrong, padding: 14, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { color: t.bone, fontWeight: '700', letterSpacing: 1.2 },
 });

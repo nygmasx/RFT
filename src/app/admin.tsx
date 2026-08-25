@@ -10,7 +10,8 @@ import { FormScrollView } from '@/components/form-scroll-view';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -199,18 +200,11 @@ export default function AdminScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/profil')} style={styles.back}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>ADMIN COACH</Text>
-            <Text style={styles.subtitle}>Gestion des membres & événements</Text>
-          </View>
-          <Pressable style={styles.coachBadge} onPress={() => router.push('/admin-content' as never)}>
+        <DetailHeader eyebrow="Gestion des membres & événements" title="ADMIN COACH" onBack={() => safeBack('/(tabs)/profil')} action={
+          <Pressable accessibilityRole="button" style={styles.coachBadge} onPress={() => router.push('/admin-content' as never)}>
             <Text style={styles.coachBadgeText}>CONTENU →</Text>
           </Pressable>
-        </View>
+        } />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
           {([
@@ -559,13 +553,8 @@ function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    scroll: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4, borderBottomWidth: 1, borderBottomColor: t.hairline },
-    back: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    title: { fontSize: 18, fontWeight: '900', color: t.bone, letterSpacing: 1 },
-    subtitle: { fontSize: 11, color: t.textMute, letterSpacing: 0.5 },
-    coachBadge: { backgroundColor: t.crimson + '22', borderWidth: 1, borderColor: t.crimson, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 14, gap: 12 },
+    coachBadge: { minHeight: Layout.touchTarget, justifyContent: 'center', backgroundColor: t.crimson + '18', borderWidth: 1, borderColor: t.crimson, paddingHorizontal: 11, borderRadius: Radii.round },
     coachBadgeText: { fontSize: 10, fontWeight: '700', color: t.crimson, letterSpacing: 1.5 },
     tabsScroll: { borderBottomWidth: 1, borderBottomColor: t.hairline },
     tabs: { flexDirection: 'row', paddingHorizontal: 18 },
@@ -580,7 +569,7 @@ function makeStyles(t: Theme) {
     timerTabText: { fontFamily: FONTS.mono, fontSize: 11, color: t.crimson, letterSpacing: 1, fontWeight: '700' },
     badge: { backgroundColor: t.crimson, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
     badgeText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
-    pendingCard: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4, padding: 16, gap: 12 },
+    pendingCard: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.lg, padding: 16, gap: 12 },
     cardTop: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
     avatarWrap: { position: 'relative' },
     avatar: { width: 56, height: 56, borderRadius: 28 },
@@ -596,11 +585,11 @@ function makeStyles(t: Theme) {
     contactRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 4 },
     contactText: { fontSize: 13, color: t.textDim },
     actions: { flexDirection: 'row', gap: 10 },
-    rejectBtn: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: 3, borderWidth: 1, borderColor: t.hairlineStrong },
+    rejectBtn: { flex: 1, minHeight: Layout.touchTarget, paddingVertical: 11, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md, borderWidth: 1, borderColor: t.hairlineStrong },
     rejectText: { fontSize: 12, fontWeight: '700', color: t.textDim, letterSpacing: 1 },
-    approveBtn: { flex: 2, paddingVertical: 11, alignItems: 'center', borderRadius: 3, backgroundColor: t.crimson },
-    approveText: { fontSize: 12, fontWeight: '700', color: '#FFF', letterSpacing: 1 },
-    memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 4, padding: 12 },
+    approveBtn: { flex: 2, minHeight: Layout.touchTarget, paddingVertical: 11, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md, backgroundColor: t.crimson },
+    approveText: { fontSize: 12, fontWeight: '700', color: t.onAccent, letterSpacing: 1 },
+    memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, padding: 12 },
     memberAvatar: { width: 42, height: 42, borderRadius: 21 },
     memberAvatarFallback: { backgroundColor: t.elevated, alignItems: 'center', justifyContent: 'center' },
     memberInitials: { fontSize: 15, fontWeight: '700', color: t.bone },
@@ -609,19 +598,19 @@ function makeStyles(t: Theme) {
     memberMeta: { fontSize: 11, color: t.textMute, marginTop: 2 },
     catDot: { width: 10, height: 10, borderRadius: 5 },
     memberArrow: { fontSize: 20, color: t.textMute, lineHeight: 22 },
-    createBtn: { borderWidth: 1, borderColor: t.crimson, borderRadius: 3, paddingVertical: 12, alignItems: 'center' },
+    createBtn: { minHeight: Layout.touchTarget, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.md, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
     createBtnText: { fontFamily: FONTS.mono, fontSize: 12, color: t.crimson, letterSpacing: 1.5, fontWeight: '700' },
-    createForm: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3, padding: 14 },
+    createForm: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, padding: 16 },
     fieldRow: { paddingVertical: 10 },
     fieldLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1.5, marginBottom: 6 },
     input: { fontFamily: FONTS.body, fontSize: 15, color: t.bone, fontWeight: '500', paddingVertical: 0 },
     formDivider: { height: 1, backgroundColor: t.hairline, marginVertical: 2 },
     typeRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-    typeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3, borderWidth: 1, borderColor: t.hairlineStrong },
+    typeChip: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radii.round, borderWidth: 1, borderColor: t.hairlineStrong },
     typeChipText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-    saveBtn: { backgroundColor: t.crimson, borderRadius: 3, paddingVertical: 13, alignItems: 'center', marginTop: 14 },
-    saveBtnText: { fontFamily: FONTS.mono, fontSize: 12, color: '#FFF', fontWeight: '700', letterSpacing: 1.5 },
-    evtRow: { flexDirection: 'row', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3, overflow: 'hidden' },
+    saveBtn: { minHeight: 48, backgroundColor: t.crimson, borderRadius: Radii.md, paddingVertical: 13, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+    saveBtnText: { fontFamily: FONTS.mono, fontSize: 12, color: t.onAccent, fontWeight: '700', letterSpacing: 1.5 },
+    evtRow: { flexDirection: 'row', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md, overflow: 'hidden' },
     evtBar: { width: 4 },
     evtContent: { flex: 1, padding: 12 },
     evtTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
@@ -643,19 +632,19 @@ function makeStyles(t: Theme) {
     sheetName: { fontSize: 20, fontWeight: '900', color: t.bone },
     sheetMemberId: { fontFamily: FONTS.mono, fontSize: 11, color: t.textMute, letterSpacing: 1, marginTop: 2 },
     infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    infoCell: { width: '47%', backgroundColor: t.elevated, padding: 10, borderRadius: 3 },
+    infoCell: { width: '47%', backgroundColor: t.elevated, padding: 10, borderRadius: Radii.md },
     infoCellLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5, marginBottom: 4 },
     infoCellValue: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '600' },
     sheetSection: { gap: 0 },
     sheetSectionLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2 },
     beltMeta: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 0.5 },
     beltEmpty: { fontFamily: FONTS.body, fontSize: 13, color: t.textMute, marginTop: 8 },
-    editBeltBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: t.crimson, borderRadius: 3 },
+    editBeltBtn: { minHeight: 38, marginTop: 10, alignSelf: 'flex-start', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.round },
     editBeltText: { fontFamily: FONTS.mono, fontSize: 10, color: t.crimson, letterSpacing: 1 },
     sheetActions: { flexDirection: 'row', gap: 10 },
-    revokeBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 3, borderWidth: 1, borderColor: t.hairlineStrong },
+    revokeBtn: { flex: 1, minHeight: Layout.touchTarget, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md, borderWidth: 1, borderColor: t.hairlineStrong },
     revokeText: { fontSize: 12, fontWeight: '700', color: t.textDim, letterSpacing: 1 },
-    closeBtn: { flex: 2, paddingVertical: 12, alignItems: 'center', borderRadius: 3, backgroundColor: t.crimson },
-    closeBtnText: { fontSize: 12, fontWeight: '700', color: '#FFF', letterSpacing: 1 },
+    closeBtn: { flex: 2, minHeight: Layout.touchTarget, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md, backgroundColor: t.crimson },
+    closeBtnText: { fontSize: 12, fontWeight: '700', color: t.onAccent, letterSpacing: 1 },
   });
 }

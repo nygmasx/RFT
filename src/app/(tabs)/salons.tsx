@@ -1,18 +1,28 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Ionicons } from '@expo/vector-icons';
-
-import { FONTS, Theme } from '@/constants/theme';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
+import { Chip, EmptyState, IconButton, ScreenHeader, Surface } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useChannels } from '@/hooks/useChannels';
-import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { Channel } from '@/lib/database.types';
+import { haptics } from '@/lib/haptics';
 
 export default function SalonsScreen() {
   const { theme: t } = useTheme();
@@ -20,7 +30,6 @@ export default function SalonsScreen() {
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
-
   const { data: channels, loading, refetch } = useChannels();
   const isStaff = user?.role === 'coach' || user?.role === 'admin';
 
@@ -28,110 +37,180 @@ export default function SalonsScreen() {
     if (!isStaff) return;
     Alert.alert(channel.name, 'Modération du salon', [
       { text: 'Annuler', style: 'cancel' },
-      { text: channel.isLocked ? 'Déverrouiller' : 'Verrouiller', onPress: async () => {
-        await api.put(`/api/channels/${channel.id}`, {
-          name: channel.name, description: channel.description, is_private: channel.isPrivate, is_locked: !channel.isLocked,
-        }); refetch();
-      } },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await api.delete(`/api/channels/${channel.id}`); refetch(); } },
+      {
+        text: channel.isLocked ? 'Déverrouiller' : 'Verrouiller',
+        onPress: async () => {
+          await api.put(`/api/channels/${channel.id}`, {
+            name: channel.name,
+            description: channel.description,
+            is_private: channel.isPrivate,
+            is_locked: !channel.isLocked,
+          });
+          refetch();
+        },
+      },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          await api.delete(`/api/channels/${channel.id}`);
+          refetch();
+        },
+      },
     ]);
   };
 
-  const filtered = channels.filter((c) =>
-    c.name.toLowerCase().includes(query.toLowerCase()) ||
-    (c.description ?? '').toLowerCase().includes(query.toLowerCase())
-  );
+  const normalizedQuery = query.trim().toLocaleLowerCase('fr-FR');
+  const filtered = channels.filter((channel) => (
+    channel.name.toLocaleLowerCase('fr-FR').includes(normalizedQuery)
+    || (channel.description ?? '').toLocaleLowerCase('fr-FR').includes(normalizedQuery)
+  ));
+  const featured = normalizedQuery ? null : filtered[0] ?? null;
+  const remaining = featured ? filtered.slice(1) : filtered;
+
+  const openChannel = (channel: Channel) => {
+    haptics.selection();
+    router.push({ pathname: '/chat', params: { channel: channel.id, name: channel.name } });
+  };
+
+  const refresh = () => {
+    setRefreshing(true);
+    void refetch().finally(() => setRefreshing(false));
+  };
 
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.count}>{isStaff ? 'ESPACE COACH · ' : ''}{String(channels.length).padStart(2, '0')} SALONS</Text>
-            <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.title}>{isStaff ? 'COMMUNICATION' : 'SALONS'}</Text>
-          </View>
-          {isStaff ? (
-            <Pressable accessibilityLabel="Créer un salon" style={styles.addBtn} onPress={() => router.push('/create-channel')}>
-              <Text style={styles.addIcon}>＋</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <ScreenHeader
+          eyebrow={`${isStaff ? 'Espace coach · ' : ''}${channels.length} salon${channels.length > 1 ? 's' : ''}`}
+          title={isStaff ? 'COMMUNICATION' : 'SALONS'}
+          action={isStaff ? (
+            <IconButton icon="add" label="Créer un salon" accent onPress={() => router.push('/create-channel')} />
+          ) : undefined}
+        />
 
         <View style={styles.searchWrap}>
           <View style={styles.search}>
-            <Ionicons name="search-outline" size={14} color={t.textMute} />
+            <Ionicons name="search" size={18} color={t.textMute} />
             <TextInput
+              accessibilityLabel="Rechercher un salon"
+              returnKeyType="search"
               style={styles.searchInput}
-              placeholder="Rechercher un salon, un message…"
+              placeholder="Rechercher un salon"
               placeholderTextColor={t.textMute}
               value={query}
               onChangeText={setQuery}
             />
+            {query ? (
+              <Pressable
+                accessibilityLabel="Effacer la recherche"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setQuery('')}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close-circle" size={20} color={t.textDim} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </SafeAreaView>
 
-      {isStaff ? (
-        <View style={styles.coachBanner}>
-          <View style={styles.coachBannerIcon}><Ionicons name="shield-checkmark-outline" size={18} color={t.crimson} /></View>
-          <View style={styles.coachBannerCopy}>
-            <Text style={styles.coachBannerTitle}>MODÉRATION COACH</Text>
-            <Text style={styles.coachBannerText}>Maintiens un salon appuyé pour le verrouiller ou le supprimer.</Text>
-          </View>
-        </View>
-      ) : null}
-
-      <KeyboardAvoidingView automaticOffset behavior="padding" style={{ flex: 1 }}>
+      <KeyboardAvoidingView automaticOffset behavior="padding" style={styles.flex}>
         {loading ? (
           <View style={styles.loaderWrap}>
-            <ActivityIndicator color={t.crimson} />
+            <View style={styles.loaderIcon}>
+              <ActivityIndicator color={t.crimson} />
+            </View>
+            <Text style={styles.loaderText}>CHARGEMENT DES SALONS</Text>
           </View>
         ) : (
           <ScrollView
+            contentContainerStyle={styles.content}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
-              setRefreshing(true); void refetch().finally(() => setRefreshing(false));
-            }} />}
+            refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={refresh} />}
           >
-            {filtered.map((c, i) => {
-              const isTop = i === 0;
-              return (
-                <Pressable
-                  key={c.id}
-                  style={[styles.row, isTop && styles.rowTop]}
-                  onPress={() => router.push({ pathname: '/chat', params: { channel: c.id, name: c.name } })}
-                  onLongPress={() => moderate(c)}
-                >
-                  <View style={[styles.avatar, isTop && styles.avatarTop]}>
-                    {isTop
-                      ? <Ionicons name="sunny" size={18} color={t.bone} />
-                      : <Text style={styles.avatarText}>{c.name[0]}</Text>
-                    }
-                    {c.isLocked && !isTop && (
-                      <View style={styles.lockBadge}>
-                        <Ionicons name="lock-closed" size={7} color={t.textMute} />
-                      </View>
-                    )}
-                  </View>
+            {isStaff ? (
+              <Surface accent="crimson" style={styles.staffCard}>
+                <View style={styles.staffIcon}>
+                  <Ionicons name="shield-checkmark" size={20} color={t.crimson} />
+                </View>
+                <View style={styles.staffCopy}>
+                  <Text style={styles.staffTitle}>OUTILS DE MODÉRATION</Text>
+                  <Text style={styles.staffText}>Appui long sur un salon pour le verrouiller ou le supprimer.</Text>
+                </View>
+              </Surface>
+            ) : null}
 
-                  <View style={styles.info}>
-                    <View style={styles.infoTop}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.chanName} numberOfLines={1}>{c.name}</Text>
-                        {c.isLocked && (
-                          <Ionicons name="lock-closed" size={10} color={t.textMute} />
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.infoBot}>
-                      <Text style={styles.lastMsg} numberOfLines={1}>{c.description ?? ''}</Text>
-                    </View>
+            {featured ? (
+              <Pressable
+                accessibilityHint="Ouvre la discussion"
+                accessibilityLabel={`Salon ${featured.name}`}
+                accessibilityRole="button"
+                onLongPress={() => moderate(featured)}
+                onPress={() => openChannel(featured)}
+                style={({ pressed }) => [styles.featured, pressed && styles.pressed]}
+              >
+                <View style={styles.featuredGlow} />
+                <View style={styles.featuredTop}>
+                  <View style={styles.featuredAvatar}>
+                    <Ionicons name="sparkles" size={23} color="#FFFFFF" />
                   </View>
-                </Pressable>
-              );
-            })}
+                  <Chip label="Salon principal" filled />
+                </View>
+                <View style={styles.featuredBottom}>
+                  <View style={styles.featuredCopy}>
+                    <Text style={styles.featuredEyebrow}>LE CLUB EN DIRECT</Text>
+                    <Text style={styles.featuredTitle} numberOfLines={1}>{featured.name}</Text>
+                    <Text style={styles.featuredDescription} numberOfLines={2}>
+                      {featured.description || 'Retrouvez les dernières nouvelles et échangez avec le club.'}
+                    </Text>
+                  </View>
+                  <View style={styles.featuredArrow}>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                  </View>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {remaining.length > 0 ? (
+              <View style={styles.listSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>{normalizedQuery ? 'RÉSULTATS' : 'TOUS LES SALONS'}</Text>
+                  <Text style={styles.sectionCount}>{remaining.length}</Text>
+                </View>
+                <Surface style={styles.listSurface}>
+                  {remaining.map((channel, index) => (
+                    <ChannelRow
+                      channel={channel}
+                      isLast={index === remaining.length - 1}
+                      isStaff={isStaff}
+                      key={channel.id}
+                      onLongPress={() => moderate(channel)}
+                      onPress={() => openChannel(channel)}
+                      styles={styles}
+                      theme={t}
+                    />
+                  ))}
+                </Surface>
+              </View>
+            ) : null}
+
+            {filtered.length === 0 ? (
+              <EmptyState
+                icon={normalizedQuery ? 'search-outline' : 'chatbubbles-outline'}
+                title={normalizedQuery ? 'Aucun salon trouvé' : 'Aucun salon pour le moment'}
+                message={normalizedQuery
+                  ? `Aucun résultat pour « ${query.trim()} ». Essaie un autre terme.`
+                  : isStaff
+                    ? 'Crée le premier espace de discussion du club.'
+                    : 'Les salons du club apparaîtront ici dès leur création.'}
+                actionLabel={normalizedQuery ? 'Effacer la recherche' : isStaff ? 'Créer un salon' : undefined}
+                onAction={normalizedQuery ? () => setQuery('') : isStaff ? () => router.push('/create-channel') : undefined}
+              />
+            ) : null}
           </ScrollView>
         )}
       </KeyboardAvoidingView>
@@ -139,65 +218,180 @@ export default function SalonsScreen() {
   );
 }
 
+function ChannelRow({ channel, isLast, isStaff, onLongPress, onPress, styles, theme }: {
+  channel: Channel;
+  isLast: boolean;
+  isStaff: boolean;
+  onLongPress: () => void;
+  onPress: () => void;
+  styles: ReturnType<typeof makeStyles>;
+  theme: Theme;
+}) {
+  return (
+    <Pressable
+      accessibilityHint={isStaff ? 'Ouvre le salon. Appui long pour modérer.' : 'Ouvre la discussion'}
+      accessibilityLabel={`Salon ${channel.name}${channel.isLocked ? ', verrouillé' : ''}${channel.isPrivate ? ', privé' : ''}`}
+      accessibilityRole="button"
+      onLongPress={onLongPress}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, !isLast && styles.rowDivider, pressed && styles.pressed]}
+    >
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{channel.name.slice(0, 1).toLocaleUpperCase('fr-FR')}</Text>
+        {channel.isLocked ? (
+          <View style={styles.lockBadge}>
+            <Ionicons name="lock-closed" size={8} color={theme.textDim} />
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.info}>
+        <View style={styles.nameLine}>
+          <Text style={styles.channelName} numberOfLines={1}>{channel.name}</Text>
+          {channel.isPrivate ? <Chip label="Privé" tone="muted" /> : null}
+        </View>
+        <Text style={styles.description} numberOfLines={1}>
+          {channel.description || (channel.isLocked ? 'Discussion en lecture seule' : 'Rejoindre la discussion')}
+        </Text>
+      </View>
+      <View style={styles.rowArrow}>
+        <Ionicons name="chevron-forward" size={17} color={theme.textMute} />
+      </View>
+    </Pressable>
+  );
+}
+
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
-      paddingHorizontal: 24, paddingBottom: 14, paddingTop: 8,
-    },
-    count: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2 },
-    title: {
-      fontFamily: FONTS.display, fontSize: 44, color: t.bone, fontWeight: '900',
-      marginTop: 2, letterSpacing: 1,
-    },
-    addBtn: {
-      width: 38, height: 38, backgroundColor: t.crimson,
-      alignItems: 'center', justifyContent: 'center', borderRadius: 2,
-    },
-    addIcon: { color: t.bone, fontSize: 20, fontWeight: '600' },
-    searchWrap: { paddingHorizontal: 20, paddingBottom: 16 },
+    flex: { flex: 1 },
+    searchWrap: { paddingHorizontal: Layout.gutter, paddingBottom: 14 },
     search: {
-      height: 40, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: 3,
+      minHeight: Layout.touchTarget,
+      paddingHorizontal: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: t.hairlineStrong,
+      backgroundColor: t.surface,
     },
-    searchIcon: { fontSize: 13 },
-    searchInput: { flex: 1, fontFamily: FONTS.body, fontSize: 13, color: t.bone },
-    coachBanner: { marginHorizontal: 20, marginBottom: 10, minHeight: 58, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.crimson + '0D', borderWidth: 1, borderColor: t.crimson + '55', borderRadius: 3 },
-    coachBannerIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson + '16' },
-    coachBannerCopy: { flex: 1 },
-    coachBannerTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
-    coachBannerText: { color: t.textMute, fontSize: 9.5, marginTop: 3 },
-    loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    row: {
-      flexDirection: 'row', alignItems: 'center', gap: 14,
-      paddingVertical: 14, paddingHorizontal: 22,
-      borderTopWidth: 1, borderTopColor: t.hairline,
+    searchInput: {
+      flex: 1,
+      minHeight: Layout.touchTarget,
+      color: t.bone,
+      fontFamily: FONTS.body,
+      fontSize: 14,
+      paddingVertical: 10,
     },
-    rowTop: { backgroundColor: 'rgba(200,54,45,0.05)' },
+    clearButton: { width: 32, height: Layout.touchTarget, alignItems: 'center', justifyContent: 'center' },
+    loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+    loaderIcon: {
+      width: 52,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 26,
+      backgroundColor: `${t.crimson}14`,
+    },
+    loaderText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1.4 },
+    content: { paddingHorizontal: Layout.gutter, paddingBottom: 112, gap: 18 },
+    staffCard: { minHeight: 70, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    staffIcon: {
+      width: Layout.touchTarget,
+      height: Layout.touchTarget,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: `${t.crimson}14`,
+    },
+    staffCopy: { flex: 1 },
+    staffTitle: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+    staffText: { color: t.textDim, fontFamily: FONTS.body, fontSize: 12, lineHeight: 17, marginTop: 4 },
+    featured: {
+      minHeight: 218,
+      overflow: 'hidden',
+      padding: 18,
+      borderRadius: Radii.lg,
+      backgroundColor: t.crimsonDeep,
+      justifyContent: 'space-between',
+    },
+    featuredGlow: {
+      position: 'absolute',
+      width: 190,
+      height: 190,
+      borderRadius: 95,
+      right: -52,
+      top: -78,
+      backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    featuredTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    featuredAvatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.18)',
+    },
+    featuredBottom: { flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
+    featuredCopy: { flex: 1, minWidth: 0 },
+    featuredEyebrow: { color: 'rgba(255,255,255,0.72)', fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1.4 },
+    featuredTitle: { color: '#FFFFFF', fontFamily: FONTS.display, fontSize: 30, fontWeight: '900', letterSpacing: -0.8, marginTop: 4 },
+    featuredDescription: { color: 'rgba(255,255,255,0.76)', fontFamily: FONTS.body, fontSize: 13, lineHeight: 19, marginTop: 6 },
+    featuredArrow: {
+      width: Layout.touchTarget,
+      height: Layout.touchTarget,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.14)',
+    },
+    listSection: { gap: 10 },
+    sectionHeader: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sectionTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 17, fontWeight: '900', letterSpacing: 0.2 },
+    sectionCount: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 10 },
+    listSurface: { overflow: 'hidden' },
+    row: { minHeight: 82, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline },
+    pressed: { opacity: 0.72, transform: [{ scale: 0.995 }] },
     avatar: {
-      width: 44, height: 44, borderRadius: 3, backgroundColor: t.elevated,
-      borderWidth: 1, borderColor: t.hairline,
-      alignItems: 'center', justifyContent: 'center', position: 'relative',
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.elevated,
+      borderWidth: 1,
+      borderColor: t.hairlineStrong,
     },
-    avatarTop: { backgroundColor: t.crimson, borderWidth: 0 },
-    avatarText: { fontFamily: FONTS.display, fontSize: 20, color: t.bone, fontWeight: '900' },
-    avatarTextTop: { color: t.bone },
+    avatarText: { color: t.bone, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900' },
     lockBadge: {
-      position: 'absolute', bottom: -4, right: -4,
-      width: 14, height: 14, backgroundColor: t.ink,
-      borderWidth: 1, borderColor: t.hairlineStrong,
-      borderRadius: 2, alignItems: 'center', justifyContent: 'center',
+      position: 'absolute',
+      right: -4,
+      bottom: -4,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.ink,
+      borderWidth: 1,
+      borderColor: t.hairlineStrong,
     },
-    lockIcon: { fontSize: 7 },
     info: { flex: 1, minWidth: 0 },
-    infoTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-    nameRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-    chanName: {
-      fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '700', flexShrink: 1,
+    nameLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    channelName: { flexShrink: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 15, fontWeight: '800' },
+    description: { color: t.textDim, fontFamily: FONTS.body, fontSize: 12.5, marginTop: 5 },
+    rowArrow: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.elevated,
     },
-    lockInline: { fontSize: 10 },
-    infoBot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 },
-    lastMsg: { fontFamily: FONTS.body, fontSize: 12, color: t.textDim, flex: 1 },
   });
 }

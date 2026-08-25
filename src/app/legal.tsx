@@ -1,8 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DetailHeader } from '@/components/ui/rft-ui';
 import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { safeBack } from '@/lib/navigation';
@@ -43,13 +44,7 @@ export default function LegalScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/settings')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>INFORMATIONS LÉGALES</Text>
-          <View style={{ width: 36 }} />
-        </View>
+        <DetailHeader eyebrow={`Mise à jour · ${UPDATED_AT}`} title="INFORMATIONS LÉGALES" onBack={() => safeBack('/settings')} />
       </SafeAreaView>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{content.title}</Text>

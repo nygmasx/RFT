@@ -6,7 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, EmptyState, IconButton, SectionHeading } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
@@ -80,11 +81,20 @@ export default function CalendarScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   const days = getCalendarDays(year, month);
+  const eventsByDate = useMemo(() => {
+    const grouped = new Map<string, CalendarEvent[]>();
+    for (const event of calendarEvents) {
+      const current = grouped.get(event.eventDate);
+      if (current) current.push(event);
+      else grouped.set(event.eventDate, [event]);
+    }
+    return grouped;
+  }, [calendarEvents]);
 
   const eventsForDay = (day: number | null): CalendarEvent[] => {
     if (day === null) return [];
     const key = dateKey(year, month, day);
-    return calendarEvents.filter((e) => e.eventDate === key);
+    return eventsByDate.get(key) ?? [];
   };
 
   const selectedEvents = selectedDay !== null ? eventsForDay(selectedDay) : [];
@@ -141,32 +151,29 @@ export default function CalendarScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/accueil')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.headerLabel}>CALENDRIER</Text>
-          {isCoach ? (
-            <Pressable style={styles.addBtn} onPress={openCreate}>
-              <Text style={styles.addBtnText}>＋</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.headerSpacer} />
-          )}
-        </View>
+        <DetailHeader
+          eyebrow="Agenda du club"
+          title="CALENDRIER"
+          onBack={() => safeBack('/(tabs)/accueil')}
+          action={isCoach ? <IconButton accent icon="add" label="Créer un événement" onPress={openCreate} /> : undefined}
+        />
       </SafeAreaView>
 
       <FormScrollView contentContainerStyle={styles.scroll}>
-        {/* Month navigation */}
-        <View style={styles.monthNav}>
-          <Pressable onPress={goToPrevMonth} style={styles.navBtn}>
-            <Text style={styles.navIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.monthLabel}>{MONTH_NAMES[month]} {year}</Text>
-          <Pressable onPress={goToNextMonth} style={styles.navBtn}>
-            <Text style={styles.navIcon}>›</Text>
-          </Pressable>
-        </View>
+        <View style={styles.calendarCard}>
+          {/* Month navigation */}
+          <View style={styles.monthNav}>
+            <Pressable accessibilityLabel="Mois précédent" accessibilityRole="button" hitSlop={6} onPress={goToPrevMonth} style={styles.navBtn}>
+              <Ionicons name="chevron-back" size={19} color={t.bone} />
+            </Pressable>
+            <View style={styles.monthCopy}>
+              <Text style={styles.monthKicker}>{String(month + 1).padStart(2, '0')} · {year}</Text>
+              <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={styles.monthLabel}>{MONTH_NAMES[month]}</Text>
+            </View>
+            <Pressable accessibilityLabel="Mois suivant" accessibilityRole="button" hitSlop={6} onPress={goToNextMonth} style={styles.navBtn}>
+              <Ionicons name="chevron-forward" size={19} color={t.bone} />
+            </Pressable>
+          </View>
 
         {/* Day headers */}
         <View style={styles.dayHeaders}>
@@ -221,14 +228,15 @@ export default function CalendarScreen() {
           </View>
         ))}
 
-        {/* Legend */}
-        <View style={styles.legend}>
-          {(Object.entries(EVT_LABELS) as [EventType, string][]).map(([type, label]) => (
-            <View key={type} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: EVT_COLORS[type] }]} />
-              <Text style={styles.legendText}>{label}</Text>
-            </View>
-          ))}
+          {/* Legend */}
+          <View style={styles.legend}>
+            {(Object.entries(EVT_LABELS) as [EventType, string][]).map(([type, label]) => (
+              <View key={type} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: EVT_COLORS[type] }]} />
+                <Text style={styles.legendText}>{label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Coach: create form */}
@@ -236,7 +244,7 @@ export default function CalendarScreen() {
           <View style={styles.createForm}>
             <View style={styles.createFormHeader}>
               <Text style={styles.createFormTitle}>NOUVEL ÉVÉNEMENT</Text>
-              <Pressable onPress={() => setShowCreate(false)}>
+              <Pressable accessibilityLabel="Fermer le formulaire" accessibilityRole="button" hitSlop={10} onPress={() => setShowCreate(false)}>
                 <Ionicons name="close" size={20} color={t.textMute} />
               </Pressable>
             </View>
@@ -321,7 +329,7 @@ export default function CalendarScreen() {
 
             {!!saveError && <Text style={{ color: t.crimson, fontSize: 12, marginTop: 8 }}>{saveError}</Text>}
 
-            <Pressable style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+            <Pressable accessibilityRole="button" style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
               {saving
                 ? <ActivityIndicator color="#FFF" size="small" />
                 : <Text style={styles.saveBtnText}>ENREGISTRER</Text>
@@ -330,19 +338,16 @@ export default function CalendarScreen() {
           </View>
         )}
 
-        <View style={styles.divider} />
-
         {/* Events for selected day */}
         {selectedDay !== null && (
           <View style={styles.daySection}>
-            <Text style={styles.daySectionLabel}>
-              {selectedDay} {MONTH_NAMES[month]}
-            </Text>
+            <SectionHeading
+              title={`${selectedDay} ${MONTH_NAMES[month]}`}
+              meta={`${selectedEvents.length} événement${selectedEvents.length > 1 ? 's' : ''}`}
+            />
 
             {selectedEvents.length === 0 ? (
-              <View style={styles.emptyDay}>
-                <Text style={styles.emptyDayText}>Aucun événement ce jour</Text>
-              </View>
+              <EmptyState icon="calendar-outline" title="Tatami libre" message="Aucun événement n’est prévu ce jour." />
             ) : (
               <View style={styles.eventList}>
                 {selectedEvents.map((e) => (
@@ -373,8 +378,8 @@ export default function CalendarScreen() {
         )}
 
         {selectedDay === null && (
-          <View style={styles.emptyDay}>
-            <Text style={styles.emptyDayText}>Sélectionnez un jour pour voir les événements</Text>
+          <View style={styles.daySection}>
+            <EmptyState icon="calendar-outline" title="Choisis une date" message="Sélectionne un jour pour afficher le programme du club." />
           </View>
         )}
 
@@ -387,44 +392,30 @@ export default function CalendarScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: {
-      flexDirection: 'row', alignItems: 'center',
-      paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4,
-      borderBottomWidth: 1, borderBottomColor: t.hairline,
+    scroll: { paddingHorizontal: Layout.gutter, paddingBottom: 20, gap: 18 },
+    calendarCard: {
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
+      borderRadius: Radii.lg, paddingBottom: 4, overflow: 'hidden',
     },
-    backBtn: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    headerLabel: {
-      flex: 1, textAlign: 'center',
-      fontFamily: FONTS.display, fontSize: 14, color: t.bone,
-      fontWeight: '900', letterSpacing: 2,
-    },
-    headerSpacer: { width: 36 },
-    addBtn: {
-      width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: t.crimson, borderRadius: 3,
-    },
-    addBtnText: { fontSize: 20, color: '#FFF', lineHeight: 24 },
-
-    scroll: { paddingBottom: 20 },
     monthNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 24, paddingVertical: 16,
+      paddingHorizontal: 14, paddingVertical: 16,
     },
     navBtn: {
-      width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      width: Layout.touchTarget, height: Layout.touchTarget, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.round,
     },
-    navIcon: { fontSize: 24, color: t.bone, lineHeight: 28 },
+    monthCopy: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+    monthKicker: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, fontWeight: '800', letterSpacing: 1.5 },
     monthLabel: {
-      fontFamily: FONTS.display, fontSize: 18, color: t.bone,
-      fontWeight: '900', letterSpacing: 2,
+      fontFamily: FONTS.display, fontSize: 21, color: t.bone,
+      fontWeight: '900', letterSpacing: 0.8, marginTop: 2,
     },
-    dayHeaders: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 4 },
+    dayHeaders: { flexDirection: 'row', paddingHorizontal: 8, marginBottom: 4 },
     dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
     dayHeaderText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5 },
-    gridRow: { flexDirection: 'row', paddingHorizontal: 12 },
-    dayCell: { flex: 1, alignItems: 'center', paddingVertical: 4, minHeight: 48 },
+    gridRow: { flexDirection: 'row', paddingHorizontal: 8 },
+    dayCell: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4, minHeight: 50 },
     dayNumber: {
       width: 32, height: 32, borderRadius: 16,
       alignItems: 'center', justifyContent: 'center',
@@ -432,12 +423,12 @@ function makeStyles(t: Theme) {
     dayNumberSelected: { backgroundColor: t.crimson },
     dayNumberToday: { borderWidth: 1, borderColor: t.crimson },
     dayText: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '500' },
-    dayTextSelected: { color: t.bone, fontWeight: '700' },
+    dayTextSelected: { color: t.onAccent, fontWeight: '800' },
     dayTextToday: { color: t.crimson, fontWeight: '700' },
     dots: { flexDirection: 'row', gap: 2, marginTop: 2, justifyContent: 'center', minHeight: 7 },
     dot: { width: 5, height: 5, borderRadius: 2.5 },
     legend: {
-      flexDirection: 'row', gap: 16, paddingHorizontal: 20, paddingVertical: 12,
+      flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingVertical: 14,
       justifyContent: 'center',
     },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -446,9 +437,8 @@ function makeStyles(t: Theme) {
 
     // Coach create form
     createForm: {
-      marginHorizontal: 20, marginBottom: 12,
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, padding: 14,
+      borderRadius: Radii.lg, padding: 16,
     },
     createFormHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
@@ -460,37 +450,30 @@ function makeStyles(t: Theme) {
     formDivider: { height: 1, backgroundColor: t.hairline, marginVertical: 2 },
     typeRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
     typeChip: {
-      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3,
+      minHeight: 38, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radii.round,
       borderWidth: 1, borderColor: t.hairlineStrong,
     },
     typeChipText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
     saveBtn: {
-      backgroundColor: t.crimson, borderRadius: 3, paddingVertical: 13,
-      alignItems: 'center', marginTop: 14,
+      backgroundColor: t.crimson, borderRadius: Radii.md, minHeight: 48,
+      alignItems: 'center', justifyContent: 'center', marginTop: 14,
     },
-    saveBtnText: { fontFamily: FONTS.mono, fontSize: 12, color: '#FFF', fontWeight: '700', letterSpacing: 1.5 },
+    saveBtnText: { fontFamily: FONTS.mono, fontSize: 12, color: t.onAccent, fontWeight: '700', letterSpacing: 1.5 },
 
-    divider: { height: 1, backgroundColor: t.hairline, marginHorizontal: 20 },
-    daySection: { paddingHorizontal: 20, paddingTop: 16 },
-    daySectionLabel: {
-      fontFamily: FONTS.display, fontSize: 16, color: t.bone,
-      fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12,
-    },
+    daySection: { gap: 12 },
     eventList: { gap: 10 },
     eventRow: {
       flexDirection: 'row', backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3, overflow: 'hidden',
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md, overflow: 'hidden',
     },
     eventBorder: { width: 4 },
     eventContent: { flex: 1, padding: 12 },
     eventTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     eventTime: { fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, letterSpacing: 1 },
-    eventTag: { paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderRadius: 2 },
+    eventTag: { paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderRadius: Radii.round },
     eventTagText: { fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '600', letterSpacing: 1 },
     eventTitle: { fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '600', marginBottom: 3 },
     eventPlaceRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
     eventPlace: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim },
-    emptyDay: { paddingHorizontal: 20, paddingTop: 16, alignItems: 'center' },
-    emptyDayText: { fontFamily: FONTS.body, fontSize: 13, color: t.textMute, fontStyle: 'italic' },
   });
 }

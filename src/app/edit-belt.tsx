@@ -6,7 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
@@ -101,12 +102,8 @@ export default function EditBeltScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => safeBack('/admin')}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.title}>GRADE BJJ{memberName ? ` — ${memberName.toUpperCase()}` : ''}</Text>
-          <Pressable onPress={handleSave} disabled={saving}>
+        <DetailHeader eyebrow={memberName ? memberName.toUpperCase() : 'Administration'} title="GRADE BJJ" onBack={() => safeBack('/admin')} action={
+          <Pressable accessibilityRole="button" hitSlop={10} onPress={handleSave} disabled={saving}>
             {saving
               ? <ActivityIndicator color={t.crimson} size="small" />
               : success
@@ -114,7 +111,7 @@ export default function EditBeltScreen() {
                 : <Text style={styles.saveText}>ENREGISTRER</Text>
             }
           </Pressable>
-        </View>
+        } />
       </SafeAreaView>
 
       <FormScrollView contentContainerStyle={styles.scroll}>
@@ -232,21 +229,21 @@ function makeStyles(t: Theme) {
     backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
     title: { flex: 1, fontSize: 13, color: t.bone, fontWeight: '900', letterSpacing: 0.5 },
     saveText: { fontFamily: FONTS.mono, fontSize: 11, color: t.crimson, fontWeight: '700', letterSpacing: 1 },
-    scroll: { paddingHorizontal: 20, paddingTop: 16, gap: 8 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 8, gap: 10 },
     sectionLabel: {
       fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2, marginTop: 8, marginBottom: 4,
     },
-    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3, padding: 14 },
+    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, padding: 16 },
     colorRow: { flexDirection: 'row', gap: 8 },
     colorCell: { flex: 1, alignItems: 'center', gap: 4 },
-    colorSwatch: { width: '100%', height: 36, borderRadius: 2 },
+    colorSwatch: { width: '100%', height: 40, borderRadius: Radii.sm },
     colorLabel: { fontFamily: FONTS.mono, fontSize: 9 },
     colorDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: t.crimson },
     previewName: { fontFamily: FONTS.display, fontSize: 22, color: t.bone, fontWeight: '900' },
     progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     progressCell: { alignItems: 'center', gap: 4, flex: 1 },
     progressLine: { position: 'absolute', left: 0, right: '50%', top: '30%', height: 1, backgroundColor: t.hairlineStrong },
-    progressSwatch: { borderRadius: 2 },
+    progressSwatch: { borderRadius: Radii.sm },
     progressLabel: { fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.5 },
     fieldRow: { paddingVertical: 10 },
     fieldLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1.5, marginBottom: 6 },

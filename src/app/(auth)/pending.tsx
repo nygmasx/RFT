@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { Radii } from '@/constants/theme';
 
 export default function PendingScreen() {
   const { theme: t } = useTheme();
@@ -18,7 +19,7 @@ export default function PendingScreen() {
     setChecking(false);
   };
 
-  const s = styles(t);
+  const s = useMemo(() => styles(t), [t]);
 
   return (
     <View style={s.container}>
@@ -98,16 +99,16 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   body: { fontSize: 15, color: t.textDim, textAlign: 'center', lineHeight: 22 },
   infoCard: {
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-    borderRadius: 4, padding: 16, gap: 8, width: '100%',
+    borderRadius: Radii.lg, padding: 16, gap: 8, width: '100%',
   },
   infoRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
   infoRowText: { fontSize: 13, color: t.textDim },
 
   actions: { gap: 12 },
   btnCheck: {
-    backgroundColor: t.crimson, borderRadius: 4,
-    paddingVertical: 15, alignItems: 'center',
+    minHeight: 50, backgroundColor: t.crimson, borderRadius: Radii.md,
+    paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
   },
-  btnCheckText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
+  btnCheckText: { fontSize: 13, fontWeight: '900', color: t.onAccent, letterSpacing: 2 },
   signOut: { fontSize: 13, color: t.textMute, textAlign: 'center', textDecorationLine: 'underline' },
 });

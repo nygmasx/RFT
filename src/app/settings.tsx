@@ -16,7 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
-import { FONTS, Theme, ThemeKey, THEMES, THEME_LABELS } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme, ThemeKey, THEMES, THEME_LABELS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
@@ -66,14 +67,15 @@ const VISIBILITY_LABELS: Record<ProfileVisibility, string> = {
 };
 
 function Toggle({ value, onChange, t }: { value: boolean; onChange: (v: boolean) => void; t: Theme }) {
+  const styles = useMemo(() => toggleSt(t), [t]);
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
-      style={[toggleSt(t).pill, { backgroundColor: value ? t.crimson : 'transparent', borderColor: value ? t.crimson : t.hairlineStrong }]}
+      style={[styles.pill, { backgroundColor: value ? t.crimson : 'transparent', borderColor: value ? t.crimson : t.hairlineStrong }]}
       onPress={() => onChange(!value)}
     >
-      <View style={[toggleSt(t).dot, { marginLeft: value ? 'auto' : 2, marginRight: value ? 2 : 'auto' }]} />
+      <View style={[styles.dot, { marginLeft: value ? 'auto' : 2, marginRight: value ? 2 : 'auto' }]} />
     </Pressable>
   );
 }
@@ -201,13 +203,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => safeBack('/(tabs)/profil')}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.title}>PARAMÈTRES</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <DetailHeader eyebrow="Compte & préférences" title="PARAMÈTRES" onBack={() => safeBack('/(tabs)/profil')} />
       </SafeAreaView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -410,15 +406,11 @@ function SettingToggle({ label, value, onChange, t, styles, border = false }: {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4, borderBottomWidth: 1, borderBottomColor: t.hairline },
-    backBtn: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    title: { flex: 1, fontFamily: FONTS.display, fontSize: 18, color: t.bone, fontWeight: '900', letterSpacing: 0.5 },
-    scroll: { paddingHorizontal: 20, paddingTop: 12, gap: 6 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 8, gap: 8 },
     message: { fontFamily: FONTS.body, fontSize: 12, color: t.crimson, paddingVertical: 8 },
     sectionLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2, marginTop: 10, marginBottom: 4 },
-    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3 },
-    row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
+    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, overflow: 'hidden' },
+    row: { minHeight: Layout.touchTarget, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: t.hairline },
     rowLabel: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '500', flex: 1 },
     rowArrow: { fontSize: 18, color: t.textMute },
@@ -436,15 +428,15 @@ function makeStyles(t: Theme) {
     footerSubText: { fontFamily: FONTS.body, fontSize: 12, color: t.textMute },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)' },
     modalOverlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    modalCard: { width: '100%', maxWidth: 440, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4, padding: 20, gap: 12 },
+    modalCard: { width: '100%', maxWidth: 440, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.xl, padding: 20, gap: 12 },
     modalTitle: { fontFamily: FONTS.display, fontSize: 17, color: t.bone, fontWeight: '900', letterSpacing: 1 },
     modalBody: { fontFamily: FONTS.body, fontSize: 13, color: t.textDim, lineHeight: 19 },
-    modalInput: { backgroundColor: t.ink, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 12, color: t.bone, fontFamily: FONTS.body },
+    modalInput: { minHeight: 48, backgroundColor: t.ink, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, paddingHorizontal: 12, paddingVertical: 12, color: t.bone, fontFamily: FONTS.body },
     modalError: { fontFamily: FONTS.body, fontSize: 12, color: t.crimson },
     modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-    modalCancel: { flex: 1, height: 42, borderWidth: 1, borderColor: t.hairlineStrong, alignItems: 'center', justifyContent: 'center', borderRadius: 3 },
+    modalCancel: { flex: 1, minHeight: Layout.touchTarget, borderWidth: 1, borderColor: t.hairlineStrong, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md },
     modalCancelText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, letterSpacing: 1 },
-    modalConfirm: { flex: 1, height: 42, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center', borderRadius: 3 },
+    modalConfirm: { flex: 1, minHeight: Layout.touchTarget, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md },
     modalConfirmText: { fontFamily: FONTS.mono, fontSize: 10, color: '#FFFFFF', fontWeight: '700', letterSpacing: 1 },
   });
 }

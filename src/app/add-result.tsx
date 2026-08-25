@@ -6,7 +6,8 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -89,15 +90,11 @@ export default function AddResultScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => safeBack('/palmares')}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.title}>AJOUTER UN RÉSULTAT</Text>
-          <Pressable onPress={handleSave} disabled={!canSave}>
+        <DetailHeader eyebrow="Palmarès" title="AJOUTER UN RÉSULTAT" onBack={() => safeBack('/palmares')} action={
+          <Pressable accessibilityRole="button" hitSlop={10} onPress={handleSave} disabled={!canSave}>
             <Text style={[styles.saveText, !canSave && { opacity: 0.4 }]}>ENREGISTRER</Text>
           </Pressable>
-        </View>
+        } />
       </SafeAreaView>
 
       <FormScrollView contentContainerStyle={styles.scroll}>
@@ -247,8 +244,8 @@ function makeStyles(t: Theme) {
       fontWeight: '900', letterSpacing: 0.5,
     },
     saveText: { fontFamily: FONTS.mono, fontSize: 11, color: t.crimson, fontWeight: '700', letterSpacing: 1 },
-    scroll: { paddingHorizontal: 20, paddingTop: 16, gap: 8 },
-    reviewNotice: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.gold, padding: 12, borderRadius: 3 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 8, gap: 10 },
+    reviewNotice: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.gold, padding: 14, borderRadius: Radii.md },
     reviewNoticeText: { flex: 1, color: t.textDim, fontFamily: FONTS.body, fontSize: 12, lineHeight: 17 },
 
     sectionLabel: {
@@ -262,7 +259,7 @@ function makeStyles(t: Theme) {
 
     card: {
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, paddingHorizontal: 14, paddingVertical: 4,
+      borderRadius: Radii.lg, paddingHorizontal: 14, paddingVertical: 4,
     },
     divider: { height: 1, backgroundColor: t.hairline, marginVertical: 2 },
 
@@ -273,27 +270,27 @@ function makeStyles(t: Theme) {
 
     segmented: { flexDirection: 'row', gap: 6, marginTop: 8 },
     pill: {
-      flex: 1, paddingVertical: 8, borderRadius: 2, borderWidth: 1,
+      flex: 1, minHeight: Layout.touchTarget, paddingVertical: 8, borderRadius: Radii.md, borderWidth: 1,
       borderColor: t.hairlineStrong, alignItems: 'center',
     },
     pillActive: { backgroundColor: t.crimson, borderColor: t.crimson },
     pillText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, letterSpacing: 0.5 },
-    pillTextActive: { color: t.bone, fontWeight: '700' },
+    pillTextActive: { color: t.onAccent, fontWeight: '700' },
 
     chipsRow: { flexDirection: 'row', gap: 6, paddingBottom: 4 },
     chip: {
-      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 2, borderWidth: 1,
+      minHeight: 38, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radii.round, borderWidth: 1,
       borderColor: t.hairlineStrong,
     },
     chipActive: { backgroundColor: t.crimson, borderColor: t.crimson },
     chipText: { fontFamily: FONTS.mono, fontSize: 10.5, color: t.textDim },
-    chipTextActive: { color: t.bone, fontWeight: '700' },
+    chipTextActive: { color: t.onAccent, fontWeight: '700' },
 
     // Place grid
     placeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     placeCard: {
       width: '47%', paddingVertical: 18, alignItems: 'center', gap: 6,
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md,
     },
     placeLabel: {
       fontFamily: FONTS.mono, fontSize: 11, color: t.textDim, letterSpacing: 1, fontWeight: '600',
@@ -302,10 +299,10 @@ function makeStyles(t: Theme) {
     // Save button
     saveBtn: {
       marginTop: 8, backgroundColor: t.crimson, paddingVertical: 16,
-      borderRadius: 3, alignItems: 'center',
+      minHeight: 50, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center',
     },
     saveBtnText: {
-      fontFamily: FONTS.display, fontSize: 13, color: t.bone, fontWeight: '900', letterSpacing: 1.5,
+      fontFamily: FONTS.display, fontSize: 13, color: t.onAccent, fontWeight: '900', letterSpacing: 1.5,
     },
   });
 }

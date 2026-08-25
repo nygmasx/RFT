@@ -5,29 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { Chip, DetailHeader, EmptyState } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Carpool, Competition } from '@/lib/database.types';
 import { api } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
 import RouteMapBanner from '@/components/route-map-banner';
-
-function Tag({ text, filled, color, t }: { text: string; filled?: boolean; color?: string; t: Theme }) {
-  const c = color ?? t.crimson;
-  return (
-    <View style={[tagSt(t).wrap, { borderColor: c, backgroundColor: filled ? c : 'transparent' }]}>
-      <Text style={[tagSt(t).text, { color: filled ? t.ink : c }]}>{text}</Text>
-    </View>
-  );
-}
-
-function tagSt(t: Theme) {
-  return StyleSheet.create({
-    wrap: { paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderRadius: 2 },
-    text: { fontFamily: FONTS.mono, fontSize: 9, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
-  });
-}
 
 interface CarpoolItem {
   id: string;
@@ -133,6 +118,19 @@ export default function CompetitionDetailScreen() {
     );
   }
 
+  if (!competition) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView edges={['top']}>
+          <DetailHeader title="COMPÉTITION" onBack={() => safeBack('/(tabs)/competitions')} />
+        </SafeAreaView>
+        <View style={styles.notFound}>
+          <EmptyState icon="trophy-outline" title="Compétition introuvable" message="Cette compétition n’est plus disponible ou le lien a expiré." />
+        </View>
+      </View>
+    );
+  }
+
   const comp = competition;
   const isRegistered = !!registrationId;
 
@@ -172,8 +170,8 @@ export default function CompetitionDetailScreen() {
         </SafeAreaView>
         <View style={styles.heroContent}>
           <View style={styles.heroTags}>
-            {comp?.status && <Tag text={comp.status.toUpperCase()} filled t={t} />}
-            {comp?.comp_type && <Tag text={comp.comp_type} color={t.bone} t={t} />}
+            {comp?.status && <Chip label={comp.status.toUpperCase()} tone="accent" filled />}
+            {comp?.comp_type && <Chip label={comp.comp_type.toUpperCase()} tone="muted" />}
           </View>
           <Text style={styles.heroTitle}>{comp?.name.toUpperCase() ?? ''}</Text>
         </View>
@@ -203,7 +201,7 @@ export default function CompetitionDetailScreen() {
         )}
 
         {comp?.registration_url && (
-          <Pressable style={styles.externalRegistration} onPress={() => void Linking.openURL(comp.registration_url!)}>
+          <Pressable accessibilityRole="link" style={styles.externalRegistration} onPress={() => void Linking.openURL(comp.registration_url!)}>
             <Ionicons name="open-outline" size={16} color="#fff" />
             <Text style={styles.externalRegistrationText}>INSCRIPTION OFFICIELLE</Text>
           </Pressable>
@@ -215,7 +213,7 @@ export default function CompetitionDetailScreen() {
             <Text style={styles.sectionLabel}>
               COVOITURAGES{carpools.length > 0 ? ` — ${carpools.length}` : ''}
             </Text>
-            <Pressable onPress={() => router.push('/create-carpool')}>
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push('/create-carpool')}>
               <Text style={styles.covPropose}>+ PROPOSER</Text>
             </Pressable>
           </View>
@@ -256,19 +254,20 @@ export default function CompetitionDetailScreen() {
       {/* Bottom CTA */}
       <SafeAreaView edges={['bottom']} style={styles.cta}>
         <Pressable
+          accessibilityRole="button"
           style={[styles.ctaPrimary, isRegistered && styles.ctaPrimaryRegistered]}
           onPress={handleRegister}
           disabled={registering}
         >
           {registering ? (
-            <ActivityIndicator color={t.bone} />
+            <ActivityIndicator color={isRegistered ? t.bone : t.onAccent} />
           ) : (
-            <Text style={styles.ctaPrimaryText}>
+            <Text style={[styles.ctaPrimaryText, isRegistered && styles.ctaPrimaryTextRegistered]}>
               {isRegistered ? 'SE DÉSINSCRIRE' : 'JE M\'INSCRIS'}
             </Text>
           )}
         </Pressable>
-        <Pressable style={styles.ctaSecondary} onPress={() => void Share.share({
+        <Pressable accessibilityRole="button" style={styles.ctaSecondary} onPress={() => void Share.share({
           message: `${competition?.name ?? 'Compétition RFT'}${competition?.location ? ` · ${competition.location}` : ''}`,
         })}>
           <Text style={styles.ctaSecondaryText}>PARTAGER</Text>
@@ -281,6 +280,7 @@ export default function CompetitionDetailScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
+    notFound: { flex: 1, justifyContent: 'center', paddingHorizontal: Layout.gutter },
     hero: { height: 220, position: 'relative', marginBottom: 4 },
     heroBg: { ...StyleSheet.absoluteFill, backgroundColor: '#2a1a16' },
     heroOverlay: {
@@ -293,13 +293,13 @@ function makeStyles(t: Theme) {
       paddingHorizontal: 18, paddingTop: 4,
     },
     heroBackBtn: {
-      width: 36, height: 36, borderRadius: 18,
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.round,
       backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
     },
     heroBackIcon: { fontSize: 24, color: t.bone, lineHeight: 26 },
     heroActions: { flexDirection: 'row', gap: 8 },
     heroActionBtn: {
-      width: 36, height: 36, borderRadius: 18,
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.round,
       backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
     },
     heroActionIcon: { fontSize: 14 },
@@ -319,11 +319,11 @@ function makeStyles(t: Theme) {
     factValue: {
       fontFamily: FONTS.display, fontSize: 15, color: t.bone, fontWeight: '900', letterSpacing: 0.5,
     },
-    scroll: { paddingHorizontal: 20, paddingTop: 16 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 16 },
     sectionLabel: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2, marginBottom: 8 },
     brief: { fontFamily: FONTS.body, fontSize: 13, color: t.text, lineHeight: 20, marginBottom: 18 },
-    externalRegistration: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.crimson, padding: 13, marginBottom: 18 },
-    externalRegistrationText: { color: '#fff', fontFamily: FONTS.mono, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
+    externalRegistration: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.crimson, padding: 13, marginBottom: 18, borderRadius: Radii.md },
+    externalRegistrationText: { color: t.onAccent, fontFamily: FONTS.mono, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
     covHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
     },
@@ -332,10 +332,10 @@ function makeStyles(t: Theme) {
     covCard: {
       flexDirection: 'row', gap: 12, alignItems: 'center',
       padding: 12, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3, marginBottom: 8,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, marginBottom: 8,
     },
     covCardIcon: {
-      width: 38, height: 38, backgroundColor: t.elevated, borderRadius: 3,
+      width: 40, height: 40, backgroundColor: t.elevated, borderRadius: Radii.round,
       alignItems: 'center', justifyContent: 'center',
     },
     covInfo: { flex: 1 },
@@ -351,11 +351,11 @@ function makeStyles(t: Theme) {
       textAlign: 'center', marginTop: 12,
     },
     cta: {
-      flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14,
+      flexDirection: 'row', gap: 8, paddingHorizontal: Layout.gutter, paddingTop: 14, paddingBottom: 14,
       backgroundColor: t.ink,
     },
     ctaPrimary: {
-      flex: 1, height: 50, backgroundColor: t.crimson, borderRadius: 2,
+      flex: 1, height: 50, backgroundColor: t.crimson, borderRadius: Radii.md,
       alignItems: 'center', justifyContent: 'center',
     },
     ctaPrimaryRegistered: {
@@ -363,10 +363,11 @@ function makeStyles(t: Theme) {
     },
     ctaPrimaryText: {
       fontFamily: FONTS.display, fontSize: 16, fontWeight: '900',
-      color: t.bone, letterSpacing: 2, textTransform: 'uppercase',
+      color: t.onAccent, letterSpacing: 2, textTransform: 'uppercase',
     },
+    ctaPrimaryTextRegistered: { color: t.bone },
     ctaSecondary: {
-      height: 50, paddingHorizontal: 16, borderRadius: 2,
+      height: 50, paddingHorizontal: 16, borderRadius: Radii.md,
       borderWidth: 1, borderColor: t.hairlineStrong, alignItems: 'center', justifyContent: 'center',
     },
     ctaSecondaryText: {

@@ -21,7 +21,7 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useMessages } from '@/hooks/useMessages';
 import { safeBack } from '@/lib/navigation';
@@ -63,10 +63,10 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
   const timeStr = new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   const body = msg.body && msg.messageType !== 'poll' ? msg.body.split(/(@[\p{L}\d._-]+)/gu).map((part, index) => (
-    <Text key={`${part}-${index}`} style={part.startsWith('@') ? msgStyles.mention : undefined}>{part}</Text>
+    <Text key={`${part}-${index}`} style={part.startsWith('@') ? [msgStyles.mention, isMe && msgStyles.mentionMe] : undefined}>{part}</Text>
   )) : null;
   const content = msg.messageType === 'poll' && msg.poll
-    ? <PollBubble messageId={msg.id} question={msg.body} poll={msg.poll} styles={msgStyles} pendingOptionId={pollVotingOptionId} onVote={onPollVote} />
+    ? <PollBubble messageId={msg.id} question={msg.body} poll={msg.poll} styles={msgStyles} theme={t} isMe={isMe} pendingOptionId={pollVotingOptionId} onVote={onPollVote} />
     : msg.messageType === 'image' && msg.mediaUrl
       ? <MessagePhoto url={msg.mediaUrl} fileName={msg.mediaFileName} styles={msgStyles} onPress={onPhotoPress} />
       : msg.messageType === 'audio' && msg.mediaUrl
@@ -75,14 +75,15 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
           durationMs={msg.mediaDurationMs}
           t={t}
           styles={msgStyles}
+          isMe={isMe}
           active={activeVoiceUrl === msg.mediaUrl}
           onActivate={onVoiceActivate}
         />
       : null;
   const reply = msg.replyTo ? (
-    <Pressable style={msgStyles.replyQuote} onPress={() => onReplyPress(msg.replyTo!.id)}>
-      <Text style={msgStyles.replyAuthor} numberOfLines={1}>{msg.replyTo.authorName}</Text>
-      <Text style={msgStyles.replyBody} numberOfLines={1}>
+    <Pressable style={[msgStyles.replyQuote, isMe && msgStyles.replyQuoteMe]} onPress={() => onReplyPress(msg.replyTo!.id)}>
+      <Text style={[msgStyles.replyAuthor, isMe && msgStyles.replyAuthorMe]} numberOfLines={1}>{msg.replyTo.authorName}</Text>
+      <Text style={[msgStyles.replyBody, isMe && msgStyles.replyBodyMe]} numberOfLines={1}>
         {msg.replyTo.messageType === 'audio' ? '🎤 Message vocal' : msg.replyTo.messageType === 'image' ? '📷 Photo' : msg.replyTo.messageType === 'poll' ? `📊 ${msg.replyTo.body}` : msg.replyTo.body}
       </Text>
     </Pressable>
@@ -143,7 +144,7 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
       renderLeftActions={() => (
         <View style={msgStyles.swipeReplyAction}>
           <View style={msgStyles.swipeReplyIcon}>
-            <Ionicons name="arrow-undo" size={18} color={t.bone} />
+            <Ionicons name="arrow-undo" size={18} color={t.onAccent} />
           </View>
         </View>
       )}
@@ -157,21 +158,23 @@ function Msg({ msg, isMe, t, msgStyles, onLongPress, highlighted, activeVoiceUrl
   );
 }
 
-function PollBubble({ messageId, question, poll, styles, pendingOptionId, onVote }: {
+function PollBubble({ messageId, question, poll, styles, theme, isMe, pendingOptionId, onVote }: {
   messageId: string;
   question: string;
   poll: NonNullable<Message['poll']>;
   styles: ReturnType<typeof makeMsgStyles>;
+  theme: Theme;
+  isMe: boolean;
   pendingOptionId: string | null;
   onVote: (messageId: string, optionId: string) => void;
 }) {
   return (
     <View style={styles.poll}>
       <View style={styles.pollHeading}>
-        <Ionicons name="stats-chart" size={16} color="#FFD166" />
-        <Text style={styles.pollQuestion}>{question}</Text>
+        <Ionicons name="stats-chart" size={16} color={isMe ? theme.onAccent : theme.gold} />
+        <Text style={[styles.pollQuestion, isMe && styles.pollTextMe]}>{question}</Text>
       </View>
-      <Text style={styles.pollHint}>{poll.allowsMultiple ? 'PLUSIEURS RÉPONSES POSSIBLES' : 'UNE SEULE RÉPONSE'}</Text>
+      <Text style={[styles.pollHint, isMe && styles.pollMutedMe]}>{poll.allowsMultiple ? 'PLUSIEURS RÉPONSES POSSIBLES' : 'UNE SEULE RÉPONSE'}</Text>
       <View style={styles.pollOptions}>
         {poll.options.map((option) => {
           const percentage = poll.totalVoters > 0 ? Math.round(option.voteCount / poll.totalVoters * 100) : 0;
@@ -181,21 +184,21 @@ function PollBubble({ messageId, question, poll, styles, pendingOptionId, onVote
               key={option.id}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: option.voted, disabled: Boolean(pendingOptionId) }}
-              style={[styles.pollOption, option.voted && styles.pollOptionSelected]}
+              style={[styles.pollOption, isMe && styles.pollOptionMe, option.voted && styles.pollOptionSelected, option.voted && isMe && styles.pollOptionSelectedMe]}
               disabled={Boolean(pendingOptionId)}
               onPress={() => onVote(messageId, option.id)}
             >
-              <View style={[styles.pollProgress, { width: `${percentage}%` }]} />
-              <View style={[styles.pollCheck, option.voted && styles.pollCheckSelected]}>
-                {option.voted ? <Ionicons name="checkmark" size={12} color="#111111" /> : null}
+              <View style={[styles.pollProgress, isMe && styles.pollProgressMe, { width: `${percentage}%` }]} />
+              <View style={[styles.pollCheck, isMe && styles.pollCheckMe, option.voted && styles.pollCheckSelected]}>
+                {option.voted ? <Ionicons name="checkmark" size={12} color={theme.crimsonDeep} /> : null}
               </View>
-              <Text style={styles.pollOptionLabel}>{option.label}</Text>
-              {pending ? <ActivityIndicator size="small" color="#FFD166" /> : <Text style={styles.pollPercentage}>{percentage}%</Text>}
+              <Text style={[styles.pollOptionLabel, isMe && styles.pollTextMe]}>{option.label}</Text>
+              {pending ? <ActivityIndicator size="small" color={isMe ? theme.onAccent : theme.gold} /> : <Text style={[styles.pollPercentage, isMe && styles.pollTextMe]}>{percentage}%</Text>}
             </Pressable>
           );
         })}
       </View>
-      <Text style={styles.pollTotal}>{poll.totalVoters} VOTANT{poll.totalVoters > 1 ? 'S' : ''}</Text>
+      <Text style={[styles.pollTotal, isMe && styles.pollMutedMe]}>{poll.totalVoters} VOTANT{poll.totalVoters > 1 ? 'S' : ''}</Text>
     </View>
   );
 }
@@ -276,11 +279,12 @@ const viewerStyles = StyleSheet.create({
   hint: { color: 'rgba(255,255,255,0.55)', fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.8, textAlign: 'center', paddingTop: 10 },
 });
 
-function VoiceBubble({ url, durationMs, t, styles, active, onActivate }: {
+function VoiceBubble({ url, durationMs, t, styles, isMe, active, onActivate }: {
   url: string;
   durationMs: number | null;
   t: Theme;
   styles: ReturnType<typeof makeMsgStyles>;
+  isMe: boolean;
   active: boolean;
   onActivate: (url: string | null) => void;
 }) {
@@ -319,13 +323,13 @@ function VoiceBubble({ url, durationMs, t, styles, active, onActivate }: {
   return <View style={styles.voice}>
     <Pressable accessibilityLabel={status.playing ? 'Mettre le vocal en pause' : 'Lire le vocal'} onPress={() => void togglePlayback()}>
       {status.isBuffering || (!status.isLoaded && !status.error)
-        ? <ActivityIndicator size="small" color={t.bone} />
-        : <Ionicons name={status.error ? 'refresh' : status.playing ? 'pause' : 'play'} size={18} color={t.bone} />}
+        ? <ActivityIndicator size="small" color={isMe ? t.onAccent : t.bone} />
+        : <Ionicons name={status.error ? 'refresh' : status.playing ? 'pause' : 'play'} size={18} color={isMe ? t.onAccent : t.bone} />}
     </Pressable>
-    <View style={styles.voiceTrack}><View style={[styles.voiceProgress, { width: `${total > 0 ? Math.min(100, status.currentTime / total * 100) : 0}%` }]} /></View>
-    <Text style={styles.voiceTime}>{Math.floor(shown / 60)}:{String(Math.round(shown % 60)).padStart(2, '0')}</Text>
-    <Pressable accessibilityLabel="Changer la vitesse de lecture" onPress={cycleRate} style={styles.voiceRate}>
-      <Text style={styles.voiceRateText}>{rate}×</Text>
+    <View style={[styles.voiceTrack, isMe && styles.voiceTrackMe]}><View style={[styles.voiceProgress, isMe && styles.voiceProgressMe, { width: `${total > 0 ? Math.min(100, status.currentTime / total * 100) : 0}%` }]} /></View>
+    <Text style={[styles.voiceTime, isMe && styles.voiceTextMe]}>{Math.floor(shown / 60)}:{String(Math.round(shown % 60)).padStart(2, '0')}</Text>
+    <Pressable accessibilityLabel="Changer la vitesse de lecture" onPress={cycleRate} style={[styles.voiceRate, isMe && styles.voiceRateMe]}>
+      <Text style={[styles.voiceRateText, isMe && styles.voiceTextMe]}>{rate}×</Text>
     </Pressable>
   </View>;
 }
@@ -338,14 +342,14 @@ function makeMsgStyles(t: Theme) {
     meWrap: { alignItems: 'flex-end', width: '100%' },
     highlighted: { backgroundColor: t.crimson + '20', borderRadius: 10, padding: 6, marginHorizontal: -6 },
     meBubble: {
-      backgroundColor: t.crimson, paddingHorizontal: 13, paddingVertical: 9,
-      borderRadius: 16, borderBottomRightRadius: 4, maxWidth: '88%', minWidth: 68,
+      backgroundColor: t.crimson, paddingHorizontal: 14, paddingVertical: 10,
+      borderRadius: 20, borderBottomRightRadius: 6, maxWidth: '88%', minWidth: 68,
     },
-    meText: { fontFamily: FONTS.body, fontSize: 15, color: t.bone, lineHeight: 21 },
+    meText: { fontFamily: FONTS.body, fontSize: 15, color: t.onAccent, lineHeight: 21 },
     meMeta: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 0.8, marginTop: 4 },
     theirWrap: { flexDirection: 'row', gap: 8, width: '100%' },
     theirAvatar: {
-      width: 30, height: 30, borderRadius: 3, backgroundColor: t.elevated,
+      width: 32, height: 32, borderRadius: 16, backgroundColor: t.elevated,
       alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2,
     },
     theirInitial: { fontFamily: FONTS.display, fontSize: 13, color: t.bone, fontWeight: '900' },
@@ -353,32 +357,42 @@ function makeMsgStyles(t: Theme) {
     theirName: { fontFamily: FONTS.body, fontSize: 11.5, fontWeight: '700', color: t.bone },
     theirTime: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1 },
     theirBubble: {
-      backgroundColor: t.surface, paddingHorizontal: 13, paddingVertical: 9,
-      borderRadius: 16, borderTopLeftRadius: 4,
+      backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 10,
+      borderRadius: 20, borderTopLeftRadius: 6,
       borderWidth: 1, borderColor: t.hairline, maxWidth: '94%', minWidth: 68,
     },
     theirText: { fontFamily: FONTS.body, fontSize: 15, lineHeight: 21, color: t.bone },
-    mention: { color: '#FFD166', fontWeight: '800' },
+    mention: { color: t.gold, fontWeight: '800' },
+    mentionMe: { color: t.onAccent, textDecorationLine: 'underline' },
     poll: { width: 268, maxWidth: '100%' },
     pollHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     pollQuestion: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 15, lineHeight: 20, fontWeight: '800' },
-    pollHint: { color: 'rgba(255,255,255,0.58)', fontFamily: FONTS.mono, fontSize: 7.5, letterSpacing: 0.8, marginTop: 5 },
+    pollHint: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 7.5, letterSpacing: 0.8, marginTop: 5 },
+    pollTextMe: { color: t.onAccent },
+    pollMutedMe: { color: t.onAccentMuted },
     pollOptions: { gap: 7, marginTop: 12 },
     pollOption: {
       minHeight: 43, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 9,
       paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9,
-      borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(0,0,0,0.14)',
+      borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.elevated,
     },
-    pollOptionSelected: { borderColor: '#FFD166' },
-    pollProgress: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(255,209,102,0.16)' },
-    pollCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.65)', alignItems: 'center', justifyContent: 'center' },
-    pollCheckSelected: { backgroundColor: '#FFD166', borderColor: '#FFD166' },
+    pollOptionMe: { borderColor: 'rgba(255,255,255,0.22)', backgroundColor: 'rgba(0,0,0,0.12)' },
+    pollOptionSelected: { borderColor: t.gold },
+    pollOptionSelectedMe: { borderColor: t.onAccentMuted },
+    pollProgress: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: `${t.gold}24` },
+    pollProgressMe: { backgroundColor: 'rgba(255,255,255,0.14)' },
+    pollCheck: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: t.textDim, alignItems: 'center', justifyContent: 'center' },
+    pollCheckMe: { borderColor: t.onAccentMuted },
+    pollCheckSelected: { backgroundColor: t.gold, borderColor: t.gold },
     pollOptionLabel: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 13, lineHeight: 17, fontWeight: '600' },
     pollPercentage: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800' },
-    pollTotal: { color: 'rgba(255,255,255,0.62)', fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1, marginTop: 9, textAlign: 'right' },
-    replyQuote: { borderLeftWidth: 3, borderLeftColor: '#FFD166', backgroundColor: 'rgba(0,0,0,0.16)', borderRadius: 5, paddingHorizontal: 8, paddingVertical: 5, marginBottom: 6, minWidth: 150 },
-    replyAuthor: { color: '#FFD166', fontFamily: FONTS.body, fontSize: 10, fontWeight: '800' },
+    pollTotal: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1, marginTop: 9, textAlign: 'right' },
+    replyQuote: { borderLeftWidth: 3, borderLeftColor: t.gold, backgroundColor: t.elevated, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6, marginBottom: 7, minWidth: 150 },
+    replyQuoteMe: { borderLeftColor: t.onAccent, backgroundColor: 'rgba(0,0,0,0.14)' },
+    replyAuthor: { color: t.gold, fontFamily: FONTS.body, fontSize: 10, fontWeight: '800' },
+    replyAuthorMe: { color: t.onAccent },
     replyBody: { color: t.bone, opacity: 0.78, fontFamily: FONTS.body, fontSize: 10, marginTop: 1 },
+    replyBodyMe: { color: t.onAccent },
     reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: -3, marginLeft: 8 },
     reactionsMe: { justifyContent: 'flex-end', marginRight: 8 },
     reactionChip: { borderRadius: 12, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong },
@@ -389,10 +403,14 @@ function makeMsgStyles(t: Theme) {
     photoExpand: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.52)' },
     voice: { minWidth: 210, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
     voiceTrack: { flex: 1, height: 3, backgroundColor: t.hairlineStrong, borderRadius: 2, overflow: 'hidden' },
+    voiceTrackMe: { backgroundColor: 'rgba(255,255,255,0.28)' },
     voiceProgress: { height: 3, backgroundColor: t.bone },
+    voiceProgressMe: { backgroundColor: t.onAccent },
     voiceTime: { color: t.bone, fontFamily: FONTS.mono, fontSize: 9 },
     voiceRate: { minWidth: 28, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center' },
     voiceRateText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800' },
+    voiceRateMe: { backgroundColor: 'rgba(255,255,255,0.16)' },
+    voiceTextMe: { color: t.onAccent },
   });
 }
 
@@ -782,6 +800,17 @@ export default function ChatScreen() {
       )}
 
       {loading && <ActivityIndicator color={t.crimson} style={{ marginTop: 20 }} />}
+      {!loading && messages.length === 0 ? (
+        <View style={styles.emptyConversation}>
+          <View style={styles.emptyConversationIcon}>
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={t.crimson} />
+          </View>
+          <Text style={styles.emptyConversationTitle}>LA DISCUSSION COMMENCE ICI</Text>
+          <Text style={styles.emptyConversationText}>
+            {isReadOnly ? 'Les prochaines annonces du club apparaîtront ici.' : 'Envoie le premier message à ce salon.'}
+          </Text>
+        </View>
+      ) : null}
     </>
   );
 
@@ -809,27 +838,27 @@ export default function ChatScreen() {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView edges={['top']}>
+      <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/salons')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
+          <Pressable accessibilityLabel="Retour aux salons" accessibilityRole="button" onPress={() => safeBack('/(tabs)/salons')} style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}>
+            <Ionicons name="chevron-back" size={22} color={t.bone} />
           </Pressable>
           <View style={[styles.chanAvatar, isAnnonces && styles.chanAvatarAnnonces]}>
             {isAnnonces
-              ? <Ionicons name="sunny" size={18} color={t.bone} />
+              ? <Ionicons name="sparkles" size={19} color={t.onAccent} />
               : <Text style={styles.chanInitial}>{channelName[0]}</Text>
             }
           </View>
           <View style={styles.chanInfo}>
             <Text style={styles.chanName} numberOfLines={1}>{channelName}</Text>
             <Text style={styles.chanMeta}>
-              SALON{isCoachs ? ' · PRIVÉ' : ''}
+              {members.length + (user ? 1 : 0)} MEMBRE{members.length + (user ? 1 : 0) > 1 ? 'S' : ''}{isCoachs ? ' · PRIVÉ' : isReadOnly ? ' · LECTURE SEULE' : ' · EN DIRECT'}
             </Text>
           </View>
           <Pressable
             accessibilityLabel="Options du salon"
             hitSlop={10}
-            style={styles.moreButton}
+            style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
             onPress={() => {
               haptics.light();
               setChannelMenuVisible(true);
@@ -843,7 +872,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         automaticOffset
         style={{ flex: 1 }}
-        behavior="translate-with-padding"
+        behavior="padding"
       >
       <View style={styles.messageListArea}>
       <FlatList
@@ -989,8 +1018,8 @@ export default function ChatScreen() {
             </View>
           )}
           <View style={styles.composer}>
-          <Pressable style={styles.attachBtn} onPress={openAttachments} disabled={sendingMedia || recorderState.isRecording}>
-            <Text style={styles.attachIcon}>＋</Text>
+          <Pressable accessibilityLabel="Ajouter une pièce jointe" accessibilityRole="button" style={({ pressed }) => [styles.attachBtn, pressed && styles.pressed]} onPress={openAttachments} disabled={sendingMedia || recorderState.isRecording}>
+            <Ionicons name="add" size={22} color={t.bone} />
           </Pressable>
           <TextInput
             ref={inputRef}
@@ -1004,17 +1033,20 @@ export default function ChatScreen() {
             multiline
             blurOnSubmit={false}
           />
-          <Pressable style={[styles.sendBtn, recorderState.isRecording && styles.recordingBtn, sendingMedia && styles.sendBtnDisabled]} onPress={messageText.trim() ? handleSend : toggleRecording} disabled={sendingMedia}>
-            {sendingMedia ? <ActivityIndicator size="small" color={t.bone} /> : recorderState.isRecording
+          <Pressable accessibilityLabel={messageText.trim() ? 'Envoyer le message' : recorderState.isRecording ? 'Arrêter et envoyer le vocal' : 'Enregistrer un message vocal'} accessibilityRole="button" style={({ pressed }) => [styles.sendBtn, recorderState.isRecording && styles.recordingBtn, sendingMedia && styles.sendBtnDisabled, pressed && styles.pressed]} onPress={messageText.trim() ? handleSend : toggleRecording} disabled={sendingMedia}>
+            {sendingMedia ? <ActivityIndicator size="small" color={t.onAccent} /> : recorderState.isRecording
               ? <Text style={styles.recordingTime}>{Math.ceil(recorderState.durationMillis / 1000)}s ■</Text>
-              : <Ionicons name={messageText.trim() ? 'send' : 'mic'} size={17} color={t.bone} />}
+              : <Ionicons name={messageText.trim() ? 'send' : 'mic'} size={18} color={t.onAccent} />}
           </Pressable>
           </View>
         </SafeAreaView>
         </>
       ) : (
         <SafeAreaView edges={['bottom']} style={styles.readOnlyBar}>
-          <Text style={styles.readOnlyText}>Ce salon est en lecture seule</Text>
+          <View style={styles.readOnlyPill}>
+            <Ionicons name="lock-closed" size={14} color={t.textDim} />
+            <Text style={styles.readOnlyText}>Ce salon est en lecture seule</Text>
+          </View>
         </SafeAreaView>
       )}
       </KeyboardAvoidingView>
@@ -1170,7 +1202,7 @@ export default function ChatScreen() {
             </View>
             <ScrollView style={styles.membersScroll} showsVerticalScrollIndicator={false}>
               {user ? <View style={styles.memberRow}>
-                <View style={[styles.memberAvatar, { backgroundColor: t.crimson }]}><Text style={styles.memberAvatarText}>{user.firstName[0]}{user.lastName[0]}</Text></View>
+                <View style={[styles.memberAvatar, { backgroundColor: t.crimson }]}><Text style={[styles.memberAvatarText, styles.memberAvatarTextOnAccent]}>{user.firstName[0]}{user.lastName[0]}</Text></View>
                 <View style={{ flex: 1 }}><Text style={styles.memberName}>{user.firstName} {user.lastName}</Text><Text style={styles.memberRole}>VOUS</Text></View>
               </View> : null}
               {members.map((member) => <View key={member.id} style={styles.memberRow}>
@@ -1417,39 +1449,58 @@ function ReceiptSection({ title, icon, people, empty, t, styles }: {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
+    headerSafe: { backgroundColor: t.ink },
     header: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4,
-      borderBottomWidth: 1, borderBottomColor: t.hairline,
+      minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11,
+      paddingHorizontal: 12, paddingBottom: 10, paddingTop: 4,
     },
-    backBtn: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
+    pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
+    backBtn: {
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: 22,
+      alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated,
+      borderWidth: 1, borderColor: t.hairlineStrong,
+    },
     chanAvatar: {
-      width: 36, height: 36, borderRadius: 3, backgroundColor: t.elevated,
-      alignItems: 'center', justifyContent: 'center',
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: 15, backgroundColor: t.elevated,
+      alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.hairlineStrong,
     },
-    chanAvatarAnnonces: { backgroundColor: t.crimson },
+    chanAvatarAnnonces: { backgroundColor: t.crimson, borderColor: t.crimson },
     chanInitial: { fontFamily: FONTS.display, fontSize: 16, color: t.bone, fontWeight: '900' },
     chanInfo: { flex: 1, minWidth: 0 },
-    chanName: { fontFamily: FONTS.body, fontSize: 14, fontWeight: '700', color: t.bone },
-    chanMeta: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.2, marginTop: 1 },
-    moreButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    chanName: { fontFamily: FONTS.body, fontSize: 16, fontWeight: '800', color: t.bone },
+    chanMeta: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 0.9, marginTop: 3 },
+    moreButton: {
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: 22,
+      alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated,
+      borderWidth: 1, borderColor: t.hairlineStrong,
+    },
     privateNotice: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       marginHorizontal: 16, marginTop: 12, marginBottom: 6, padding: 10,
-      backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: t.hairlineStrong,
-      borderRadius: 3,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
+      borderRadius: Radii.md,
     },
     privateText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, letterSpacing: 1 },
     pinned: {
       marginHorizontal: 16, marginTop: 12, marginBottom: 6, padding: 10,
-      backgroundColor: 'rgba(200,54,45,0.08)', borderWidth: 1, borderColor: 'rgba(200,54,45,0.3)',
-      borderRadius: 3,
+      backgroundColor: `${t.crimson}12`, borderWidth: 1, borderColor: `${t.crimson}55`,
+      borderRadius: Radii.md,
     },
     pinnedLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 1.5, marginBottom: 4 },
     pinnedText: { fontFamily: FONTS.body, fontSize: 12.5, color: t.bone, lineHeight: 18 },
+    emptyConversation: {
+      minHeight: 230, marginHorizontal: 16, marginTop: 18, paddingHorizontal: 28,
+      alignItems: 'center', justifyContent: 'center', borderRadius: Radii.lg,
+      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
+    },
+    emptyConversationIcon: {
+      width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: `${t.crimson}14`, marginBottom: 14,
+    },
+    emptyConversationTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 15, fontWeight: '900', letterSpacing: 0.8, textAlign: 'center' },
+    emptyConversationText: { color: t.textDim, fontFamily: FONTS.body, fontSize: 13, lineHeight: 19, marginTop: 7, textAlign: 'center' },
     messageListArea: { flex: 1 },
-    messages: { paddingHorizontal: 16, paddingTop: 8 },
+    messages: { paddingHorizontal: 14, paddingTop: 6 },
     unreadDivider: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 4, marginBottom: 14 },
     unreadDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: t.crimson },
     unreadDividerText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '800', letterSpacing: 1.2 },
@@ -1475,11 +1526,11 @@ function makeStyles(t: Theme) {
     dateStamp: {
       fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 2,
       paddingHorizontal: 10, paddingVertical: 3,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 2,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.round,
     },
     covCard: {
       padding: 12, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairlineStrong, borderStyle: 'dashed', borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md,
       marginTop: 14,
     },
     covHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
@@ -1488,12 +1539,12 @@ function makeStyles(t: Theme) {
     covSub: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim, marginTop: 2 },
     covActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
     covBtnPrimary: {
-      flex: 1, height: 32, backgroundColor: t.crimson, borderRadius: 2,
+      flex: 1, minHeight: Layout.touchTarget, backgroundColor: t.crimson, borderRadius: Radii.sm,
       alignItems: 'center', justifyContent: 'center',
     },
     covBtnPrimaryText: {
       fontFamily: FONTS.display, fontSize: 11, fontWeight: '900',
-      color: t.bone, letterSpacing: 1.5, textTransform: 'uppercase',
+      color: t.onAccent, letterSpacing: 1.2, textTransform: 'uppercase',
     },
     covBtnSecondary: {
       height: 32, paddingHorizontal: 12, borderRadius: 2,
@@ -1504,41 +1555,43 @@ function makeStyles(t: Theme) {
       color: t.textDim, letterSpacing: 1.5, textTransform: 'uppercase',
     },
     composerSafe: {
-      backgroundColor: t.ink, borderTopWidth: 1, borderTopColor: t.hairline,
+      backgroundColor: t.ink,
     },
     composerContext: {
       minHeight: 48, marginHorizontal: 16, marginTop: 8, paddingHorizontal: 10,
       flexDirection: 'row', alignItems: 'center', gap: 9,
-      backgroundColor: t.surface, borderRadius: 8,
+      backgroundColor: t.surface, borderRadius: Radii.md,
+      borderWidth: 1, borderColor: t.hairline,
     },
     composerContextBar: { width: 3, alignSelf: 'stretch', marginVertical: 7, borderRadius: 2, backgroundColor: t.crimson },
     composerContextTitle: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
     composerContextBody: { color: t.textDim, fontFamily: FONTS.body, fontSize: 11, marginTop: 2 },
     composer: {
       flexDirection: 'row', alignItems: 'flex-end', gap: 9,
-      paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
+      marginHorizontal: 10, marginBottom: 6, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8,
       backgroundColor: t.ink,
     },
     attachBtn: {
-      width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: t.hairlineStrong,
-      alignItems: 'center', justifyContent: 'center',
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: 22,
+      alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated,
+      borderWidth: 1, borderColor: t.hairlineStrong,
     },
     attachIcon: { color: t.bone, fontSize: 22, lineHeight: 24 },
     input: {
       flex: 1, minHeight: 46, maxHeight: 112, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 23,
+      borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 23,
       paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11,
       fontFamily: FONTS.body, fontSize: 15, lineHeight: 22, color: t.bone,
     },
     sendBtn: {
-      width: 42, height: 42, borderRadius: 21, backgroundColor: t.crimson,
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: 22, backgroundColor: t.crimson,
       alignItems: 'center', justifyContent: 'center',
     },
     sendBtnDisabled: { backgroundColor: t.elevated },
     sendIcon: { color: t.bone, fontSize: 14 },
     recordingBtn: { width: 68, borderRadius: 21, backgroundColor: '#D63A31' },
     recordingTime: { color: '#fff', fontFamily: FONTS.mono, fontSize: 10, fontWeight: '800' },
-    mentionPanel: { marginHorizontal: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 6, overflow: 'hidden' },
+    mentionPanel: { marginHorizontal: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, overflow: 'hidden' },
     mentionRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline },
     mentionAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: t.elevated, alignItems: 'center', justifyContent: 'center' },
     mentionAvatarText: { color: t.bone, fontFamily: FONTS.display, fontSize: 10, fontWeight: '900' },
@@ -1578,6 +1631,7 @@ function makeStyles(t: Theme) {
     memberRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.hairline, paddingHorizontal: 2 },
     memberAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
     memberAvatarText: { color: t.bone, fontFamily: FONTS.display, fontSize: 11, fontWeight: '900' },
+    memberAvatarTextOnAccent: { color: t.onAccent },
     memberName: { flex: 1, color: t.bone, fontFamily: FONTS.body, fontSize: 13.5, fontWeight: '700' },
     memberRole: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1, marginTop: 2 },
     quickReactions: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.elevated, borderRadius: 24, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 12 },
@@ -1621,7 +1675,7 @@ function makeStyles(t: Theme) {
     pollToggle: { width: 48, height: 28, borderRadius: 14, justifyContent: 'center', paddingHorizontal: 3, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong },
     pollToggleActive: { backgroundColor: t.crimson, borderColor: t.crimson },
     pollToggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: t.textMute },
-    pollToggleThumbActive: { alignSelf: 'flex-end', backgroundColor: t.bone },
+    pollToggleThumbActive: { alignSelf: 'flex-end', backgroundColor: t.onAccent },
     photoPreview: { flex: 1, backgroundColor: '#050505' },
     photoPreviewHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.14)' },
     photoPreviewClose: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
@@ -1650,10 +1704,13 @@ function makeStyles(t: Theme) {
     receiptName: { color: t.bone, fontFamily: FONTS.body, fontSize: 13.5, fontWeight: '700' },
     receiptTime: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8.5, marginTop: 2 },
     readOnlyBar: {
-      paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12,
-      backgroundColor: t.surface, borderTopWidth: 1, borderTopColor: t.hairline,
-      alignItems: 'center',
+      paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
+      backgroundColor: t.ink, alignItems: 'center',
     },
-    readOnlyText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1.5 },
+    readOnlyPill: {
+      width: '100%', minHeight: Layout.touchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      borderRadius: Radii.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
+    },
+    readOnlyText: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.1, textTransform: 'uppercase' },
   });
 }

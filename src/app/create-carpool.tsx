@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { FormScrollView } from '@/components/form-scroll-view';
 import DateTimePicker from '@/components/themed-date-time-picker';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
@@ -127,13 +128,7 @@ export default function CreateCarpoolScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/covoiturage')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>{id ? 'MODIFIER LE COVOIT' : 'PROPOSER UN COVOIT'}</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <DetailHeader eyebrow="Mobilité du club" title={id ? 'MODIFIER LE COVOIT' : 'PROPOSER UN COVOIT'} onBack={() => safeBack('/(tabs)/covoiturage')} />
       </SafeAreaView>
 
       {loadingCarpool ? (
@@ -340,7 +335,7 @@ function makeStyles(t: Theme) {
       fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
     },
     headerSpacer: { width: 36 },
-    scroll: { paddingHorizontal: 20, paddingTop: 24 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 12 },
     loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     fieldLabel: {
       fontFamily: FONTS.mono, fontSize: 10, color: t.textMute,
@@ -350,7 +345,7 @@ function makeStyles(t: Theme) {
     addressHintValid: { color: '#22C55E' },
     dropdown: {
       height: 44, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md,
       paddingHorizontal: 14, flexDirection: 'row',
       alignItems: 'center', justifyContent: 'space-between',
     },
@@ -365,7 +360,7 @@ function makeStyles(t: Theme) {
     },
     eventList: {
       backgroundColor: t.elevated,
-      borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md,
       marginTop: 4, overflow: 'hidden',
     },
     eventGroupLabel: {
@@ -397,7 +392,7 @@ function makeStyles(t: Theme) {
     },
     textInput: {
       height: 44, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md,
       paddingHorizontal: 14, fontFamily: FONTS.body, fontSize: 14, color: t.bone,
     },
     textInputMulti: {
@@ -409,7 +404,7 @@ function makeStyles(t: Theme) {
     stepper: {
       flexDirection: 'row', alignItems: 'center', gap: 0,
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, overflow: 'hidden', alignSelf: 'flex-start',
+      borderRadius: Radii.md, overflow: 'hidden', alignSelf: 'flex-start',
     },
     stepBtn: {
       width: 50, height: 50, alignItems: 'center', justifyContent: 'center',
@@ -430,16 +425,16 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5,
     },
     ctaWrap: {
-      paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12,
+      paddingHorizontal: Layout.gutter, paddingTop: 12, paddingBottom: 12,
       backgroundColor: t.ink, borderTopWidth: 1, borderTopColor: t.hairline,
     },
     ctaBtn: {
-      height: 50, backgroundColor: t.crimson, borderRadius: 3,
+      height: 50, backgroundColor: t.crimson, borderRadius: Radii.md,
       alignItems: 'center', justifyContent: 'center',
     },
     ctaBtnDisabled: { backgroundColor: t.elevated },
     ctaBtnText: {
-      fontFamily: FONTS.display, fontSize: 13, color: t.bone,
+      fontFamily: FONTS.display, fontSize: 13, color: t.onAccent,
       fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
     },
   });

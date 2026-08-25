@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
-import { FONTS, Theme } from '@/constants/theme';
+import { FONTS, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { authClient } from '@/lib/auth-client';
 
@@ -43,8 +43,8 @@ const makeStyles = (t: Theme) => StyleSheet.create({
   back: { color: t.bone, fontSize: 34 }, content: { flexGrow: 1, justifyContent: 'center', gap: 16 },
   title: { color: t.bone, fontFamily: FONTS.display, fontWeight: '900', fontSize: 25, letterSpacing: 2 },
   copy: { color: t.textDim, fontSize: 14, lineHeight: 21 },
-  input: { color: t.bone, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, padding: 14, borderRadius: 4 },
+  input: { minHeight: 50, color: t.bone, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong, padding: 14, borderRadius: Radii.md },
   message: { color: t.gold, fontSize: 13, lineHeight: 19 },
-  button: { backgroundColor: t.crimson, padding: 15, alignItems: 'center', borderRadius: 4 },
-  buttonText: { color: '#fff', fontWeight: '900', letterSpacing: 1.5 },
+  button: { minHeight: 50, backgroundColor: t.crimson, padding: 15, alignItems: 'center', justifyContent: 'center', borderRadius: Radii.md },
+  buttonText: { color: t.onAccent, fontWeight: '900', letterSpacing: 1.5 },
 });

@@ -1,10 +1,10 @@
 import { Tabs } from 'expo-router';
 import { useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { FONTS, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { haptics } from '@/lib/haptics';
@@ -25,43 +25,45 @@ function RFTTabBar({ state, navigation }: { state: any; navigation: any }) {
   const isCoach = user?.role === 'coach' || user?.role === 'admin';
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 10 }]}>
-      {state.routes.map((route: any, index: number) => {
-        const tab = TAB_CONFIG.find((t) => t.name === route.name);
-        if (!tab) return null;
-        const focused = state.index === index;
-        const color = focused ? t.crimson : t.textMute;
+    <View style={[styles.tabBarOuter, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+      <View style={styles.tabBar}>
+        {state.routes.map((route: any, index: number) => {
+          const tab = TAB_CONFIG.find((item) => item.name === route.name);
+          if (!tab) return null;
+          const focused = state.index === index;
+          const color = focused ? t.bone : t.textMute;
+          const label = isCoach && tab.name === 'accueil' ? 'Pilotage' : tab.label;
 
-        return (
-          <Pressable
-            key={route.key}
-            style={styles.tabItem}
-            onPress={() => {
-              if (!focused) haptics.selection();
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!focused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
-            }}
-          >
-            <SymbolView
-              name={{ ios: tab.ios, android: tab.android, web: tab.web }}
-              tintColor={color}
-              size={22}
-            />
-            <Text style={[styles.tabLabel, { color }]}>{isCoach && tab.name === 'accueil' ? 'Pilotage' : tab.label}</Text>
-          </Pressable>
-        );
-      })}
-
-      {/* iOS home indicator pill */}
-      {Platform.OS === 'ios' && (
-        <View style={styles.homeIndicator} />
-      )}
+          return (
+            <Pressable
+              accessibilityLabel={label}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: focused }}
+              hitSlop={{ top: 4, bottom: 4 }}
+              key={route.key}
+              style={({ pressed }) => [styles.tabItem, pressed && styles.tabPressed]}
+              onPress={() => {
+                if (!focused) haptics.selection();
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              }}
+            >
+              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                <SymbolView
+                  name={{ ios: tab.ios, android: tab.android, web: tab.web }}
+                  tintColor={color}
+                  size={focused ? 21 : 20}
+                />
+              </View>
+              <Text allowFontScaling numberOfLines={1} style={[styles.tabLabel, { color }]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -83,36 +85,42 @@ export default function TabLayout() {
 
 function makeStyles(t: Theme) {
   return StyleSheet.create({
+    tabBarOuter: {
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      backgroundColor: t.ink,
+    },
     tabBar: {
       flexDirection: 'row',
-      backgroundColor: t.ink,
-      borderTopWidth: 1,
-      borderTopColor: t.hairline,
-      paddingTop: 10,
+      minHeight: 66,
+      paddingHorizontal: 5,
+      paddingVertical: 6,
+      backgroundColor: t.surface,
+      borderWidth: 1,
+      borderColor: t.hairlineStrong,
+      borderRadius: Radii.lg,
     },
     tabItem: {
       flex: 1,
       alignItems: 'center',
-      gap: 4,
-      paddingVertical: 4,
+      justifyContent: 'center',
+      gap: 2,
+      minHeight: 52,
     },
+    tabPressed: { opacity: 0.68 },
+    iconWrap: {
+      width: 38,
+      height: 29,
+      borderRadius: Radii.round,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconWrapActive: { backgroundColor: t.crimson },
     tabLabel: {
       fontFamily: FONTS.body,
-      fontSize: 10,
-      fontWeight: '600',
-      letterSpacing: 0.2,
-    },
-    homeIndicator: {
-      position: 'absolute',
-      bottom: 8,
-      alignSelf: 'center',
-      left: '50%',
-      marginLeft: -67,
-      width: 134,
-      height: 5,
-      borderRadius: 3,
-      backgroundColor: t.bone,
-      opacity: 0.4,
+      fontSize: 9,
+      fontWeight: '700',
+      letterSpacing: -0.1,
     },
   });
 }

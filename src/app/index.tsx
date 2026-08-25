@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { FONTS, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { takeInitialNotificationHref } from '@/lib/initial-notification';
@@ -153,7 +153,7 @@ function makeStyles(t: Theme) {
     btnPrimary: {
       height: 54,
       backgroundColor: t.crimson,
-      borderRadius: 2,
+      borderRadius: Radii.md,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -161,14 +161,14 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.display,
       fontSize: 18,
       fontWeight: '900',
-      color: t.bone,
+      color: t.onAccent,
       letterSpacing: 2,
       textTransform: 'uppercase',
     },
     btnSecondary: {
       height: 54,
       backgroundColor: 'transparent',
-      borderRadius: 2,
+      borderRadius: Radii.md,
       borderWidth: 1,
       borderColor: t.hairlineStrong,
       alignItems: 'center',

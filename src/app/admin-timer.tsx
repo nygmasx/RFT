@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, IconButton } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { safeBack } from '@/lib/navigation';
@@ -302,22 +303,7 @@ export default function AdminTimerScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <Pressable accessibilityLabel="Retour à l’administration" onPress={() => safeBack('/admin')} style={styles.headerButton}>
-            <Ionicons name="chevron-back" size={22} color={t.bone} />
-          </Pressable>
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>OUTIL COACH</Text>
-            <Text style={styles.title}>ROUND TIMER</Text>
-          </View>
-          <Pressable
-            accessibilityLabel={soundEnabled ? 'Couper les sons du timer' : 'Activer les sons du timer'}
-            onPress={() => setSoundEnabled((enabled) => !enabled)}
-            style={[styles.headerButton, soundEnabled && { borderColor: t.crimson }]}
-          >
-            <Ionicons name={soundEnabled ? 'volume-high' : 'volume-mute'} size={20} color={soundEnabled ? t.crimson : t.textMute} />
-          </Pressable>
-        </View>
+        <DetailHeader eyebrow="Outil coach" title="ROUND TIMER" onBack={() => safeBack('/admin')} action={<IconButton icon={soundEnabled ? 'volume-high' : 'volume-mute'} label={soundEnabled ? 'Couper les sons du timer' : 'Activer les sons du timer'} accent={soundEnabled} onPress={() => setSoundEnabled((enabled) => !enabled)} />} />
       </SafeAreaView>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -484,17 +470,9 @@ function makeStyles(t: Theme) {
     center: { alignItems: 'center', justifyContent: 'center' },
     restricted: { color: t.textMute, fontSize: 14 },
     safeArea: { borderBottomWidth: 1, borderBottomColor: t.hairline },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 12 },
-    headerButton: {
-      width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
-      borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface,
-    },
-    headerCopy: { flex: 1 },
-    eyebrow: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 2 },
-    title: { fontFamily: FONTS.display, fontSize: 21, fontWeight: '900', color: t.bone, letterSpacing: 1.5 },
-    scroll: { padding: 18, paddingBottom: 42, gap: 18 },
+    scroll: { padding: Layout.gutter, paddingBottom: 42, gap: 18 },
     timerPanel: {
-      minHeight: 300, backgroundColor: t.surface, borderWidth: 1, borderRadius: 8,
+      minHeight: 300, backgroundColor: t.surface, borderWidth: 1, borderRadius: Radii.xl,
       padding: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
     phasePill: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
@@ -508,11 +486,11 @@ function makeStyles(t: Theme) {
     progressFill: { height: '100%', borderRadius: 3 },
     runningControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
     mainControl: {
-      width: 138, height: 76, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+      width: 138, height: 76, borderRadius: Radii.lg, alignItems: 'center', justifyContent: 'center',
     },
     mainControlText: { fontFamily: FONTS.mono, fontSize: 10, color: '#FFFFFF', letterSpacing: 1.5, fontWeight: '800' },
     secondaryControl: {
-      width: 82, height: 66, borderRadius: 6, borderWidth: 1, borderColor: t.hairlineStrong,
+      width: 82, height: 66, borderRadius: Radii.md, borderWidth: 1, borderColor: t.hairlineStrong,
       backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center', gap: 4,
     },
     secondaryControlText: { fontFamily: FONTS.mono, fontSize: 8, color: t.textDim, letterSpacing: 1 },
@@ -523,7 +501,7 @@ function makeStyles(t: Theme) {
     testSoundText: { fontFamily: FONTS.mono, fontSize: 8.5, color: t.crimson, letterSpacing: 1 },
     presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     preset: {
-      width: '48.5%', borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 5,
+      width: '48.5%', borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md,
       backgroundColor: t.surface, padding: 12,
     },
     presetActive: { borderColor: t.crimson, backgroundColor: t.crimson + '16' },
@@ -533,7 +511,7 @@ function makeStyles(t: Theme) {
     settingsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     settingCard: {
       width: '48.5%', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 5, padding: 10, gap: 8,
+      borderRadius: Radii.md, padding: 10, gap: 8,
     },
     settingLabel: { fontFamily: FONTS.mono, fontSize: 8.5, color: t.textMute, letterSpacing: 1.2 },
     settingControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -550,9 +528,9 @@ function makeStyles(t: Theme) {
     summaryValue: { fontFamily: FONTS.mono, fontSize: 21, fontWeight: '900', color: t.bone, marginTop: 2 },
     summaryMeta: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute },
     startButton: {
-      minHeight: 58, borderRadius: 5, backgroundColor: t.crimson, flexDirection: 'row',
+      minHeight: 58, borderRadius: Radii.md, backgroundColor: t.crimson, flexDirection: 'row',
       alignItems: 'center', justifyContent: 'center', gap: 10,
     },
-    startButtonText: { fontFamily: FONTS.display, fontSize: 15, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
+    startButtonText: { fontFamily: FONTS.display, fontSize: 15, fontWeight: '900', color: t.onAccent, letterSpacing: 2 },
   });
 }

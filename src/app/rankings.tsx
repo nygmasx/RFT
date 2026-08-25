@@ -5,7 +5,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, EmptyState, SegmentedControl } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -77,11 +78,12 @@ export default function RankingsScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/palmares')} style={styles.back}><Text style={styles.backIcon}>‹</Text></Pressable>
-          <View style={styles.headerCopy}><Text style={styles.eyebrow}>RONIN FIGHT TEAM</Text><Text style={styles.title}>CLASSEMENTS</Text></View>
-          {mode === 'club' && <Pressable style={styles.rulesButton} onPress={() => setShowRules((value) => !value)}><Ionicons name="calculator-outline" size={17} color={t.crimson} /><Text style={styles.rulesButtonText}>BARÈME</Text></Pressable>}
-        </View>
+        <DetailHeader
+          eyebrow="Ronin Fight Team"
+          title="CLASSEMENTS"
+          onBack={() => safeBack('/palmares')}
+          action={mode === 'club' ? <Pressable accessibilityRole="button" style={styles.rulesButton} onPress={() => setShowRules((value) => !value)}><Ionicons name="calculator-outline" size={17} color={t.crimson} /><Text style={styles.rulesButtonText}>BARÈME</Text></Pressable> : undefined}
+        />
       </SafeAreaView>
 
       {loading ? <View style={styles.center}><ActivityIndicator color={t.crimson} /></View> : (
@@ -89,8 +91,7 @@ export default function RankingsScreen() {
           setRefreshing(true); void load(true).finally(() => setRefreshing(false));
         }} />}>
           <View style={styles.modeTabs}>
-            <Pressable style={[styles.modeTab, mode === 'club' && styles.modeTabActive]} onPress={() => setMode('club')}><Text style={[styles.modeText, mode === 'club' && styles.modeTextActive]}>CLUB</Text></Pressable>
-            <Pressable style={[styles.modeTab, mode === 'official' && styles.modeTabActive]} onPress={() => setMode('official')}><Text style={[styles.modeText, mode === 'official' && styles.modeTextActive]}>OFFICIEL</Text></Pressable>
+            <SegmentedControl items={['CLUB', 'OFFICIEL']} selectedIndex={mode === 'club' ? 0 : 1} onChange={(index) => setMode(index === 0 ? 'club' : 'official')} />
           </View>
           {mode === 'club' ? <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
@@ -128,7 +129,7 @@ export default function RankingsScreen() {
               <View style={styles.score}><Text style={styles.points}>{points}</Text><Text style={styles.pointsLabel}>PTS</Text></View>
             </View>;
           })}
-          {rows.length === 0 ? <View style={styles.empty}><Ionicons name="podium-outline" size={36} color={t.textMute} /><Text style={styles.emptyText}>Aucun résultat validé dans ce classement.</Text></View> : null}
+          {rows.length === 0 ? <View style={styles.empty}><EmptyState icon="podium-outline" title="Classement à construire" message="Aucun résultat validé dans ce classement." /></View> : null}
           </> : official ? <>
             <Text style={styles.officialIntro}>Données publiques officielles et agrégées pour les athlètes de la team. Mise à jour : {new Date(official.updatedAt).toLocaleString('fr-FR')}.</Text>
             <OfficialSection title="IBJJF · BJJMETRICS" source={official.bjjmetrics} t={t} styles={styles} rows={official.bjjmetrics.data?.athletes ?? []} />
@@ -160,16 +161,13 @@ function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 4, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: t.hairline },
-    back: { padding: 4 }, backIcon: { color: t.bone, fontSize: 29, lineHeight: 30 }, headerCopy: { flex: 1 },
-    eyebrow: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8.5, letterSpacing: 2 }, title: { color: t.bone, fontFamily: FONTS.display, fontSize: 22, fontWeight: '900', letterSpacing: 1 },
-    rulesButton: { flexDirection: 'row', alignItems: 'center', gap: 5, padding: 9, borderWidth: 1, borderColor: t.crimson, borderRadius: 3 }, rulesButtonText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '800', letterSpacing: 1 },
+    rulesButton: { minHeight: Layout.touchTarget, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.round }, rulesButtonText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '800', letterSpacing: 1 },
     content: { paddingTop: 16 }, tabs: { paddingHorizontal: 18, gap: 7 }, tab: { height: 38, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3 }, tabActive: { backgroundColor: t.crimson, borderColor: t.crimson }, tabText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '700', letterSpacing: 0.8 }, tabTextActive: { color: '#FFF' }, beltDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: '#FFFFFF55' },
-    modeTabs: { flexDirection: 'row', marginHorizontal: 18, marginBottom: 14, borderWidth: 1, borderColor: t.hairlineStrong }, modeTab: { flex: 1, padding: 11, alignItems: 'center' }, modeTabActive: { backgroundColor: t.crimson }, modeText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 10, fontWeight: '800', letterSpacing: 1.3 }, modeTextActive: { color: '#fff' },
-    rulesCard: { margin: 18, marginBottom: 4, padding: 14, gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.gold + '77', borderRadius: 4 }, rulesTitle: { color: t.gold, fontFamily: FONTS.display, fontWeight: '900', fontSize: 13, letterSpacing: 1 }, formula: { color: t.bone, fontFamily: FONTS.mono, fontSize: 8.5, lineHeight: 14, letterSpacing: 0.7 }, ruleGrid: { flexDirection: 'row', gap: 18 }, ruleColumn: { flex: 1, gap: 4 }, ruleHeading: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '800', marginBottom: 2 }, ruleLine: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 8.5 }, ruleFootnote: { color: t.textMute, fontSize: 10.5, lineHeight: 15 },
+    modeTabs: { marginHorizontal: Layout.gutter, marginBottom: 14 },
+    rulesCard: { margin: Layout.gutter, marginBottom: 4, padding: 16, gap: 10, backgroundColor: t.surface, borderWidth: 1, borderColor: t.gold + '77', borderRadius: Radii.lg }, rulesTitle: { color: t.gold, fontFamily: FONTS.display, fontWeight: '900', fontSize: 13, letterSpacing: 1 }, formula: { color: t.bone, fontFamily: FONTS.mono, fontSize: 8.5, lineHeight: 14, letterSpacing: 0.7 }, ruleGrid: { flexDirection: 'row', gap: 18 }, ruleColumn: { flex: 1, gap: 4 }, ruleHeading: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '800', marginBottom: 2 }, ruleLine: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 8.5 }, ruleFootnote: { color: t.textMute, fontSize: 10.5, lineHeight: 15 },
     headingRow: { margin: 18, marginBottom: 7, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }, listTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 17, fontWeight: '900', letterSpacing: 0.8 }, listSubtitle: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1, marginTop: 3 }, total: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8 },
     row: { marginHorizontal: 18, minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: 1, borderTopColor: t.hairline, paddingVertical: 10 }, myRow: { marginHorizontal: 10, paddingHorizontal: 8, backgroundColor: t.crimson + '12', borderLeftWidth: 3, borderLeftColor: t.crimson }, rank: { width: 28, color: t.textMute, fontFamily: FONTS.display, fontSize: 17, fontWeight: '900' }, podiumRank: { color: t.gold }, avatar: { width: 42, height: 42, borderRadius: 21 }, avatarFallback: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated }, initials: { color: t.bone, fontWeight: '800' }, identity: { flex: 1, minWidth: 0 }, name: { color: t.bone, fontSize: 13.5, fontWeight: '800' }, metaRow: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 5 }, meta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8 }, score: { alignItems: 'flex-end' }, points: { color: t.crimson, fontFamily: FONTS.display, fontSize: 20, fontWeight: '900' }, pointsLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 1 },
-    empty: { padding: 48, alignItems: 'center', gap: 10 }, emptyText: { color: t.textMute, fontSize: 12, textAlign: 'center' },
-    officialIntro: { marginHorizontal: 18, color: t.textDim, fontSize: 11.5, lineHeight: 17, marginBottom: 8 }, sourceBlock: { margin: 18, marginBottom: 4, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, paddingHorizontal: 13 }, sourceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13 }, sourceTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 13, fontWeight: '900', letterSpacing: 1 }, sourceLink: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800' }, sourceEmpty: { color: t.textMute, fontSize: 11, lineHeight: 16, paddingBottom: 13 }, sourceError: { color: t.crimson, fontSize: 11, paddingBottom: 13 }, officialRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: t.hairline, paddingVertical: 9 }, officialRank: { width: 26, color: t.gold, fontFamily: FONTS.display, fontSize: 16, fontWeight: '900' }, officialName: { color: t.bone, fontSize: 12.5, fontWeight: '800' }, officialMeta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7.5, marginTop: 3 }, officialPoints: { color: t.crimson, fontFamily: FONTS.display, fontSize: 15, fontWeight: '900' }, medalBlock: { marginHorizontal: 18, marginTop: 10, padding: 13, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline }, resultsLink: { marginHorizontal: 18, marginTop: 14, padding: 13, borderWidth: 1, borderColor: t.crimson, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, resultsLinkText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 }, legalNote: { marginHorizontal: 18, color: t.textMute, fontSize: 9.5, lineHeight: 14, marginTop: 8 },
+    empty: { paddingHorizontal: Layout.gutter, paddingVertical: 24 },
+    officialIntro: { marginHorizontal: Layout.gutter, color: t.textDim, fontSize: 11.5, lineHeight: 17, marginBottom: 8 }, sourceBlock: { margin: Layout.gutter, marginBottom: 4, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, overflow: 'hidden', paddingHorizontal: 13 }, sourceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13 }, sourceTitle: { color: t.bone, fontFamily: FONTS.display, fontSize: 13, fontWeight: '900', letterSpacing: 1 }, sourceLink: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800' }, sourceEmpty: { color: t.textMute, fontSize: 11, lineHeight: 16, paddingBottom: 13 }, sourceError: { color: t.crimson, fontSize: 11, paddingBottom: 13 }, officialRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: t.hairline, paddingVertical: 9 }, officialRank: { width: 26, color: t.gold, fontFamily: FONTS.display, fontSize: 16, fontWeight: '900' }, officialName: { color: t.bone, fontSize: 12.5, fontWeight: '800' }, officialMeta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7.5, marginTop: 3 }, officialPoints: { color: t.crimson, fontFamily: FONTS.display, fontSize: 15, fontWeight: '900' }, medalBlock: { marginHorizontal: Layout.gutter, marginTop: 10, padding: 13, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg }, resultsLink: { minHeight: Layout.touchTarget, marginHorizontal: Layout.gutter, marginTop: 14, padding: 13, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, resultsLinkText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 }, legalNote: { marginHorizontal: Layout.gutter, color: t.textMute, fontSize: 9.5, lineHeight: 14, marginTop: 8 },
   });
 }

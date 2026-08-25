@@ -1,69 +1,52 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Ionicons } from '@expo/vector-icons';
-
 import { CoachCompetitions } from '@/components/coach-competitions';
-import { FONTS, Theme } from '@/constants/theme';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
+import { Chip, EmptyState, IconButton, ScreenHeader, SegmentedControl, Surface } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useCompetitions } from '@/hooks/useCompetitions';
-import { Competition, Registration } from '@/lib/database.types';
 import { api } from '@/lib/api';
+import { Competition, Registration } from '@/lib/database.types';
+import { haptics } from '@/lib/haptics';
 
-function Tag({ text, color, filled, t }: { text: string; color?: string; filled?: boolean; t: Theme }) {
-  const c = color ?? t.crimson;
-  return (
-    <View style={[tagSt(t).wrap, { borderColor: c, backgroundColor: filled ? c : 'transparent' }]}>
-      <Text style={[tagSt(t).text, { color: filled ? t.ink : c }]}>{text}</Text>
-    </View>
-  );
-}
+const TABS = ['À venir', 'Mes inscriptions', 'Résultats'] as const;
 
-function tagSt(t: Theme) {
-  return StyleSheet.create({
-    wrap: { paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderRadius: 2 },
-    text: { fontFamily: FONTS.mono, fontSize: 9, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
-  });
-}
+const RESULT_LABELS: Record<string, string> = {
+  champion: '1er',
+  finalist: '2e',
+  semifinal: '1/2',
+  quarterfinal: '1/4',
+  round_of_16: '1/8',
+  round_of_32: '1/16',
+  participant: 'Part.',
+};
 
-function StatCell({ label, value, accent, last, t }: {
-  label: string; value: string | number; accent?: boolean; last?: boolean; t: Theme;
-}) {
-  const s = statSt(t);
-  return (
-    <View style={[s.cell, last && s.cellLast]}>
-      <Text style={s.label}>{label}</Text>
-      <Text style={[s.value, accent && { color: t.crimson }]}>{String(value)}</Text>
-    </View>
-  );
-}
-
-function statSt(t: Theme) {
-  return StyleSheet.create({
-    cell: { flex: 1, padding: 9, borderRightWidth: 1, borderRightColor: t.hairline },
-    cellLast: { borderRightWidth: 0 },
-    label: { fontFamily: FONTS.mono, fontSize: 8.5, color: t.textMute, letterSpacing: 1, textTransform: 'uppercase' },
-    value: { fontFamily: FONTS.body, fontSize: 12, color: t.bone, fontWeight: '700', marginTop: 3 },
-  });
-}
+const STATUS_LABELS: Record<Competition['status'], string> = {
+  open: 'Inscriptions ouvertes',
+  soon: 'Bientôt',
+  closed: 'Clôturé',
+};
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
+  const date = new Date(`${iso}T12:00:00`);
   return {
-    day: String(d.getDate()).padStart(2, '0'),
-    month: d.toLocaleString('fr-FR', { month: 'short' }).toUpperCase(),
-    year: String(d.getFullYear()),
+    day: String(date.getDate()).padStart(2, '0'),
+    month: date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').toUpperCase(),
+    year: String(date.getFullYear()),
   };
 }
 
-const RESULT_LABELS: Record<string, string> = {
-  champion: '1ER', finalist: '2E', semifinal: '1/2', quarterfinal: '1/4',
-  round_of_16: '1/8', round_of_32: '1/16', participant: 'PART.',
-};
+function formatDeadline(value: string | null) {
+  if (!value) return 'À confirmer';
+  const date = new Date(`${value}T12:00:00`);
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }).replace('.', '');
+}
 
 export default function CompetitionsScreen() {
   const { user } = useAuth();
@@ -72,334 +55,317 @@ export default function CompetitionsScreen() {
 }
 
 function MemberCompetitionsScreen() {
-  const { theme: t } = useTheme();
-  const styles = useMemo(() => makeStyles(t), [t]);
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const [activeTab, setActiveTab] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const tabs = ['À venir', 'Mes inscriptions', 'Passées'];
-
   const { upcoming, registrations, loading, refetch } = useCompetitions();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0] ?? '';
+  const futureRegistrations = registrations.filter((registration) => !registration.competitions || registration.competitions.comp_date >= today);
+  const pastRegistrations = registrations.filter((registration) => registration.competitions && registration.competitions.comp_date < today);
+  const openCount = upcoming.filter((competition) => competition.status === 'open').length;
 
-  const handleUnregister = async (registrationId: string) => {
-    Alert.alert('Se désinscrire', 'Confirmer la désinscription ?', [
+  const handleUnregister = (registrationId: string) => {
+    Alert.alert('Se désinscrire', 'Confirmer la désinscription à cette compétition ?', [
       { text: 'Annuler', style: 'cancel' },
       {
-        text: 'Confirmer', style: 'destructive',
+        text: 'Se désinscrire',
+        style: 'destructive',
         onPress: async () => {
           try {
             await api.delete(`/api/competitions/registrations/${registrationId}`);
-            refetch();
-          } catch (e: any) {
-            Alert.alert('Erreur', e.message);
+            haptics.success();
+            void refetch();
+          } catch (error: unknown) {
+            haptics.error();
+            Alert.alert('Désinscription impossible', error instanceof Error ? error.message : 'Veuillez réessayer.');
           }
         },
       },
     ]);
   };
 
-  // Past competitions = registrations whose comp date < today
-  const pastRegistrations = registrations.filter(
-    (r) => r.competitions && r.competitions.comp_date < (today ?? '')
-  );
+  const refresh = () => {
+    setRefreshing(true);
+    void refetch().finally(() => setRefreshing(false));
+  };
 
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <View style={styles.headingBlock}>
-            <Text style={styles.season}>SAISON 25-26</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              numberOfLines={1}
-              style={styles.title}
-            >
-              COMPÉTITIONS
-            </Text>
-          </View>
-          <Pressable style={styles.calBtn} onPress={() => router.push('/calendar')}>
-            <Ionicons name="calendar-outline" size={18} color={t.bone} />
-          </Pressable>
-        </View>
+        <ScreenHeader
+          eyebrow="SAISON 2025–2026 · ÉQUIPE RFT"
+          title="COMPÉTITIONS"
+          action={<IconButton icon="calendar-outline" label="Ouvrir le calendrier" onPress={() => router.push('/calendar')} />}
+        />
 
-        <View style={styles.tabRow}>
-          {tabs.map((tab, i) => (
-            <Pressable key={i} style={[styles.tabItem, activeTab === i && styles.tabItemActive]} onPress={() => setActiveTab(i)}>
-              <Text style={[styles.tabLabel, activeTab === i && styles.tabLabelActive]}>{tab}</Text>
-            </Pressable>
-          ))}
+        <View style={styles.summary}>
+          <Summary value={upcoming.length} label="À VENIR" styles={styles} />
+          <Summary value={openCount} label="OUVERTES" accent styles={styles} />
+          <Summary value={futureRegistrations.length} label="INSCRIT(E)" styles={styles} last />
         </View>
+        <SegmentedControl items={TABS} selectedIndex={activeTab} onChange={setActiveTab} />
       </SafeAreaView>
 
       {loading ? (
-        <View style={styles.loaderWrap}>
-          <ActivityIndicator color={t.crimson} />
+        <View accessibilityLabel="Chargement des compétitions" style={styles.loader}>
+          <ActivityIndicator color={theme.crimson} />
+          <Text style={styles.loaderText}>Préparation du calendrier…</Text>
         </View>
       ) : (
-        <ScrollView alwaysBounceVertical bounces decelerationRate="normal" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
-          setRefreshing(true); void refetch().finally(() => setRefreshing(false));
-        }} />}>
+        <ScrollView
+          alwaysBounceVertical
+          bounces
+          contentContainerStyle={styles.scroll}
+          decelerationRate="normal"
+          refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={refresh} />}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <View style={styles.listIntro}>
+              <View>
+                <Text style={styles.listEyebrow}>{activeTab === 0 ? 'PROCHAINS OBJECTIFS' : activeTab === 1 ? 'MON CALENDRIER' : 'MON PARCOURS'}</Text>
+                <Text style={styles.listTitle}>{activeTab === 0 ? `${upcoming.length} rendez-vous` : activeTab === 1 ? `${futureRegistrations.length} inscription${futureRegistrations.length > 1 ? 's' : ''}` : `${pastRegistrations.length} participation${pastRegistrations.length > 1 ? 's' : ''}`}</Text>
+              </View>
+              <Ionicons name={activeTab === 2 ? 'medal-outline' : 'flag-outline'} size={21} color={activeTab === 2 ? theme.gold : theme.crimson} />
+            </View>
 
-          {activeTab === 0 && (
-            <>
-              {upcoming.map((c: Competition) => {
-                const { day, month, year } = formatDate(c.comp_date);
-                return (
-                  <Pressable
-                    key={c.id}
-                    style={styles.card}
-                    onPress={() => router.push({ pathname: '/competition-detail', params: { id: c.id } })}
-                  >
-                    <View style={styles.cardTop}>
-                      <View style={styles.dateBlock}>
-                        <Text style={styles.dateMonth}>{month}</Text>
-                        <Text style={styles.dateDay}>{day}</Text>
-                        <Text style={styles.dateYear}>{year.slice(2)}</Text>
-                      </View>
-                      <View style={styles.cardInfo}>
-                        <View style={styles.cardTags}>
-                          {c.comp_type && <Tag text={c.comp_type} t={t} />}
-                          {c.status === 'soon' && <Tag text="BIENTÔT" color={t.textDim} t={t} />}
-                        </View>
-                        <Text style={styles.cardName}>{c.name.toUpperCase()}</Text>
-                        {c.location && (
-                          <View style={styles.locRow}>
-                            <Ionicons name="location-outline" size={11} color={t.textDim} />
-                            <Text style={styles.cardLoc}>{c.location}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.statsRow}>
-                      <StatCell label="CLÔTURE" value={c.registration_deadline ?? '—'} t={t} />
-                      <StatCell label="STATUT" value={c.status.toUpperCase()} accent last t={t} />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </>
-          )}
+            {activeTab === 0 ? (
+              upcoming.length > 0 ? upcoming.map((competition) => (
+                <CompetitionCard key={competition.id} competition={competition} theme={theme} styles={styles} />
+              )) : (
+                <EmptyState icon="trophy-outline" title="Aucune compétition annoncée" message="Les prochains objectifs sportifs publiés par le club apparaîtront ici." actionLabel="Voir le calendrier" onAction={() => router.push('/calendar')} />
+              )
+            ) : null}
 
-          {activeTab === 1 && (
-            <>
-              {registrations
-                .filter((r) => !r.competitions || r.competitions.comp_date >= (today ?? ''))
-                .map((r: Registration, i: number) => {
-                  const comp = r.competitions;
-                  if (!comp) return null;
-                  const { day, month, year } = formatDate(comp.comp_date);
-                  return (
-                    <View key={i} style={styles.card}>
-                      <View style={styles.cardTop}>
-                        <View style={styles.dateBlock}>
-                          <Text style={styles.dateMonth}>{month}</Text>
-                          <Text style={styles.dateDay}>{day}</Text>
-                          <Text style={styles.dateYear}>{year.slice(2)}</Text>
-                        </View>
-                        <View style={styles.cardInfo}>
-                          <View style={styles.cardTags}>
-                            {comp.comp_type && <Tag text={comp.comp_type} t={t} />}
-                            <View style={[
-                              styles.statusBadge,
-                              { backgroundColor: r.status === 'confirmé' ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.15)' },
-                            ]}>
-                              <Text style={[
-                                styles.statusText,
-                                { color: r.status === 'confirmé' ? '#22C55E' : '#F97316' },
-                              ]}>
-                                {r.status === 'confirmé' ? 'CONFIRMÉ' : 'EN ATTENTE'}
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={styles.cardName}>{comp.name.toUpperCase()}</Text>
-                          {comp.location && (
-                            <View style={styles.locRow}>
-                              <Ionicons name="location-outline" size={11} color={t.textDim} />
-                              <Text style={styles.cardLoc}>{comp.location}</Text>
-                            </View>
-                          )}
-                          {r.weight_class && <Text style={styles.cardCat}>{r.weight_class}</Text>}
-                        </View>
-                      </View>
+            {activeTab === 1 ? (
+              futureRegistrations.length > 0 ? futureRegistrations.map((registration) => (
+                <RegistrationCard key={registration.id} registration={registration} onUnregister={handleUnregister} theme={theme} styles={styles} />
+              )) : (
+                <EmptyState icon="ticket-outline" title="Aucune inscription en cours" message="Choisissez une compétition à venir pour rejoindre l’équipe engagée." actionLabel="Découvrir les compétitions" onAction={() => setActiveTab(0)} />
+              )
+            ) : null}
 
-                      <View style={styles.covRow}>
-                        <Ionicons name="car-outline" size={14} color={t.textMute} />
-                        <Text style={styles.covLabel}>COVOIT</Text>
-                        <Text style={styles.covNone}>Aucun covoiturage</Text>
-                        <Pressable onPress={() => router.navigate('/(tabs)/covoiturage')}>
-                          <Text style={styles.covFind}>TROUVER →</Text>
-                        </Pressable>
-                      </View>
-
-                      <View style={styles.cardActions}>
-                        <Pressable style={styles.unregBtn} onPress={() => handleUnregister(r.id)}>
-                          <Text style={styles.unregText}>SE DÉSINSCRIRE</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  );
-                })}
-            </>
-          )}
-
-          {activeTab === 2 && (
-            <>
-              {pastRegistrations.map((r: Registration, i: number) => {
-                const comp = r.competitions;
-                if (!comp) return null;
-                const { day, month, year } = formatDate(comp.comp_date);
-                const result = r.result;
-                return (
-                  <View key={i} style={styles.pastEntry}>
-                    <View style={styles.pastCard}>
-                    <View style={styles.pastLeft}>
-                      <View style={[styles.medalDisc, { borderColor: result?.validationStatus === 'approved' ? t.gold : t.textMute }]}>
-                        <Text style={[styles.medalText, { color: result?.validationStatus === 'approved' ? t.gold : t.textMute }]}>{result ? RESULT_LABELS[result.resultStage] : '?'}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.pastInfo}>
-                      <View style={styles.pastTags}>
-                        {comp.comp_type && <Tag text={comp.comp_type} color={t.textDim} t={t} />}
-                        {r.weight_class && <Tag text={r.weight_class} color={t.textDim} t={t} />}
-                      </View>
-                      <Text style={styles.pastName}>{comp.name}</Text>
-                      {r.weight_class && <Text style={styles.pastCat}>{r.weight_class}</Text>}
-                    </View>
-                    <View style={styles.pastDate}>
-                      <Text style={styles.pastDay}>{day}</Text>
-                      <Text style={styles.pastMonth}>{month}</Text>
-                      <Text style={styles.pastYear}>{year.slice(2)}</Text>
-                    </View>
-                    </View>
-                  {result?.validationStatus === 'pending' ? (
-                    <View style={styles.resultStatus}><Ionicons name="time-outline" size={14} color={t.gold} /><Text style={[styles.resultStatusText, { color: t.gold }]}>EN ATTENTE DE VALIDATION DU COACH</Text></View>
-                  ) : result?.validationStatus === 'approved' ? (
-                    <View style={styles.resultStatus}><Ionicons name="checkmark-circle-outline" size={14} color="#4A8F6D" /><Text style={[styles.resultStatusText, { color: '#4A8F6D' }]}>VALIDÉ · COMPTABILISÉ AU CLASSEMENT</Text></View>
-                  ) : (
-                    <Pressable style={styles.submitResult} onPress={() => router.push({ pathname: '/add-result', params: { competitionId: comp.id } })}>
-                      <Text style={styles.submitResultText}>{result?.validationStatus === 'rejected' ? 'CORRIGER ET RENVOYER' : 'SAISIR MON RÉSULTAT'}</Text>
-                    </Pressable>
-                  )}
-                  </View>
-                );
-              })}
-            </>
-          )}
-
-          <View style={{ height: 24 }} />
+            {activeTab === 2 ? (
+              pastRegistrations.length > 0 ? pastRegistrations.map((registration) => (
+                <ResultCard key={registration.id} registration={registration} theme={theme} styles={styles} />
+              )) : (
+                <EmptyState icon="medal-outline" title="Votre parcours commence ici" message="Vos compétitions passées et leurs résultats validés seront regroupés dans cet espace." />
+              )
+            ) : null}
+          </View>
         </ScrollView>
       )}
     </View>
   );
 }
 
-function makeStyles(t: Theme) {
+function Summary({ value, label, accent, last, styles }: { value: number; label: string; accent?: boolean; last?: boolean; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={[styles.summaryCell, last && styles.summaryCellLast]}>
+      <Text style={[styles.summaryValue, accent && styles.summaryValueAccent]}>{String(value).padStart(2, '0')}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function DateTile({ date, theme, styles }: { date: string; theme: Theme; styles: ReturnType<typeof makeStyles> }) {
+  const formatted = formatDate(date);
+  return (
+    <View style={styles.dateTile}>
+      <Text style={styles.dateMonth}>{formatted.month}</Text>
+      <Text style={styles.dateDay}>{formatted.day}</Text>
+      <View style={styles.dateRule} />
+      <Text style={styles.dateYear}>{formatted.year}</Text>
+      <View style={[styles.dateCorner, { backgroundColor: theme.crimson }]} />
+    </View>
+  );
+}
+
+function CompetitionCard({ competition, theme, styles }: { competition: Competition; theme: Theme; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <Pressable
+      accessibilityHint="Ouvre le détail et les inscriptions"
+      accessibilityRole="button"
+      onPress={() => router.push({ pathname: '/competition-detail', params: { id: competition.id } })}
+      style={({ pressed }) => [styles.competitionCard, pressed && styles.pressed]}
+    >
+      <View style={styles.cardMain}>
+        <DateTile date={competition.comp_date} theme={theme} styles={styles} />
+        <View style={styles.cardCopy}>
+          <View style={styles.chips}>
+            {competition.comp_type ? <Chip label={competition.comp_type} /> : null}
+            <Chip label={STATUS_LABELS[competition.status]} tone={competition.status === 'open' ? 'success' : competition.status === 'soon' ? 'warning' : 'muted'} />
+          </View>
+          <Text numberOfLines={3} style={styles.cardName}>{competition.name}</Text>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={14} color={theme.textMute} />
+            <Text numberOfLines={1} style={styles.location}>{competition.location || 'Lieu à confirmer'}</Text>
+          </View>
+        </View>
+      </View>
+      <View style={styles.cardFooter}>
+        <View style={styles.deadline}>
+          <Text style={styles.footerLabel}>CLÔTURE</Text>
+          <Text style={styles.footerValue}>{formatDeadline(competition.registration_deadline)}</Text>
+        </View>
+        <View style={styles.openAction}>
+          <Text style={styles.openActionText}>VOIR LA FICHE</Text>
+          <Ionicons name="arrow-forward" size={14} color={theme.crimson} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function RegistrationCard({ registration, onUnregister, theme, styles }: { registration: Registration; onUnregister: (id: string) => void; theme: Theme; styles: ReturnType<typeof makeStyles> }) {
+  const competition = registration.competitions;
+  if (!competition) return null;
+  const confirmed = registration.status === 'confirmé';
+
+  return (
+    <Surface accent={confirmed ? 'crimson' : undefined} style={styles.registrationCard}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push({ pathname: '/competition-detail', params: { id: competition.id } })}
+        style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}
+      >
+        <DateTile date={competition.comp_date} theme={theme} styles={styles} />
+        <View style={styles.cardCopy}>
+          <View style={styles.chips}>
+            {competition.comp_type ? <Chip label={competition.comp_type} /> : null}
+            <Chip label={confirmed ? 'Confirmé' : 'En attente'} tone={confirmed ? 'success' : 'warning'} />
+          </View>
+          <Text numberOfLines={3} style={styles.cardName}>{competition.name}</Text>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={14} color={theme.textMute} />
+            <Text numberOfLines={1} style={styles.location}>{competition.location || 'Lieu à confirmer'}</Text>
+          </View>
+          {registration.weight_class ? <Text style={styles.weightClass}>{registration.weight_class}</Text> : null}
+        </View>
+      </Pressable>
+      <View style={styles.carpoolRow}>
+        <View style={styles.carpoolIcon}><Ionicons name="car-outline" size={17} color={theme.bone} /></View>
+        <View style={styles.carpoolCopy}>
+          <Text style={styles.carpoolTitle}>Trajet d’équipe</Text>
+          <Text style={styles.carpoolText}>Aucun covoiturage associé</Text>
+        </View>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.navigate('/(tabs)/covoiturage')} style={({ pressed }) => pressed && styles.pressed}>
+          <Text style={styles.carpoolAction}>TROUVER</Text>
+        </Pressable>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => onUnregister(registration.id)}
+        style={({ pressed }) => [styles.unregisterButton, pressed && styles.pressed]}
+      >
+        <Text style={styles.unregisterText}>SE DÉSINSCRIRE</Text>
+      </Pressable>
+    </Surface>
+  );
+}
+
+function ResultCard({ registration, theme, styles }: { registration: Registration; theme: Theme; styles: ReturnType<typeof makeStyles> }) {
+  const competition = registration.competitions;
+  if (!competition) return null;
+  const result = registration.result;
+  const approved = result?.validationStatus === 'approved';
+  const pending = result?.validationStatus === 'pending';
+  const rejected = result?.validationStatus === 'rejected';
+
+  return (
+    <Surface accent={approved ? 'gold' : undefined} style={styles.resultCard}>
+      <View style={styles.resultMain}>
+        <View style={[styles.resultDisc, approved && styles.resultDiscApproved]}>
+          <Text style={[styles.resultPlace, approved && { color: theme.gold }]}>{result ? RESULT_LABELS[result.resultStage] : '—'}</Text>
+          <Text style={styles.resultLabel}>PLACE</Text>
+        </View>
+        <View style={styles.resultCopy}>
+          <View style={styles.chips}>
+            {competition.comp_type ? <Chip label={competition.comp_type} tone="muted" /> : null}
+            {registration.weight_class ? <Chip label={registration.weight_class} tone="muted" /> : null}
+          </View>
+          <Text numberOfLines={2} style={styles.resultName}>{competition.name}</Text>
+          <Text style={styles.resultDate}>{formatDate(competition.comp_date).day} {formatDate(competition.comp_date).month} {formatDate(competition.comp_date).year}</Text>
+        </View>
+      </View>
+
+      {pending ? (
+        <View style={styles.resultStatus}><Ionicons name="time-outline" size={17} color={theme.warning} /><Text style={[styles.resultStatusText, { color: theme.warning }]}>Validation du coach en attente</Text></View>
+      ) : approved ? (
+        <View style={styles.resultStatus}><Ionicons name="checkmark-circle-outline" size={17} color={theme.success} /><Text style={[styles.resultStatusText, { color: theme.success }]}>Validé · comptabilisé au classement</Text></View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/add-result', params: { competitionId: competition.id } })}
+          style={({ pressed }) => [styles.resultAction, pressed && styles.pressed]}
+        >
+          <Text style={styles.resultActionText}>{rejected ? 'CORRIGER ET RENVOYER' : 'SAISIR MON RÉSULTAT'}</Text>
+          <Ionicons name="arrow-forward" size={15} color="#FFF" />
+        </Pressable>
+      )}
+    </Surface>
+  );
+}
+
+function makeStyles(theme: Theme) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: t.ink },
-    header: {
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
-      paddingHorizontal: 24, paddingBottom: 16, paddingTop: 8, position: 'relative',
-    },
-    headingBlock: { flex: 1, minWidth: 0, paddingRight: 50 },
-    season: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2 },
-    title: {
-      fontFamily: FONTS.display, fontSize: 44, color: t.bone, fontWeight: '900',
-      marginTop: 2, letterSpacing: 1, flexShrink: 1,
-    },
-    calBtn: {
-      width: 38, height: 38, borderRadius: 19, backgroundColor: t.elevated,
-      borderWidth: 1, borderColor: t.hairline, alignItems: 'center', justifyContent: 'center',
-      position: 'absolute', right: 24, bottom: 16,
-    },
-    calIcon: { fontSize: 16 },
-    tabRow: {
-      flexDirection: 'row', gap: 22, paddingHorizontal: 24, paddingBottom: 14,
-      borderBottomWidth: 1, borderBottomColor: t.hairline,
-    },
-    tabItem: { paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
-    tabItemActive: { borderBottomColor: t.crimson },
-    tabLabel: { fontFamily: FONTS.body, fontSize: 12.5, fontWeight: '700', color: t.textMute },
-    tabLabelActive: { color: t.bone },
-    loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    scroll: { padding: 20, gap: 12 },
-    card: {
-      backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, overflow: 'hidden',
-    },
-    cardTop: { padding: 14, flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-    dateBlock: {
-      width: 60, paddingVertical: 8, alignItems: 'center',
-      backgroundColor: t.ink, borderWidth: 1, borderColor: t.hairline, borderRadius: 2,
-    },
-    dateMonth: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5 },
-    dateDay: {
-      fontFamily: FONTS.display, fontSize: 30, color: t.crimson, fontWeight: '900',
-      lineHeight: 32, marginVertical: 2,
-    },
-    dateYear: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5 },
-    cardInfo: { flex: 1, minWidth: 0 },
-    cardTags: { flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' },
-    cardName: {
-      fontFamily: FONTS.display, fontSize: 18, color: t.bone, fontWeight: '900',
-      lineHeight: 20, letterSpacing: 0.5, marginBottom: 4,
-    },
-    locRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-    cardLoc: { fontFamily: FONTS.body, fontSize: 11.5, color: t.textDim },
-    cardCat: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1, marginTop: 4 },
-    statsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: t.hairline },
-    statusBadge: {
-      paddingHorizontal: 7, paddingVertical: 3, borderRadius: 2,
-    },
-    statusText: { fontFamily: FONTS.mono, fontSize: 9, fontWeight: '600', letterSpacing: 1 },
-    covRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      paddingHorizontal: 14, paddingVertical: 10,
-      borderTopWidth: 1, borderTopColor: t.hairline,
-    },
-    covLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1 },
-    covValue: { fontFamily: FONTS.body, fontSize: 12, color: t.bone, fontWeight: '600', flex: 1 },
-    covNone: { fontFamily: FONTS.body, fontSize: 12, color: t.textMute, flex: 1 },
-    covFind: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.crimson, letterSpacing: 1 },
-    cardActions: {
-      paddingHorizontal: 14, paddingVertical: 12,
-      borderTopWidth: 1, borderTopColor: t.hairline,
-    },
-    unregBtn: {
-      height: 36, borderRadius: 2, borderWidth: 1, borderColor: t.hairlineStrong,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    unregText: {
-      fontFamily: FONTS.display, fontSize: 11, fontWeight: '900',
-      color: t.textDim, letterSpacing: 1.5, textTransform: 'uppercase',
-    },
-    pastCard: {
-      backgroundColor: t.surface, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
-    },
-    pastLeft: { alignItems: 'center', width: 44 },
-    medalDisc: {
-      width: 40, height: 40, borderRadius: 20,
-      borderWidth: 2, alignItems: 'center', justifyContent: 'center',
-    },
-    medalText: {
-      fontFamily: FONTS.display, fontSize: 18, fontWeight: '900',
-    },
-    pastInfo: { flex: 1, minWidth: 0 },
-    pastEntry: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3, overflow: 'hidden' },
-    pastTags: { flexDirection: 'row', gap: 6, marginBottom: 5 },
-    pastName: {
-      fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '700', marginBottom: 2,
-    },
-    pastCat: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 1 },
-    pastDate: { alignItems: 'center', minWidth: 36 },
-    pastDay: {
-      fontFamily: FONTS.display, fontSize: 22, color: t.bone, fontWeight: '900', lineHeight: 24,
-    },
-    pastMonth: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1.2 },
-    pastYear: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1.2 },
-    resultStatus: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderTopWidth: 1, borderTopColor: t.hairline },
-    resultStatusText: { fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '700', letterSpacing: 0.7 },
-    submitResult: { minHeight: 42, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
-    submitResultText: { color: '#FFF', fontFamily: FONTS.mono, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    container: { flex: 1, backgroundColor: theme.ink },
+    summary: { minHeight: 68, marginHorizontal: Layout.gutter, marginBottom: 10, flexDirection: 'row', backgroundColor: theme.surface, borderRadius: Radii.md, borderWidth: 1, borderColor: theme.hairline },
+    summaryCell: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: theme.hairline },
+    summaryCellLast: { borderRightWidth: 0 },
+    summaryValue: { color: theme.bone, fontFamily: FONTS.display, fontSize: 21, fontWeight: '900' },
+    summaryValueAccent: { color: theme.crimson },
+    summaryLabel: { color: theme.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.8, marginTop: 2 },
+    loader: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+    loaderText: { color: theme.textDim, fontSize: 13 },
+    scroll: { paddingVertical: 18, paddingBottom: 30 },
+    content: { width: '100%', maxWidth: Layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: Layout.gutter, gap: 12 },
+    pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
+    listIntro: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    listEyebrow: { color: theme.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1.1 },
+    listTitle: { color: theme.bone, fontFamily: FONTS.display, fontSize: 20, fontWeight: '900', marginTop: 3 },
+    competitionCard: { overflow: 'hidden', backgroundColor: theme.surface, borderRadius: Radii.lg, borderWidth: 1, borderColor: theme.hairline },
+    registrationCard: { overflow: 'hidden' },
+    cardMain: { minHeight: 144, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+    dateTile: { width: 66, height: 104, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.ink, borderRadius: Radii.md, borderWidth: 1, borderColor: theme.hairlineStrong },
+    dateMonth: { color: theme.textMute, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+    dateDay: { color: theme.crimson, fontFamily: FONTS.display, fontSize: 32, fontWeight: '900', lineHeight: 34, marginTop: 2 },
+    dateRule: { width: 18, height: 1, backgroundColor: theme.hairlineStrong, marginVertical: 4 },
+    dateYear: { color: theme.textDim, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1 },
+    dateCorner: { position: 'absolute', width: 18, height: 18, right: -9, top: -9, transform: [{ rotate: '45deg' }] },
+    cardCopy: { flex: 1, minWidth: 0, paddingTop: 1 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 9 },
+    cardName: { color: theme.bone, fontFamily: FONTS.display, fontSize: 19, fontWeight: '900', lineHeight: 21, textTransform: 'uppercase' },
+    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 9 },
+    location: { flex: 1, color: theme.textDim, fontSize: 12 },
+    weightClass: { color: theme.gold, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 0.8, marginTop: 8 },
+    cardFooter: { minHeight: 54, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: theme.hairline, backgroundColor: theme.elevated },
+    deadline: { gap: 2 },
+    footerLabel: { color: theme.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.9 },
+    footerValue: { color: theme.bone, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
+    openAction: { minHeight: Layout.touchTarget, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    openActionText: { color: theme.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+    carpoolRow: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.elevated, borderTopWidth: 1, borderTopColor: theme.hairline },
+    carpoolIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface },
+    carpoolCopy: { flex: 1 },
+    carpoolTitle: { color: theme.bone, fontSize: 12, fontWeight: '800' },
+    carpoolText: { color: theme.textMute, fontSize: 10, marginTop: 2 },
+    carpoolAction: { color: theme.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+    unregisterButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: theme.hairline },
+    unregisterText: { color: theme.textDim, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 0.9 },
+    resultCard: { overflow: 'hidden' },
+    resultMain: { minHeight: 126, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 },
+    resultDisc: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.elevated, borderWidth: 1, borderColor: theme.hairlineStrong },
+    resultDiscApproved: { backgroundColor: `${theme.gold}10`, borderColor: `${theme.gold}66` },
+    resultPlace: { color: theme.textDim, fontFamily: FONTS.display, fontSize: 19, fontWeight: '900', textTransform: 'uppercase' },
+    resultLabel: { color: theme.textMute, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.8, marginTop: 1 },
+    resultCopy: { flex: 1, minWidth: 0 },
+    resultName: { color: theme.bone, fontFamily: FONTS.display, fontSize: 17, fontWeight: '900', lineHeight: 20, textTransform: 'uppercase' },
+    resultDate: { color: theme.textDim, fontSize: 11, marginTop: 6, textTransform: 'capitalize' },
+    resultStatus: { minHeight: 50, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.elevated, borderTopWidth: 1, borderTopColor: theme.hairline },
+    resultStatusText: { flex: 1, fontSize: 11, fontWeight: '800' },
+    resultAction: { minHeight: 50, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.crimson },
+    resultActionText: { color: '#FFF', fontFamily: FONTS.mono, fontSize: 9, fontWeight: '900', letterSpacing: 0.9 },
   });
 }

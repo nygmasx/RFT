@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { Chip, EmptyState, IconButton, ScreenHeader, SegmentedControl } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useCarpools } from '@/hooks/useCarpools';
 import { api } from '@/lib/api';
@@ -13,23 +14,6 @@ import RouteMapBanner from '@/components/route-map-banner';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { useAuth } from '@/context/AuthContext';
 import { haptics } from '@/lib/haptics';
-
-const FILTERS = ['Tous'];
-
-function Tag({ text, t }: { text: string; t: Theme }) {
-  return (
-    <View style={[tagSt(t).wrap]}>
-      <Text style={tagSt(t).text}>{text.toUpperCase()}</Text>
-    </View>
-  );
-}
-
-function tagSt(t: Theme) {
-  return StyleSheet.create({
-    wrap: { paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: t.crimson, borderRadius: 2 },
-    text: { fontFamily: FONTS.mono, fontSize: 8.5, color: t.crimson, fontWeight: '600', letterSpacing: 1 },
-  });
-}
 
 function initials(name: string) {
   return name.split(' ').map((s) => s[0]).join('');
@@ -55,8 +39,10 @@ export default function CovoiturageScreen() {
 
   const { data: carpools, loading, myPassengerCarpoolIds, currentUserId, joinCarpool, leaveCarpool, refetch } = useCarpools();
   const isCoach = user?.role === 'coach' || user?.role === 'admin';
-  const availableSeatCount = carpools.reduce((sum, carpool) => sum + Math.max(0, carpool.seats_total - carpool.seats_taken), 0);
-  const fullCarpoolCount = carpools.filter((carpool) => carpool.seats_taken >= carpool.seats_total).length;
+  const logistics = carpools.reduce((summary, carpool) => ({
+    availableSeats: summary.availableSeats + Math.max(0, carpool.seats_total - carpool.seats_taken),
+    fullCount: summary.fullCount + (carpool.seats_taken >= carpool.seats_total ? 1 : 0),
+  }), { availableSeats: 0, fullCount: 0 });
 
   const contactDriver = async (carpoolId: string) => {
     try {
@@ -94,33 +80,20 @@ export default function CovoiturageScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.subtitle}>{isCoach ? 'ESPACE COACH · LOGISTIQUE' : `${String(carpools.length).padStart(2, '0')} TRAJETS`}</Text>
-          <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.title}>{isCoach ? 'TRAJETS ÉQUIPE' : 'COVOITURAGE'}</Text>
-        </View>
+        <ScreenHeader
+          eyebrow={isCoach ? 'Espace coach · Logistique' : `${String(carpools.length).padStart(2, '0')} trajets disponibles`}
+          title={isCoach ? 'TRAJETS ÉQUIPE' : 'COVOITURAGE'}
+          action={<IconButton accent icon="add" label="Proposer un covoiturage" onPress={() => router.push('/create-carpool')} />}
+        />
 
         {/* Mode switcher */}
         <View style={styles.modeSwitcher}>
-          <View style={[styles.modeBtn, styles.modeBtnActive]}>
-            <Text style={styles.modeBtnActiveText}>JE CHERCHE</Text>
-          </View>
-          <Pressable style={[styles.modeBtn, styles.modeBtnInactive]} onPress={() => router.push('/create-carpool')}>
-            <Text style={styles.modeBtnInactiveText}>JE PROPOSE</Text>
-          </Pressable>
+          <SegmentedControl
+            items={['JE CHERCHE', 'JE PROPOSE']}
+            selectedIndex={0}
+            onChange={(index) => { if (index === 1) router.push('/create-carpool'); }}
+          />
         </View>
-
-        {/* Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-        >
-          {FILTERS.map((f, i) => (
-            <Pressable key={i} style={[styles.filterChip, i === 0 && styles.filterChipActive]}>
-              <Text style={[styles.filterText, i === 0 && styles.filterTextActive]}>{f}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
       </SafeAreaView>
 
       {/* Route summary */}
@@ -129,12 +102,12 @@ export default function CovoiturageScreen() {
           <View style={styles.coachLogisticsHeader}>
             <View style={styles.coachLogisticsIcon}><Ionicons name="navigate-circle-outline" size={24} color={t.crimson} /></View>
             <View style={{ flex: 1 }}><Text style={styles.mapTitle}>SUIVI LOGISTIQUE</Text><Text style={styles.mapCopy}>Anticipe les places manquantes pour les prochaines compétitions.</Text></View>
-            <Pressable onPress={() => router.push('/mes-covoiturages')}><Text style={styles.coachLogisticsAction}>MES TRAJETS →</Text></Pressable>
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push('/mes-covoiturages')}><Text style={styles.coachLogisticsAction}>MES TRAJETS →</Text></Pressable>
           </View>
           <View style={styles.coachLogisticsStats}>
             <View style={styles.coachLogisticsStat}><Text style={styles.coachLogisticsValue}>{carpools.length}</Text><Text style={styles.coachLogisticsLabel}>TRAJETS</Text></View>
-            <View style={styles.coachLogisticsStat}><Text style={styles.coachLogisticsValue}>{availableSeatCount}</Text><Text style={styles.coachLogisticsLabel}>PLACES LIBRES</Text></View>
-            <View style={[styles.coachLogisticsStat, { borderRightWidth: 0 }]}><Text style={[styles.coachLogisticsValue, fullCarpoolCount > 0 && { color: t.crimson }]}>{fullCarpoolCount}</Text><Text style={styles.coachLogisticsLabel}>COMPLETS</Text></View>
+            <View style={styles.coachLogisticsStat}><Text style={styles.coachLogisticsValue}>{logistics.availableSeats}</Text><Text style={styles.coachLogisticsLabel}>PLACES LIBRES</Text></View>
+            <View style={[styles.coachLogisticsStat, { borderRightWidth: 0 }]}><Text style={[styles.coachLogisticsValue, logistics.fullCount > 0 && { color: t.crimson }]}>{logistics.fullCount}</Text><Text style={styles.coachLogisticsLabel}>COMPLETS</Text></View>
           </View>
         </View>
       ) : (
@@ -155,6 +128,15 @@ export default function CovoiturageScreen() {
         <ScrollView alwaysBounceVertical bounces decelerationRate="normal" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={<SmoothRefreshControl refreshing={refreshing} onRefresh={() => {
           setRefreshing(true); void refetch().finally(() => setRefreshing(false));
         }} />}>
+          {carpools.length === 0 ? (
+            <EmptyState
+              icon="car-sport-outline"
+              title="Aucun trajet proposé"
+              message="Sois le premier à organiser le déplacement du club."
+              actionLabel="PROPOSER UN TRAJET"
+              onAction={() => router.push('/create-carpool')}
+            />
+          ) : null}
           {carpools.map((r) => {
             const driverName = r.profiles
               ? `${r.profiles.first_name} ${r.profiles.last_name}`
@@ -189,6 +171,8 @@ export default function CovoiturageScreen() {
               btnTextStyle = { ...styles.reserveText, ...styles.reserveTextFull };
             } else if (isPassenger) {
               btnLabel = 'SE DÉSINSCRIRE';
+              btnStyle = { ...styles.reserveBtn, ...styles.reserveBtnSecondary };
+              btnTextStyle = { ...styles.reserveText, ...styles.reserveTextSecondary };
             } else if (isFull) {
               btnLabel = 'COMPLET';
               btnDisabled = true;
@@ -208,7 +192,7 @@ export default function CovoiturageScreen() {
                     <Text style={styles.driverName}>{driverName}</Text>
                     <Text style={styles.driverTime}>{formatDeparture(r.departure_at)}</Text>
                   </View>
-                  <Tag text={eventName} t={t} />
+                  <Chip label={eventName.toUpperCase()} tone="accent" />
                 </View>
 
                 {r.departure_latitude != null && r.departure_longitude != null
@@ -249,6 +233,7 @@ export default function CovoiturageScreen() {
                 </View>
 
                 <Pressable
+                  accessibilityRole="button"
                   style={btnStyle}
                   disabled={btnDisabled}
                   onPress={() => {
@@ -260,7 +245,7 @@ export default function CovoiturageScreen() {
                   <Text style={btnTextStyle}>{btnLabel}</Text>
                 </Pressable>
                 {(isPassenger || isDriver) && (
-                  <Pressable style={styles.contactBtn} onPress={() => void contactDriver(r.id)}>
+                  <Pressable accessibilityRole="button" style={styles.contactBtn} onPress={() => void contactDriver(r.id)}>
                     <Text style={styles.contactText}>CONTACTER LE CONDUCTEUR</Text>
                   </Pressable>
                 )}
@@ -319,41 +304,16 @@ export default function CovoiturageScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: { paddingHorizontal: 24, paddingBottom: 14, paddingTop: 8 },
-    subtitle: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2 },
-    title: {
-      fontFamily: FONTS.display, fontSize: 44, color: t.bone, fontWeight: '900',
-      marginTop: 2, letterSpacing: 1,
-    },
-    modeSwitcher: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, paddingBottom: 14 },
-    modeBtn: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 2 },
-    modeBtnActive: { backgroundColor: t.crimson },
-    modeBtnInactive: { backgroundColor: 'transparent', borderWidth: 1, borderColor: t.hairlineStrong },
-    modeBtnActiveText: {
-      fontFamily: FONTS.display, fontSize: 12, fontWeight: '900',
-      color: t.bone, letterSpacing: 1.5, textTransform: 'uppercase',
-    },
-    modeBtnInactiveText: {
-      fontFamily: FONTS.display, fontSize: 12, fontWeight: '900',
-      color: t.textDim, letterSpacing: 1.5, textTransform: 'uppercase',
-    },
-    filterRow: { paddingHorizontal: 20, paddingBottom: 14, gap: 6 },
-    filterChip: {
-      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 2,
-      borderWidth: 1, borderColor: t.hairline,
-    },
-    filterChipActive: { backgroundColor: t.bone, borderColor: t.bone },
-    filterText: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, fontWeight: '600' },
-    filterTextActive: { color: t.ink },
+    modeSwitcher: { paddingHorizontal: Layout.gutter, paddingBottom: 16 },
     mapWrap: {
       marginHorizontal: 20, marginBottom: 16, minHeight: 92, padding: 16,
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, flexDirection: 'row', alignItems: 'center', gap: 12,
+      borderRadius: Radii.lg, flexDirection: 'row', alignItems: 'center', gap: 12,
     },
     mapTitle: { fontFamily: FONTS.display, color: t.bone, fontWeight: '900', fontSize: 14, letterSpacing: 1 },
     mapCopy: { fontFamily: FONTS.body, color: t.textMute, fontSize: 11.5, lineHeight: 17, marginTop: 3 },
-    coachLogistics: { marginHorizontal: 20, marginBottom: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.crimson + '55', borderRadius: 3, overflow: 'hidden' },
-    coachLogisticsHeader: { minHeight: 70, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    coachLogistics: { marginHorizontal: Layout.gutter, marginBottom: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.crimson + '55', borderRadius: Radii.lg, overflow: 'hidden' },
+    coachLogisticsHeader: { minHeight: 76, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
     coachLogisticsIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson + '16' },
     coachLogisticsAction: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7.5, fontWeight: '800' },
     coachLogisticsStats: { minHeight: 54, flexDirection: 'row', borderTopWidth: 1, borderTopColor: t.hairline },
@@ -367,12 +327,12 @@ function makeStyles(t: Theme) {
     mapDestPin: { width: 10, height: 14, backgroundColor: t.bone, borderRadius: 1 },
     mapLabel: { fontFamily: FONTS.mono, fontSize: 8, color: t.bone, letterSpacing: 2, marginTop: 4 },
     loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    scroll: { paddingHorizontal: 20, gap: 10 },
+    scroll: { paddingHorizontal: Layout.gutter, gap: 12 },
     card: {
       backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, padding: 14,
+      borderRadius: Radii.lg, padding: 16,
     },
-    swipeContainer: { borderRadius: 3, overflow: 'hidden' },
+    swipeContainer: { borderRadius: Radii.lg, overflow: 'hidden' },
     swipeActions: { width: 140, flexDirection: 'row' },
     swipeAction: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
     editAction: { backgroundColor: '#2563EB' },
@@ -404,16 +364,18 @@ function makeStyles(t: Theme) {
     seatTotal: { color: t.textMute, fontSize: 13 },
     seatLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, letterSpacing: 1.5 },
     reserveBtn: {
-      marginTop: 10, height: 36, borderRadius: 2,
-      borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center',
+      marginTop: 12, minHeight: Layout.touchTarget, borderRadius: Radii.md,
+      backgroundColor: t.crimson, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center',
     },
-    reserveBtnFull: { borderColor: t.hairline },
+    reserveBtnSecondary: { backgroundColor: 'transparent' },
+    reserveBtnFull: { backgroundColor: t.elevated, borderColor: t.hairline },
     reserveText: {
       fontFamily: FONTS.display, fontSize: 12, fontWeight: '900',
-      color: t.bone, letterSpacing: 1.5, textTransform: 'uppercase',
+      color: t.onAccent, letterSpacing: 1.5, textTransform: 'uppercase',
     },
+    reserveTextSecondary: { color: t.crimson },
     reserveTextFull: { color: t.textMute },
-    contactBtn: { paddingTop: 10, alignItems: 'center' },
+    contactBtn: { minHeight: Layout.touchTarget, paddingTop: 10, alignItems: 'center', justifyContent: 'center' },
     contactText: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textDim, letterSpacing: 1.2 },
   });
 }

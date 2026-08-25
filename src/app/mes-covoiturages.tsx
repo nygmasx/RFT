@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, EmptyState, IconButton, SectionHeading } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useMyCarpool } from '@/hooks/useMyCarpool';
 import { safeBack } from '@/lib/navigation';
@@ -25,19 +26,20 @@ export default function MesCovoituragesScreen() {
   const { data: carpools, loading } = useMyCarpool();
 
   const now = new Date().toISOString();
-  const upcoming = carpools.filter((c) => c.departure_at >= now);
-  const completed = carpools.filter((c) => c.departure_at < now);
+  const { upcoming, completed } = carpools.reduce((groups, carpool) => {
+    groups[carpool.departure_at >= now ? 'upcoming' : 'completed'].push(carpool);
+    return groups;
+  }, { upcoming: [] as typeof carpools, completed: [] as typeof carpools });
 
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => safeBack('/(tabs)/covoiturage')}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.title}>MES COVOITURAGES</Text>
-          <View style={{ width: 40 }} />
-        </View>
+        <DetailHeader
+          eyebrow="Mobilité du club"
+          title="MES COVOITURAGES"
+          onBack={() => safeBack('/(tabs)/covoiturage')}
+          action={<IconButton accent icon="add" label="Proposer un covoiturage" onPress={() => router.push('/create-carpool')} />}
+        />
       </SafeAreaView>
 
       {loading ? (
@@ -53,22 +55,36 @@ export default function MesCovoituragesScreen() {
               <Text style={styles.statValue}>{String(carpools.length).padStart(2, '0')}</Text>
               <Text style={styles.statLabel}>TRAJETS</Text>
             </View>
+            <View style={[styles.statCell, styles.statBorder]}>
+              <Text style={styles.statValue}>{String(upcoming.length).padStart(2, '0')}</Text>
+              <Text style={styles.statLabel}>À VENIR</Text>
+            </View>
             <View style={styles.statCell}>
-              <Text style={styles.statValue}>—</Text>
-              <Text style={styles.statLabel}>KM PARTAGÉS</Text>
+              <Text style={styles.statValue}>{String(completed.length).padStart(2, '0')}</Text>
+              <Text style={styles.statLabel}>TERMINÉS</Text>
             </View>
           </View>
+
+          {carpools.length === 0 ? (
+            <EmptyState
+              icon="car-sport-outline"
+              title="Aucun trajet réservé"
+              message="Tes propositions et réservations apparaîtront ici."
+              actionLabel="VOIR LES TRAJETS"
+              onAction={() => router.replace('/(tabs)/covoiturage')}
+            />
+          ) : null}
 
           {/* Upcoming */}
           {upcoming.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>À VENIR</Text>
+              <SectionHeading title="À VENIR" meta={`${upcoming.length} trajet${upcoming.length > 1 ? 's' : ''}`} />
               {upcoming.map((c) => (
                 <View key={c.id} style={[styles.carpoolCard, styles.carpoolUpcoming]}>
                   <View style={styles.cardTopRow}>
                     <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.crimson : t.elevated, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-                      <Ionicons name={c.role === 'driver' ? 'car-outline' : 'person-outline'} size={12} color={t.bone} />
-                      <Text style={styles.roleBadgeText}>
+                      <Ionicons name={c.role === 'driver' ? 'car-outline' : 'person-outline'} size={12} color={c.role === 'driver' ? t.onAccent : t.bone} />
+                      <Text style={[styles.roleBadgeText, c.role === 'driver' && { color: t.onAccent }]}>
                         {c.role === 'driver' ? 'CONDUCTEUR' : 'PASSAGER'}
                       </Text>
                     </View>
@@ -98,7 +114,7 @@ export default function MesCovoituragesScreen() {
           {/* Completed */}
           {completed.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>PASSÉS</Text>
+              <SectionHeading title="PASSÉS" meta={`${completed.length} trajet${completed.length > 1 ? 's' : ''}`} />
               {completed.map((c, i) => (
                 <View key={c.id} style={[styles.carpoolCard, i > 0 && { marginTop: 8 }]}>
                   <View style={styles.cardTopRow}>
@@ -130,7 +146,7 @@ export default function MesCovoituragesScreen() {
           )}
 
           {/* Propose carpool */}
-          <Pressable style={styles.proposeBtn} onPress={() => router.push('/create-carpool')}>
+          <Pressable accessibilityRole="button" style={styles.proposeBtn} onPress={() => router.push('/create-carpool')}>
             <Text style={styles.proposeBtnText}>＋ PROPOSER UN COVOIT</Text>
           </Pressable>
 
@@ -144,48 +160,33 @@ export default function MesCovoituragesScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4,
-      borderBottomWidth: 1, borderBottomColor: t.hairline,
-    },
-    backBtn: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    title: {
-      flex: 1, fontFamily: FONTS.display, fontSize: 18, color: t.bone,
-      fontWeight: '900', letterSpacing: 0.5,
-    },
     loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    scroll: { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 8, gap: 18 },
 
     // Stats
     statsRow: {
-      flexDirection: 'row', borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      flexDirection: 'row', backgroundColor: t.surface,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, overflow: 'hidden',
     },
     statCell: { flex: 1, paddingVertical: 14, alignItems: 'center' },
     statBorder: { borderRightWidth: 1, borderRightColor: t.hairline },
     statValue: { fontFamily: FONTS.display, fontSize: 28, color: t.crimson, fontWeight: '900', lineHeight: 30 },
     statLabel: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.5, marginTop: 4 },
 
-    // Section label
-    sectionLabel: {
-      fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2, marginTop: 4,
-    },
-
     // Carpool cards
     carpoolCard: {
-      padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      padding: 16, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg,
     },
     carpoolUpcoming: {
       borderLeftWidth: 3, borderLeftColor: t.crimson,
     },
     cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
     roleBadge: {
-      paddingHorizontal: 8, paddingVertical: 4, borderRadius: 2,
+      paddingHorizontal: 9, paddingVertical: 5, borderRadius: Radii.round,
     },
     roleBadgeText: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.bone, letterSpacing: 1, fontWeight: '700' },
-    upcomingPill: { backgroundColor: t.crimson, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 2 },
-    upcomingText: { fontFamily: FONTS.mono, fontSize: 8, color: t.bone, letterSpacing: 1.5, fontWeight: '700' },
+    upcomingPill: { backgroundColor: t.crimson, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radii.round },
+    upcomingText: { fontFamily: FONTS.mono, fontSize: 8, color: t.onAccent, letterSpacing: 1.5, fontWeight: '700' },
     carpoolEvent: { fontFamily: FONTS.body, fontSize: 14, color: t.bone, fontWeight: '700' },
     carpoolRoute: { fontFamily: FONTS.mono, fontSize: 10, color: t.textDim, letterSpacing: 1, marginTop: 3 },
     carpoolMeta: { flexDirection: 'row', gap: 14, marginTop: 6 },
@@ -195,11 +196,11 @@ function makeStyles(t: Theme) {
 
     // Propose button
     proposeBtn: {
-      marginTop: 4, backgroundColor: t.crimson, paddingVertical: 15,
-      borderRadius: 3, alignItems: 'center',
+      marginTop: 4, minHeight: 50, backgroundColor: t.crimson,
+      borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center',
     },
     proposeBtnText: {
-      fontFamily: FONTS.display, fontSize: 13, color: t.bone, fontWeight: '900', letterSpacing: 1.5,
+      fontFamily: FONTS.display, fontSize: 13, color: t.onAccent, fontWeight: '900', letterSpacing: 1.5,
     },
   });
 }

@@ -17,7 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 
 import { FormScrollView } from '@/components/form-scroll-view';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
@@ -321,14 +322,7 @@ export default function AdminResultsScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/admin')} style={styles.back}><Text style={styles.backIcon}>‹</Text></Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>RÉSULTATS</Text>
-            <Text style={styles.subtitle}>Inscriptions & palmarès des élèves</Text>
-          </View>
-          <View style={styles.headerIcon}><Ionicons name="trophy" size={18} color={t.crimson} /></View>
-        </View>
+        <DetailHeader eyebrow="Inscriptions & palmarès des élèves" title="RÉSULTATS" onBack={() => safeBack('/admin')} />
       </SafeAreaView>
 
       {loading && !management ? (
@@ -517,15 +511,9 @@ function makeStyles(t: Theme) {
     container: { flex: 1, backgroundColor: t.ink },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
     muted: { color: t.textMute },
-    header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 4, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: t.hairline },
-    back: { padding: 4 },
-    backIcon: { fontSize: 30, color: t.bone, lineHeight: 30 },
-    title: { color: t.bone, fontSize: 21, fontWeight: '900', letterSpacing: 1.5 },
-    subtitle: { color: t.textMute, fontSize: 11, letterSpacing: 0.4 },
-    headerIcon: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
     content: { paddingVertical: 18, paddingBottom: 48 },
     eyebrow: { paddingHorizontal: 18, marginBottom: 10, color: t.textMute, fontFamily: FONTS.mono, fontSize: 11, letterSpacing: 2 },
-    globalPending: { marginHorizontal: 18, marginBottom: 18, padding: 13, gap: 8, borderWidth: 1, borderColor: t.gold + '77', backgroundColor: t.gold + '0C', borderRadius: 4 },
+    globalPending: { marginHorizontal: Layout.gutter, marginBottom: 18, padding: 14, gap: 8, borderWidth: 1, borderColor: t.gold + '77', backgroundColor: t.gold + '0C', borderRadius: Radii.lg },
     globalPendingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
     globalPendingTitle: { color: t.gold, fontFamily: FONTS.display, fontSize: 15, fontWeight: '900', letterSpacing: 1 },
     globalPendingSubtitle: { color: t.textMute, fontSize: 10, marginTop: 2 },
@@ -533,10 +521,10 @@ function makeStyles(t: Theme) {
     globalPendingBadgeText: { color: t.ink, fontWeight: '900' },
     globalPendingRow: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: t.hairline, paddingTop: 8 },
     globalPendingInfo: { flex: 1, minWidth: 0, gap: 3 },
-    rejectSmall: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.crimson },
-    approveSmall: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: '#4A8F6D' },
+    rejectSmall: { width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.round, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.crimson },
+    approveSmall: { width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.round, alignItems: 'center', justifyContent: 'center', backgroundColor: t.success },
     competitionList: { paddingHorizontal: 18, gap: 10 },
-    competitionCard: { width: 230, minHeight: 142, padding: 14, borderRadius: 5, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface, gap: 6 },
+    competitionCard: { width: 230, minHeight: 142, padding: 14, borderRadius: Radii.lg, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface, gap: 6 },
     competitionCardActive: { borderColor: t.crimson, backgroundColor: t.crimson + '0E' },
     competitionDate: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1 },
     accent: { color: t.crimson },
@@ -545,7 +533,7 @@ function makeStyles(t: Theme) {
     countRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 'auto' },
     count: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 0.5 },
     pendingCount: { color: t.gold, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
-    summary: { margin: 18, marginBottom: 14, padding: 14, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: t.elevated, borderRadius: 5 },
+    summary: { margin: Layout.gutter, marginBottom: 14, padding: 14, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: t.elevated, borderRadius: Radii.lg },
     summaryValue: { color: t.bone, fontSize: 22, fontWeight: '900', textAlign: 'center' },
     summaryLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1 },
     pendingValue: { color: t.gold },
@@ -558,7 +546,7 @@ function makeStyles(t: Theme) {
     filterText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1 },
     filterTextActive: { color: t.crimson },
     members: { paddingHorizontal: 18, gap: 10 },
-    memberCard: { padding: 14, borderRadius: 5, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface, gap: 12 },
+    memberCard: { padding: 14, borderRadius: Radii.lg, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface, gap: 12 },
     memberTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
     avatar: { width: 44, height: 44, borderRadius: 22 },
     avatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.elevated, alignItems: 'center', justifyContent: 'center' },
@@ -587,13 +575,13 @@ function makeStyles(t: Theme) {
     secondaryButtonText: { color: t.bone, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
     dangerButton: { borderColor: t.crimson + '88' },
     dangerButtonText: { color: t.crimson },
-    resultButton: { flex: 1, height: 40, borderRadius: 3, backgroundColor: t.crimson, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
-    resultButtonText: { color: '#FFF', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+    resultButton: { flex: 1, minHeight: Layout.touchTarget, borderRadius: Radii.md, backgroundColor: t.crimson, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+    resultButtonText: { color: t.onAccent, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
     noMembers: { padding: 28, textAlign: 'center', color: t.textMute },
     emptyTitle: { color: t.bone, fontSize: 16, fontWeight: '900', letterSpacing: 1 },
     emptyText: { color: t.textMute, fontSize: 13, textAlign: 'center' },
-    primaryButton: { marginTop: 8, paddingHorizontal: 18, paddingVertical: 13, backgroundColor: t.crimson, borderRadius: 3 },
-    primaryButtonText: { color: '#FFF', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+    primaryButton: { minHeight: Layout.touchTarget, marginTop: 8, paddingHorizontal: 18, paddingVertical: 13, backgroundColor: t.crimson, borderRadius: Radii.md },
+    primaryButtonText: { color: t.onAccent, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
     modal: { flex: 1, backgroundColor: t.ink },
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.hairline },
     modalCancel: { width: 62, color: t.textMute, fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 0.5 },
@@ -615,11 +603,11 @@ function makeStyles(t: Theme) {
     optionTextActive: { color: t.crimson },
     weightList: { gap: 8 },
     weightOption: { paddingHorizontal: 12, height: 38, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },
-    input: { minHeight: 48, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4, color: t.text, paddingHorizontal: 13, fontSize: 15, backgroundColor: t.surface },
+    input: { minHeight: 48, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, color: t.text, paddingHorizontal: 13, fontSize: 15, backgroundColor: t.surface },
     notes: { minHeight: 100, paddingTop: 13, textAlignVertical: 'top' },
-    saveButton: { height: 52, marginTop: 8, borderRadius: 3, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
-    saveButtonText: { color: '#FFF', fontWeight: '900', fontSize: 12, letterSpacing: 1.5 },
-    deleteButton: { height: 48, borderRadius: 3, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
+    saveButton: { height: 52, marginTop: 8, borderRadius: Radii.md, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
+    saveButtonText: { color: t.onAccent, fontWeight: '900', fontSize: 12, letterSpacing: 1.5 },
+    deleteButton: { height: 48, borderRadius: Radii.md, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
     deleteButtonText: { color: t.crimson, fontWeight: '800', fontSize: 11, letterSpacing: 1 },
     disabled: { opacity: 0.55 },
   });

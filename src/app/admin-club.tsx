@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, IconButton } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useAdminClub } from '@/hooks/useClubManagement';
@@ -125,11 +126,7 @@ export default function AdminClubScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable style={styles.back} onPress={() => safeBack('/(tabs)/accueil')}><Ionicons name="chevron-back" size={22} color={t.bone} /></Pressable>
-          <View style={styles.flex}><Text style={styles.eyebrow}>ADMINISTRATION</Text><Text style={styles.title}>GESTION DU CLUB</Text></View>
-          <Pressable style={styles.preview} onPress={() => router.push('/club-public' as never)}><Ionicons name="eye-outline" size={18} color={t.crimson} /></Pressable>
-        </View>
+        <DetailHeader eyebrow="Administration" title="GESTION DU CLUB" onBack={() => safeBack('/(tabs)/accueil')} action={<IconButton icon="eye-outline" label="Prévisualiser la page publique" onPress={() => router.push('/club-public' as never)} />} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           {TABS.map(([key, label]) => <Pressable key={key} style={[styles.tab, tab === key && styles.tabActive]} onPress={() => changeTab(key)}><Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text></Pressable>)}
         </ScrollView>
@@ -234,29 +231,25 @@ function Metrics({ values, styles }: { values: [string, string][]; styles: Retur
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.ink },
-    header: { minHeight: 72, paddingHorizontal: 18, flexDirection: 'row', gap: 12, alignItems: 'center' },
-    back: { width: 38, height: 38, borderRadius: 19, backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center' },
-    preview: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center' },
-    flex: { flex: 1, minWidth: 0 }, eyebrow: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1.6 },
-    title: { color: t.bone, fontFamily: FONTS.display, fontSize: 24, fontWeight: '900', letterSpacing: 0.8 },
+    flex: { flex: 1, minWidth: 0 },
     tabs: { paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: t.hairline },
     tab: { paddingHorizontal: 13, height: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' }, tabActive: { borderBottomColor: t.crimson },
     tabText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.9 }, tabTextActive: { color: t.bone, fontWeight: '800' },
-    content: { padding: 18 }, notice: { color: '#6EB38C', padding: 11, borderWidth: 1, borderColor: '#4A8F6D55', backgroundColor: '#4A8F6D12', marginBottom: 10 }, error: { color: t.crimson, borderColor: t.crimson + '55', backgroundColor: t.crimson + '12' },
-    metrics: { flexDirection: 'row', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline }, metric: { flex: 1, minHeight: 72, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: t.hairline }, metricValue: { color: t.bone, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900' }, metricLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 6.5, marginTop: 4, textAlign: 'center' },
+    content: { padding: Layout.gutter }, notice: { color: t.success, padding: 11, borderWidth: 1, borderColor: t.success + '55', backgroundColor: t.success + '12', borderRadius: Radii.md, marginBottom: 10 }, error: { color: t.crimson, borderColor: t.crimson + '55', backgroundColor: t.crimson + '12' },
+    metrics: { flexDirection: 'row', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, overflow: 'hidden' }, metric: { flex: 1, minHeight: 72, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: t.hairline }, metricValue: { color: t.bone, fontFamily: FONTS.display, fontSize: 18, fontWeight: '900' }, metricLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 6.5, marginTop: 4, textAlign: 'center' },
     section: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.7, marginTop: 20, marginBottom: 8 },
-    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, padding: 14, marginBottom: 9 }, field: { marginBottom: 12 }, fieldLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1.3, marginBottom: 6 },
-    input: { minHeight: 48, color: t.bone, fontSize: 14, borderWidth: 1, borderColor: t.hairlineStrong, paddingHorizontal: 12, backgroundColor: t.ink }, textarea: { minHeight: 115, paddingTop: 12, textAlignVertical: 'top' }, twoCols: { flexDirection: 'row', gap: 10 },
-    primary: { minHeight: 48, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, marginTop: 3 }, primaryText: { color: '#FFF', fontFamily: FONTS.display, fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
-    secondary: { minHeight: 46, borderWidth: 1, borderColor: t.crimson, alignItems: 'center', justifyContent: 'center', marginTop: 9 }, secondaryText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1 },
+    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, padding: 14, marginBottom: 9 }, field: { marginBottom: 12 }, fieldLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1.3, marginBottom: 6 },
+    input: { minHeight: 48, color: t.bone, fontSize: 14, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, paddingHorizontal: 12, backgroundColor: t.ink }, textarea: { minHeight: 115, paddingTop: 12, textAlignVertical: 'top' }, twoCols: { flexDirection: 'row', gap: 10 },
+    primary: { minHeight: 48, backgroundColor: t.crimson, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, marginTop: 3 }, primaryText: { color: t.onAccent, fontFamily: FONTS.display, fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
+    secondary: { minHeight: 46, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', marginTop: 9 }, secondaryText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1 },
     listRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11, backgroundColor: t.surface, borderBottomWidth: 1, borderBottomColor: t.hairline }, listTitle: { color: t.bone, fontSize: 13, fontWeight: '800' }, meta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7.5, marginTop: 4, letterSpacing: 0.5 },
     dateSquare: { width: 42, alignItems: 'center' }, dateDay: { color: t.bone, fontFamily: FONTS.display, fontSize: 20, fontWeight: '900' }, dateMonth: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7 },
     smallAction: { borderWidth: 1, borderColor: t.crimson, paddingHorizontal: 9, paddingVertical: 7 }, smallActionText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7, fontWeight: '800' },
-    status: { borderWidth: 1, borderColor: '#4A8F6D77', paddingHorizontal: 6, paddingVertical: 3 }, statusText: { color: '#6EB38C', fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.7 },
+    status: { borderWidth: 1, borderColor: t.success + '77', borderRadius: Radii.round, paddingHorizontal: 7, paddingVertical: 4 }, statusText: { color: t.success, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.7 },
     chips: { gap: 7, paddingBottom: 8 }, chip: { minWidth: 130, padding: 10, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface }, chipActive: { borderColor: t.crimson }, chipText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 8 }, chipSub: { color: t.textMute, fontSize: 10, marginTop: 4 }, chipTextActive: { color: t.crimson },
     attendanceActions: { flexDirection: 'row', gap: 6 }, attendanceButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.hairlineStrong }, present: { backgroundColor: '#4A8F6D', borderColor: '#4A8F6D' }, absent: { backgroundColor: t.crimson, borderColor: t.crimson },
     pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }, pill: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: t.hairlineStrong }, pillActive: { borderColor: t.crimson, backgroundColor: t.crimson + '15' }, pillText: { color: t.textMute, fontSize: 10 }, pillTextActive: { color: t.crimson, fontWeight: '700' },
     right: { alignItems: 'flex-end' }, amount: { color: t.bone, fontWeight: '900', fontSize: 14 }, link: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 6.5, marginTop: 6 }, row: { flexDirection: 'row', alignItems: 'center', gap: 10 }, actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 }, secondarySmall: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.crimson }, primarySmall: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson },
-    empty: { padding: 26, alignItems: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline }, muted: { color: t.textMute, fontSize: 12 },
+    empty: { padding: 26, alignItems: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg }, muted: { color: t.textMute, fontSize: 12 },
   });
 }

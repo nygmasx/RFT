@@ -10,7 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, IconButton } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { ClassSession, useClubOverview } from '@/hooks/useClubManagement';
 import { api } from '@/lib/api';
@@ -117,11 +118,12 @@ export default function ClubScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable style={styles.back} onPress={() => safeBack('/(tabs)/accueil')}><Ionicons name="chevron-back" size={22} color={t.bone} /></Pressable>
-          <View style={styles.headerCopy}><Text style={styles.eyebrow}>RONIN FIGHT TEAM</Text><Text style={styles.title}>MON CLUB</Text></View>
-          <Pressable style={styles.publicButton} onPress={() => router.push('/club-public' as never)}><Ionicons name="globe-outline" size={18} color={t.crimson} /></Pressable>
-        </View>
+        <DetailHeader
+          eyebrow="Ronin Fight Team"
+          title="MON CLUB"
+          onBack={() => safeBack('/(tabs)/accueil')}
+          action={<IconButton icon="globe-outline" label="Voir la page publique" onPress={() => router.push('/club-public' as never)} />}
+        />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           {(Object.keys(TAB_LABELS) as Tab[]).map((key) => (
             <Pressable key={key} style={[styles.tab, tab === key && styles.tabActive]} onPress={() => setTab(key)}>
@@ -234,27 +236,21 @@ function Status({ value, styles }: { value: string; styles: ReturnType<typeof ma
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 12 },
-    back: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: t.surface },
-    headerCopy: { flex: 1 },
-    eyebrow: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1.7 },
-    title: { color: t.bone, fontFamily: FONTS.display, fontSize: 28, fontWeight: '900', letterSpacing: 1 },
-    publicButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, borderWidth: 1, borderColor: t.crimson },
-    tabs: { paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: t.hairline },
+    tabs: { paddingHorizontal: Layout.gutter, borderBottomWidth: 1, borderBottomColor: t.hairline },
     tab: { paddingHorizontal: 14, height: 45, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
     tabActive: { borderBottomColor: t.crimson },
     tabText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1 },
     tabTextActive: { color: t.bone, fontWeight: '800' },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    content: { padding: 18 },
-    notice: { color: '#4A8F6D', padding: 12, backgroundColor: '#4A8F6D18', borderWidth: 1, borderColor: '#4A8F6D55', marginBottom: 10, fontSize: 12 },
+    content: { padding: Layout.gutter },
+    notice: { color: t.success, padding: 12, backgroundColor: t.success + '18', borderWidth: 1, borderColor: t.success + '55', borderRadius: Radii.md, marginBottom: 10, fontSize: 12 },
     error: { color: t.crimson, backgroundColor: t.crimson + '12', borderColor: t.crimson + '55' },
-    stats: { flexDirection: 'row', borderWidth: 1, borderColor: t.hairline, backgroundColor: t.surface },
+    stats: { flexDirection: 'row', borderWidth: 1, borderColor: t.hairline, backgroundColor: t.surface, borderRadius: Radii.lg, overflow: 'hidden' },
     stat: { flex: 1, alignItems: 'center', paddingVertical: 16, borderRightWidth: 1, borderRightColor: t.hairline },
     statValue: { color: t.bone, fontFamily: FONTS.display, fontWeight: '900', fontSize: 24 },
     statLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7, marginTop: 3, letterSpacing: 1 },
     sectionTitle: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9, letterSpacing: 1.7, marginTop: 20, marginBottom: 8 },
-    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, padding: 14, marginBottom: 9, borderRadius: 3 },
+    card: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, padding: 16, marginBottom: 10, borderRadius: Radii.lg },
     rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     dateBlock: { flex: 1 },
     dateText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
@@ -263,35 +259,35 @@ function makeStyles(t: Theme) {
     capacityText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 9 },
     cardTitle: { color: t.bone, fontFamily: FONTS.display, fontWeight: '900', fontSize: 17, marginTop: 9 },
     meta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.6, marginTop: 4 },
-    bookingButton: { minHeight: 42, marginTop: 9, paddingHorizontal: 12, borderWidth: 1, borderColor: t.hairlineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    bookingButtonActive: { borderColor: '#4A8F6D88', backgroundColor: '#4A8F6D0D' },
+    bookingButton: { minHeight: Layout.touchTarget, marginTop: 9, paddingHorizontal: 12, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    bookingButtonActive: { borderColor: t.success + '88', backgroundColor: t.success + '0D' },
     bookingLabel: { color: t.bone, fontSize: 11, fontWeight: '700', flex: 1 },
-    bookingLabelActive: { color: '#6EB38C' },
+    bookingLabelActive: { color: t.success },
     bookingAction: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 0.7 },
-    bookingActionActive: { color: '#6EB38C' },
+    bookingActionActive: { color: t.success },
     price: { color: t.crimson, fontFamily: FONTS.display, fontSize: 28, fontWeight: '900', marginTop: 10 },
     balance: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: t.hairline, flexDirection: 'row', justifyContent: 'space-between' },
     balanceLabel: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 8 },
     balanceValue: { color: t.bone, fontWeight: '800' },
-    primaryButton: { minHeight: 48, marginTop: 12, backgroundColor: t.crimson, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15 },
-    primaryText: { color: '#FFF', fontFamily: FONTS.display, fontWeight: '900', fontSize: 11, letterSpacing: 1.5 },
-    status: { paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#4A8F6D88' },
-    statusText: { color: '#6EB38C', fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.8 },
+    primaryButton: { minHeight: 48, marginTop: 12, backgroundColor: t.crimson, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15 },
+    primaryText: { color: t.onAccent, fontFamily: FONTS.display, fontWeight: '900', fontSize: 11, letterSpacing: 1.5 },
+    status: { paddingHorizontal: 7, paddingVertical: 4, borderRadius: Radii.round, borderWidth: 1, borderColor: t.success + '88' },
+    statusText: { color: t.success, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.8 },
     listRow: { minHeight: 66, padding: 12, backgroundColor: t.surface, borderBottomWidth: 1, borderBottomColor: t.hairline, flexDirection: 'row', alignItems: 'center', gap: 11 },
     listTitle: { color: t.bone, fontWeight: '800', fontSize: 13 },
     listAmount: { color: t.bone, fontWeight: '900', fontSize: 14, marginBottom: 4 },
     alignRight: { alignItems: 'flex-end' },
-    documentIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
+    documentIcon: { width: 40, height: 40, borderRadius: Radii.round, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
     familyAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
     familyInitial: { color: t.bone, fontWeight: '900', fontSize: 12 },
     flex: { flex: 1, minWidth: 0 },
     input: { minHeight: 50, color: t.bone, borderBottomWidth: 1, borderBottomColor: t.hairlineStrong, fontSize: 14, paddingHorizontal: 4 },
     chips: { gap: 6, paddingVertical: 12 },
-    chip: { paddingHorizontal: 9, paddingVertical: 7, borderWidth: 1, borderColor: t.hairlineStrong },
+    chip: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radii.round, borderWidth: 1, borderColor: t.hairlineStrong },
     chipActive: { borderColor: t.crimson, backgroundColor: t.crimson + '15' },
     chipText: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7 },
     chipTextActive: { color: t.crimson },
-    empty: { padding: 24, alignItems: 'center', borderWidth: 1, borderColor: t.hairline, backgroundColor: t.surface },
+    empty: { padding: 24, alignItems: 'center', borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, backgroundColor: t.surface },
     emptyText: { color: t.textMute, fontSize: 12, textAlign: 'center' },
   });
 }

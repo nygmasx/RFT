@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { Radii } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { authClient, authRedirect } from '@/lib/auth-client';
@@ -96,7 +97,7 @@ export default function RegisterScreen() {
     await refreshProfileStatus();
   };
 
-  const s = styles(t);
+  const s = useMemo(() => styles(t), [t]);
 
   return (
     <View style={s.container}>
@@ -245,7 +246,7 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   label: { fontSize: 10, fontWeight: '700', color: t.textMute, letterSpacing: 2 },
   input: {
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
-    borderRadius: 4, paddingHorizontal: 14, paddingVertical: 13,
+    borderRadius: Radii.md, paddingHorizontal: 14, paddingVertical: 13,
     fontSize: 15, color: t.bone,
   },
   passwordField: { position: 'relative' },
@@ -255,12 +256,12 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface },
+  chip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radii.round, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface },
   chipActive: { backgroundColor: t.crimson, borderColor: t.crimson },
   chipText: { fontSize: 12, fontWeight: '600', color: t.textDim },
-  chipTextActive: { color: '#FFFFFF' },
+  chipTextActive: { color: t.onAccent },
   errorText: { fontSize: 12, color: t.crimson, fontWeight: '500' },
-  btn: { backgroundColor: t.crimson, borderRadius: 4, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
-  btnText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
+  btn: { minHeight: 50, backgroundColor: t.crimson, borderRadius: Radii.md, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  btnText: { fontSize: 13, fontWeight: '900', color: t.onAccent, letterSpacing: 2 },
   hint: { fontSize: 12, color: t.textMute, textAlign: 'center', lineHeight: 18 },
 });

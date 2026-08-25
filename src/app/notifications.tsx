@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, EmptyState } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { AppNotification, useNotifications } from '@/hooks/useNotifications';
 import { safeBack } from '@/lib/navigation';
@@ -48,19 +49,19 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/accueil')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.title}>NOTIFICATIONS</Text>
-          <Pressable
+        <DetailHeader
+          eyebrow={`${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
+          title="NOTIFICATIONS"
+          onBack={() => safeBack('/(tabs)/accueil')}
+          action={<Pressable
+            accessibilityRole="button"
             style={styles.readAllBtn}
             onPress={() => void markAllRead()}
             disabled={unreadCount === 0}
           >
             <Text style={[styles.readAllText, unreadCount === 0 && styles.readAllTextDisabled]}>TOUT LIRE</Text>
-          </Pressable>
-        </View>
+          </Pressable>}
+        />
       </SafeAreaView>
 
       {loading ? (
@@ -69,8 +70,7 @@ export default function NotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="notifications-off-outline" size={44} color={t.textMute} />
-          <Text style={styles.emptyText}>Aucune notification</Text>
+          <EmptyState icon="notifications-off-outline" title="Tout est calme" message="Les nouvelles du club apparaîtront ici." />
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -87,6 +87,7 @@ export default function NotificationsScreen() {
 
             return (
               <Pressable
+                accessibilityRole="button"
                 key={item.id}
                 style={[styles.card, !item.isRead && styles.cardUnread, i > 0 && styles.cardBorder]}
                 onPress={() => {
@@ -132,25 +133,12 @@ function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
     loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    emptyText: { fontFamily: FONTS.body, fontSize: 14, color: t.textMute },
-
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4,
-      borderBottomWidth: 1, borderBottomColor: t.hairline,
-    },
-    backBtn: { padding: 4, width: 36 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    title: {
-      fontFamily: FONTS.display, fontSize: 14, color: t.bone,
-      fontWeight: '900', letterSpacing: 2,
-    },
-    readAllBtn: { width: 64, alignItems: 'flex-end', paddingVertical: 8 },
+    empty: { flex: 1, justifyContent: 'center', paddingHorizontal: Layout.gutter },
+    readAllBtn: { minWidth: 68, minHeight: Layout.touchTarget, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.round },
     readAllText: { fontFamily: FONTS.mono, fontSize: 8, color: t.crimson, letterSpacing: 1 },
     readAllTextDisabled: { color: t.textMute },
 
-    scroll: { paddingHorizontal: 20, paddingTop: 20 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 12 },
     sectionLabel: {
       fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute,
       letterSpacing: 2, marginBottom: 12,
@@ -158,9 +146,9 @@ function makeStyles(t: Theme) {
 
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 14,
-      paddingVertical: 14,
+      minHeight: 72, paddingVertical: 14,
     },
-    cardUnread: { backgroundColor: t.surface, marginHorizontal: -10, paddingHorizontal: 10 },
+    cardUnread: { backgroundColor: t.surface, marginHorizontal: -10, paddingHorizontal: 10, borderRadius: Radii.md },
     cardBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
     cardLeft: { alignItems: 'center', gap: 4 },
     iconWrap: {
@@ -175,7 +163,7 @@ function makeStyles(t: Theme) {
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     tag: {
       paddingHorizontal: 6, paddingVertical: 2,
-      borderWidth: 1, borderRadius: 2,
+      borderWidth: 1, borderRadius: Radii.round,
     },
     tagText: { fontFamily: FONTS.mono, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
     cardTime: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 0.5 },

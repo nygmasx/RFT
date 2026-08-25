@@ -15,7 +15,12 @@ export type Theme = {
   textMute: string;
   crimson: string;
   crimsonDeep: string;
+  onAccent: string;
+  onAccentMuted: string;
   gold: string;
+  success: string;
+  warning: string;
+  info: string;
 };
 
 export const THEMES: Record<ThemeKey, Theme> = {
@@ -32,7 +37,12 @@ export const THEMES: Record<ThemeKey, Theme> = {
     textMute: '#6B665E',
     crimson: '#C8362D',
     crimsonDeep: '#8E1F18',
+    onAccent: '#FFFFFF',
+    onAccentMuted: 'rgba(255,255,255,0.72)',
     gold: '#C9A24B',
+    success: '#54A37D',
+    warning: '#E6A34A',
+    info: '#5B8DEF',
   },
   light: {
     ink: '#F5F2ED',
@@ -47,7 +57,12 @@ export const THEMES: Record<ThemeKey, Theme> = {
     textMute: '#8E887F',
     crimson: '#C8362D',
     crimsonDeep: '#8E1F18',
+    onAccent: '#FFFFFF',
+    onAccentMuted: 'rgba(255,255,255,0.72)',
     gold: '#C9A24B',
+    success: '#2D7A58',
+    warning: '#B86C19',
+    info: '#3469C8',
   },
   navy: {
     ink: '#080D1A',
@@ -62,7 +77,12 @@ export const THEMES: Record<ThemeKey, Theme> = {
     textMute: '#5A6A88',
     crimson: '#C8362D',
     crimsonDeep: '#8E1F18',
+    onAccent: '#FFFFFF',
+    onAccentMuted: 'rgba(255,255,255,0.72)',
     gold: '#C9A24B',
+    success: '#54A37D',
+    warning: '#E6A34A',
+    info: '#6C9BFF',
   },
   forest: {
     ink: '#080F0A',
@@ -77,7 +97,12 @@ export const THEMES: Record<ThemeKey, Theme> = {
     textMute: '#4A6E4E',
     crimson: '#C8362D',
     crimsonDeep: '#8E1F18',
+    onAccent: '#FFFFFF',
+    onAccentMuted: 'rgba(255,255,255,0.72)',
     gold: '#C9A24B',
+    success: '#62AE79',
+    warning: '#E6A34A',
+    info: '#67A0F5',
   },
   slate: {
     ink: '#0C0E10',
@@ -92,7 +117,12 @@ export const THEMES: Record<ThemeKey, Theme> = {
     textMute: '#4A5C70',
     crimson: '#C8362D',
     crimsonDeep: '#8E1F18',
+    onAccent: '#FFFFFF',
+    onAccentMuted: 'rgba(255,255,255,0.72)',
     gold: '#C9A24B',
+    success: '#54A37D',
+    warning: '#E6A34A',
+    info: '#6C9BFF',
   },
 };
 
@@ -153,10 +183,46 @@ export const Spacing = {
   half: 2,
   one: 4,
   two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
+  three: 12,
+  four: 16,
+  five: 20,
+  six: 24,
+  seven: 32,
+  eight: 40,
+  nine: 48,
+  ten: 64,
+} as const;
+
+export const Radii = {
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 26,
+  round: 999,
+} as const;
+
+export const Layout = {
+  gutter: 20,
+  touchTarget: 44,
+  cardPadding: 16,
+  sectionGap: 28,
+  contentMaxWidth: 760,
+} as const;
+
+export const TypeScale = {
+  caption: 10,
+  label: 12,
+  body: 14,
+  bodyLarge: 16,
+  title: 22,
+  display: 44,
+} as const;
+
+export const Motion = {
+  fast: 140,
+  standard: 220,
+  deliberate: 320,
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;

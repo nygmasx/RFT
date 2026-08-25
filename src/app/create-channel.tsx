@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { FormScrollView } from '@/components/form-scroll-view';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
@@ -65,13 +66,7 @@ export default function CreateChannelScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/salons')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>NOUVEAU SALON</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <DetailHeader eyebrow="Conversations" title="NOUVEAU SALON" onBack={() => safeBack('/(tabs)/salons')} />
       </SafeAreaView>
 
       <FormScrollView
@@ -192,14 +187,14 @@ function makeStyles(t: Theme) {
       fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
     },
     headerSpacer: { width: 36 },
-    scroll: { paddingHorizontal: 20, paddingTop: 24 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 12 },
     fieldLabel: {
       fontFamily: FONTS.mono, fontSize: 10, color: t.textMute,
       letterSpacing: 2, marginBottom: 8,
     },
     textInput: {
       height: 44, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md,
       paddingHorizontal: 14, fontFamily: FONTS.body, fontSize: 14, color: t.bone,
     },
     textInputMulti: {
@@ -209,7 +204,7 @@ function makeStyles(t: Theme) {
       flexDirection: 'row', gap: 8,
     },
     segBtn: {
-      flex: 1, height: 40, borderRadius: 3,
+      flex: 1, minHeight: Layout.touchTarget, borderRadius: Radii.md,
       borderWidth: 1, borderColor: t.hairlineStrong,
       alignItems: 'center', justifyContent: 'center',
     },
@@ -220,14 +215,14 @@ function makeStyles(t: Theme) {
       fontFamily: FONTS.display, fontSize: 12, color: t.textDim,
       fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase',
     },
-    segBtnTextActive: { color: t.bone },
+    segBtnTextActive: { color: t.onAccent },
     sectionHeader: {
       fontFamily: FONTS.mono, fontSize: 10, color: t.textMute,
       letterSpacing: 2, marginBottom: 8,
     },
     memberList: {
       backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, overflow: 'hidden',
     },
     memberRow: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -235,13 +230,13 @@ function makeStyles(t: Theme) {
     },
     memberBorder: { borderTopWidth: 1, borderTopColor: t.hairline },
     memberAvatar: {
-      width: 32, height: 32, borderRadius: 3, backgroundColor: t.elevated,
+      width: 36, height: 36, borderRadius: Radii.round, backgroundColor: t.elevated,
       alignItems: 'center', justifyContent: 'center',
     },
     memberInitial: { fontFamily: FONTS.display, fontSize: 14, color: t.bone, fontWeight: '900' },
     memberName: { flex: 1, fontFamily: FONTS.body, fontSize: 13.5, color: t.bone, fontWeight: '600' },
     checkbox: {
-      width: 22, height: 22, borderRadius: 3,
+      width: 24, height: 24, borderRadius: Radii.sm,
       borderWidth: 1.5, borderColor: t.hairlineStrong,
       alignItems: 'center', justifyContent: 'center',
     },
@@ -249,16 +244,16 @@ function makeStyles(t: Theme) {
       backgroundColor: t.crimson, borderColor: t.crimson,
     },
     ctaWrap: {
-      paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12,
+      paddingHorizontal: Layout.gutter, paddingTop: 12, paddingBottom: 12,
       backgroundColor: t.ink, borderTopWidth: 1, borderTopColor: t.hairline,
     },
     ctaBtn: {
-      height: 50, backgroundColor: t.crimson, borderRadius: 3,
+      height: 50, backgroundColor: t.crimson, borderRadius: Radii.md,
       alignItems: 'center', justifyContent: 'center',
     },
     ctaBtnDisabled: { backgroundColor: t.elevated },
     ctaBtnText: {
-      fontFamily: FONTS.display, fontSize: 14, color: t.bone,
+      fontFamily: FONTS.display, fontSize: 14, color: t.onAccent,
       fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
     },
     errorText: {

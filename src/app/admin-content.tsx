@@ -4,7 +4,8 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, TextInpu
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -106,9 +107,7 @@ export default function AdminContentScreen() {
 
   return <View style={styles.container}>
     <SafeAreaView edges={['top']}>
-      <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>‹</Text></Pressable>
-        <View style={{ flex: 1 }}><Text style={styles.title}>CONTENU DU CLUB</Text><Text style={styles.muted}>Annonces et compétitions</Text></View>
-      </View>
+      <DetailHeader eyebrow="Annonces & compétitions" title="CONTENU DU CLUB" onBack={() => router.back()} />
       <View style={styles.tabs}>{(['announcements', 'competitions'] as Section[]).map((key) => <Pressable key={key}
         style={[styles.tab, section === key && styles.tabActive]} onPress={() => { setSection(key); reset(); }}>
         <Text style={[styles.tabText, section === key && styles.tabTextActive]}>{key === 'announcements' ? 'ANNONCES' : 'COMPÉTITIONS'}</Text>
@@ -155,15 +154,14 @@ export default function AdminContentScreen() {
 
 const makeStyles = (t: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.ink }, center: { flex: 1, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' },
-  header: { flexDirection: 'row', gap: 14, alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 }, back: { color: t.bone, fontSize: 32 },
-  title: { color: t.bone, fontFamily: FONTS.display, fontSize: 20, fontWeight: '900', letterSpacing: 1.5 }, muted: { color: t.textMute, fontSize: 11.5, marginTop: 3 },
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, paddingBottom: 12 }, tab: { flex: 1, borderWidth: 1, borderColor: t.hairlineStrong, padding: 10, alignItems: 'center' }, tabActive: { backgroundColor: t.crimson, borderColor: t.crimson },
-  tabText: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1 }, tabTextActive: { color: '#fff' }, scroll: { padding: 20, gap: 10 },
-  form: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, padding: 14, gap: 10, marginBottom: 10 }, formTitle: { color: t.bone, fontFamily: FONTS.display, fontWeight: '900', letterSpacing: 1 },
-  input: { color: t.bone, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong, padding: 12, borderRadius: 3 }, multiline: { minHeight: 90, textAlignVertical: 'top' },
+  muted: { color: t.textMute, fontSize: 11.5, marginTop: 3 },
+  tabs: { flexDirection: 'row', paddingHorizontal: Layout.gutter, gap: 8, paddingBottom: 12 }, tab: { flex: 1, minHeight: Layout.touchTarget, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, padding: 10, alignItems: 'center', justifyContent: 'center' }, tabActive: { backgroundColor: t.crimson, borderColor: t.crimson },
+  tabText: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 10, letterSpacing: 1 }, tabTextActive: { color: t.onAccent }, scroll: { padding: Layout.gutter, gap: 10 },
+  form: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg, padding: 16, gap: 10, marginBottom: 10 }, formTitle: { color: t.bone, fontFamily: FONTS.display, fontWeight: '900', letterSpacing: 1 },
+  input: { minHeight: 48, color: t.bone, backgroundColor: t.elevated, borderWidth: 1, borderColor: t.hairlineStrong, padding: 12, borderRadius: Radii.md }, multiline: { minHeight: 90, textAlignVertical: 'top' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, label: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 10 }, choiceRow: { flexDirection: 'row', gap: 6 },
   choiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, choiceCompact: { minWidth: '30%', flexGrow: 1, borderWidth: 1, borderColor: t.hairlineStrong, padding: 8, alignItems: 'center' },
   choice: { flex: 1, borderWidth: 1, borderColor: t.hairlineStrong, padding: 8, alignItems: 'center' }, choiceActive: { backgroundColor: t.crimson }, choiceText: { color: t.bone, fontSize: 10 },
-  actions: { flexDirection: 'row', gap: 8 }, save: { flex: 1, backgroundColor: t.crimson, padding: 13, alignItems: 'center' }, saveText: { color: '#fff', fontWeight: '900', letterSpacing: 1 }, cancel: { padding: 13, borderWidth: 1, borderColor: t.hairlineStrong }, cancelText: { color: t.textDim },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline }, cardTitle: { color: t.bone, fontWeight: '700', fontSize: 14 }, delete: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9 },
+  actions: { flexDirection: 'row', gap: 8 }, save: { flex: 1, minHeight: Layout.touchTarget, backgroundColor: t.crimson, borderRadius: Radii.md, padding: 13, alignItems: 'center', justifyContent: 'center' }, saveText: { color: t.onAccent, fontWeight: '900', letterSpacing: 1 }, cancel: { minHeight: Layout.touchTarget, justifyContent: 'center', padding: 13, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md }, cancelText: { color: t.textDim },
+  card: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.md }, cardTitle: { color: t.bone, fontWeight: '700', fontSize: 14 }, delete: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 9 },
 });

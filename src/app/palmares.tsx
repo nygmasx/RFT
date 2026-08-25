@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { Chip, DetailHeader, EmptyState, IconButton } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useProfile } from '@/hooks/useProfile';
 import { safeBack } from '@/lib/navigation';
@@ -16,16 +17,17 @@ const MEDALS: Record<number, { color: string; label: string; name: string }> = {
 
 function MedalDisc({ place, size = 36, t }: { place: number; size?: number; t: Theme }) {
   const m = MEDALS[place];
+  const styles = useMemo(() => discSt(t), [t]);
   if (!m) {
     return (
-      <View style={[discSt(t).base, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.elevated }]}>
-        <Text style={discSt(t).topLabel}>T{place}</Text>
+      <View style={[styles.base, { width: size, height: size, borderRadius: size / 2, backgroundColor: t.elevated }]}>
+        <Text style={styles.topLabel}>T{place}</Text>
       </View>
     );
   }
   return (
-    <View style={[discSt(t).base, { width: size, height: size, borderRadius: size / 2, backgroundColor: m.color }]}>
-      <Text style={[discSt(t).label, { fontSize: size > 36 ? 13 : 11 }]}>{m.label}</Text>
+    <View style={[styles.base, { width: size, height: size, borderRadius: size / 2, backgroundColor: m.color }]}>
+      <Text style={[styles.label, { fontSize: size > 36 ? 13 : 11 }]}>{m.label}</Text>
     </View>
   );
 }
@@ -35,21 +37,6 @@ function discSt(t: Theme) {
     base: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.5)' },
     label: { color: '#1a0e0b', fontWeight: '900', fontFamily: FONTS.display },
     topLabel: { color: t.textDim, fontSize: 10, fontWeight: '700' },
-  });
-}
-
-function Tag({ text, t }: { text: string; t: Theme }) {
-  return (
-    <View style={tagSt(t).wrap}>
-      <Text style={tagSt(t).text}>{text}</Text>
-    </View>
-  );
-}
-
-function tagSt(t: Theme) {
-  return StyleSheet.create({
-    wrap: { paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: t.crimson, borderRadius: 2 },
-    text: { fontFamily: FONTS.mono, fontSize: 9, color: t.crimson, fontWeight: '600', letterSpacing: 1 },
   });
 }
 
@@ -74,16 +61,19 @@ export default function PalmaresScreen() {
   const allYears = Array.from(new Set(palmares.map((r) => r.compDate.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
   const yearsToShow = activeYear === 'Toutes' ? allYears : [activeYear];
 
-  const gold   = approvedPalmares.filter((r) => r.resultStage === 'champion').length;
-  const silver = approvedPalmares.filter((r) => r.resultStage === 'finalist').length;
-  const bronze = approvedPalmares.filter((r) => r.resultStage === 'semifinal').length;
-  const top4   = approvedPalmares.filter((r) => r.resultStage === 'quarterfinal').length;
+  const medalCounts = approvedPalmares.reduce((counts, result) => {
+    if (result.resultStage === 'champion') counts.gold += 1;
+    else if (result.resultStage === 'finalist') counts.silver += 1;
+    else if (result.resultStage === 'semifinal') counts.bronze += 1;
+    else if (result.resultStage === 'quarterfinal') counts.top4 += 1;
+    return counts;
+  }, { gold: 0, silver: 0, bronze: 0, top4: 0 });
 
   const SUMMARY = [
-    { place: 1, count: gold, custom: undefined as string | undefined },
-    { place: 2, count: silver, custom: undefined as string | undefined },
-    { place: 3, count: bronze, custom: undefined as string | undefined },
-    { place: 4, count: top4, custom: 'TOP 4' as string | undefined },
+    { place: 1, count: medalCounts.gold, custom: undefined as string | undefined },
+    { place: 2, count: medalCounts.silver, custom: undefined as string | undefined },
+    { place: 3, count: medalCounts.bronze, custom: undefined as string | undefined },
+    { place: 4, count: medalCounts.top4, custom: 'TOP 4' as string | undefined },
   ];
 
   const authorName = profile
@@ -93,18 +83,12 @@ export default function PalmaresScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/profil')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.subtitle}>{authorName}</Text>
-            <Text style={styles.title}>PALMARÈS</Text>
-          </View>
-          <Pressable style={styles.addBtn} onPress={() => router.push('/add-result')}>
-            <Text style={styles.addText}>＋ AJOUTER</Text>
-          </Pressable>
-        </View>
+        <DetailHeader
+          eyebrow={authorName}
+          title="PALMARÈS"
+          onBack={() => safeBack('/(tabs)/profil')}
+          action={<IconButton accent icon="add" label="Ajouter un résultat" onPress={() => router.push('/add-result')} />}
+        />
       </SafeAreaView>
 
       {loading ? (
@@ -147,6 +131,10 @@ export default function PalmaresScreen() {
             ))}
           </View>
 
+          {filteredResults.length === 0 ? (
+            <EmptyState icon="medal-outline" title="Aucun résultat" message="Ajoute une compétition pour commencer ton palmarès." actionLabel="AJOUTER UN RÉSULTAT" onAction={() => router.push('/add-result')} />
+          ) : null}
+
           {/* Results by year */}
           {yearsToShow.map((yr) => {
             const items = filteredResults.filter((r) => r.compDate.startsWith(yr));
@@ -168,7 +156,7 @@ export default function PalmaresScreen() {
                       <Text style={styles.resultName}>{r.competitionName}</Text>
                       <Text style={styles.resultMeta}>{r.compDate} · {r.weightClass ?? ''}</Text>
                     </View>
-                    {r.compType && <Tag text={r.compType} t={t} />}
+                    {r.compType && <Chip label={r.compType} tone="accent" />}
                     {r.validationStatus !== 'approved' ? <View style={[styles.validationBadge, r.validationStatus === 'rejected' && styles.validationRejected]}><Text style={styles.validationText}>{r.validationStatus === 'pending' ? 'À VALIDER' : 'REFUSÉ'}</Text></View> : null}
                     <Text style={styles.chevron}>›</Text>
                   </Pressable>
@@ -187,42 +175,23 @@ export default function PalmaresScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: {
-      flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18,
-      paddingBottom: 14, paddingTop: 4, borderBottomWidth: 1, borderBottomColor: t.hairline,
-    },
-    backBtn: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    subtitle: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2 },
-    title: {
-      fontFamily: FONTS.display, fontSize: 22, color: t.bone, fontWeight: '900',
-      letterSpacing: 0.5, marginTop: 1,
-    },
-    addBtn: {
-      backgroundColor: t.crimson, paddingHorizontal: 10, paddingVertical: 6,
-      borderRadius: 2,
-    },
-    addText: {
-      fontFamily: FONTS.display, fontSize: 11, fontWeight: '900',
-      color: t.bone, letterSpacing: 1.5,
-    },
     loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    scroll: { paddingHorizontal: 20, paddingTop: 16 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 8 },
     season: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 2, marginBottom: 10 },
-    rankingButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, marginBottom: 14, backgroundColor: t.crimson, borderRadius: 3 },
+    rankingButton: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, marginBottom: 14, backgroundColor: t.crimson, borderRadius: Radii.lg },
     rankingTitle: { color: '#FFF', fontFamily: FONTS.display, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
     rankingSubtitle: { color: '#FFFFFFAA', fontFamily: FONTS.mono, fontSize: 8, letterSpacing: 1, marginTop: 3 },
     rankingArrow: { color: '#FFF', fontSize: 24 },
     summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     summaryCard: {
       flex: 1, backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline,
-      borderRadius: 3, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 6,
+      borderRadius: Radii.md, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 6,
     },
     summaryCount: { fontFamily: FONTS.display, fontSize: 24, color: t.bone, fontWeight: '900', lineHeight: 26 },
     summaryName: { fontFamily: FONTS.mono, fontSize: 8, color: t.textMute, letterSpacing: 1.5 },
     filterRow: { flexDirection: 'row', gap: 6, marginBottom: 16 },
     filterChip: {
-      flex: 1, paddingVertical: 7, borderRadius: 2, borderWidth: 1, borderColor: t.hairline,
+      flex: 1, minHeight: 38, paddingVertical: 7, borderRadius: Radii.round, borderWidth: 1, borderColor: t.hairline,
       alignItems: 'center',
     },
     filterChipActive: { backgroundColor: t.bone, borderColor: t.bone },
@@ -237,7 +206,7 @@ function makeStyles(t: Theme) {
     resultInfo: { flex: 1, minWidth: 0 },
     resultDisc: { alignItems: 'center', justifyContent: 'center' },
     stageOverlay: { position: 'absolute', color: t.textDim, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800' },
-    validationBadge: { paddingHorizontal: 6, paddingVertical: 4, borderWidth: 1, borderColor: t.gold, borderRadius: 2 },
+    validationBadge: { paddingHorizontal: 7, paddingVertical: 4, borderWidth: 1, borderColor: t.gold, borderRadius: Radii.round },
     validationRejected: { borderColor: t.crimson },
     validationText: { color: t.textDim, fontFamily: FONTS.mono, fontSize: 7.5, fontWeight: '800' },
     resultName: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '700' },

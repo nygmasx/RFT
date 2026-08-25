@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { Radii } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { authClient } from '@/lib/auth-client';
@@ -43,7 +44,7 @@ export default function LoginScreen() {
     setLoading(false);
   };
 
-  const s = styles(t);
+  const s = useMemo(() => styles(t), [t]);
 
   return (
     <View style={s.container}>
@@ -164,7 +165,7 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   label: { fontSize: 10, fontWeight: '700', color: t.textMute, letterSpacing: 2 },
   input: {
     backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairlineStrong,
-    borderRadius: 4, paddingHorizontal: 14, paddingVertical: 14,
+    borderRadius: Radii.md, paddingHorizontal: 14, paddingVertical: 14,
     fontSize: 15, color: t.bone,
   },
   passwordField: { position: 'relative' },
@@ -175,12 +176,12 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   },
   errorText: { fontSize: 12, color: t.crimson, fontWeight: '500' },
   btn: {
-    backgroundColor: t.crimson, borderRadius: 4,
+    minHeight: 50, backgroundColor: t.crimson, borderRadius: Radii.md,
     paddingVertical: 15, alignItems: 'center', marginTop: 4,
   },
-  btnText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 2 },
+  btnText: { fontSize: 13, fontWeight: '900', color: t.onAccent, letterSpacing: 2 },
   btnSecondary: {
-    borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: 4,
+    minHeight: 50, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md,
     paddingVertical: 14, alignItems: 'center',
   },
   btnSecondaryText: { fontSize: 13, fontWeight: '700', color: t.textDim, letterSpacing: 2 },

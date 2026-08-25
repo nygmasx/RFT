@@ -6,7 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
-import { FONTS, Theme } from '@/constants/theme';
+import { DetailHeader, IconButton } from '@/components/ui/rft-ui';
+import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { AnnouncementReaction, AnnouncementReply } from '@/lib/database.types';
@@ -128,15 +129,12 @@ export default function AnnouncementScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => safeBack('/(tabs)/accueil')} style={styles.backBtn}>
-            <Text style={styles.backIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.headerLabel}>ANNONCE</Text>
-          <Pressable style={styles.shareBtn} onPress={shareAnnouncement}>
-            <Text style={styles.shareIcon}>↗</Text>
-          </Pressable>
-        </View>
+        <DetailHeader
+          eyebrow={announcement.pinned ? 'Annonce épinglée' : 'Actualité du club'}
+          title="ANNONCE"
+          onBack={() => safeBack('/(tabs)/accueil')}
+          action={<IconButton icon="share-outline" label="Partager l’annonce" onPress={() => void shareAnnouncement()} />}
+        />
       </SafeAreaView>
 
       <KeyboardAvoidingView automaticOffset behavior="padding" style={{ flex: 1 }}>
@@ -187,6 +185,7 @@ export default function AnnouncementScreen() {
         <View style={styles.reactionBar}>
           {(announcement.reactions ?? []).map((r) => (
             <Pressable
+              accessibilityRole="button"
               key={r.emoji}
               style={[styles.reactionBtn, r.reacted && styles.reactionBtnActive]}
               onPress={() => toggleReaction(r.emoji)}
@@ -232,12 +231,14 @@ export default function AnnouncementScreen() {
             multiline
           />
           <Pressable
+            accessibilityLabel="Envoyer la réponse"
+            accessibilityRole="button"
             style={[styles.sendBtn, (!reply.trim() || sendingReply) && styles.sendBtnDisabled]}
             onPress={sendReply}
             disabled={!reply.trim() || sendingReply}
           >
             {sendingReply
-              ? <ActivityIndicator color={t.bone} size="small" />
+              ? <ActivityIndicator color={t.onAccent} size="small" />
               : <Text style={styles.sendIcon}>➤</Text>}
           </Pressable>
         </SafeAreaView>
@@ -249,30 +250,17 @@ export default function AnnouncementScreen() {
 function makeStyles(t: Theme) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.ink },
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 18, paddingBottom: 14, paddingTop: 4,
-      borderBottomWidth: 1, borderBottomColor: t.hairline,
-    },
-    backBtn: { padding: 4 },
-    backIcon: { fontSize: 28, color: t.bone, lineHeight: 28 },
-    headerLabel: {
-      fontFamily: FONTS.mono, fontSize: 11, color: t.textMute,
-      letterSpacing: 2, textTransform: 'uppercase',
-    },
-    shareBtn: { padding: 4 },
-    shareIcon: { fontSize: 20, color: t.bone },
-    scroll: { paddingHorizontal: 20, paddingTop: 20 },
+    scroll: { paddingHorizontal: Layout.gutter, paddingTop: 12 },
     tagRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     tag: {
       paddingHorizontal: 8, paddingVertical: 4,
-      backgroundColor: t.crimson, borderRadius: 2,
+      backgroundColor: t.crimson, borderRadius: Radii.round,
     },
     tagOutline: {
       backgroundColor: 'transparent', borderWidth: 1, borderColor: t.hairlineStrong,
     },
     tagText: {
-      fontFamily: FONTS.mono, fontSize: 9, color: t.bone,
+      fontFamily: FONTS.mono, fontSize: 9, color: t.onAccent,
       fontWeight: '600', letterSpacing: 1.5, textTransform: 'uppercase',
     },
     title: {
@@ -283,11 +271,11 @@ function makeStyles(t: Theme) {
     authorCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       padding: 12, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 3,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg,
       marginBottom: 20,
     },
     authorAvatar: {
-      width: 40, height: 40, borderRadius: 3, backgroundColor: t.elevated,
+      width: 40, height: 40, borderRadius: Radii.round, backgroundColor: t.elevated,
       alignItems: 'center', justifyContent: 'center',
     },
     authorInitials: {
@@ -297,10 +285,10 @@ function makeStyles(t: Theme) {
     authorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     authorName: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '700' },
     coachBadge: {
-      paddingHorizontal: 6, paddingVertical: 2, backgroundColor: t.crimson, borderRadius: 2,
+      paddingHorizontal: 7, paddingVertical: 3, backgroundColor: t.crimson, borderRadius: Radii.round,
     },
     coachBadgeText: {
-      fontFamily: FONTS.mono, fontSize: 8, color: t.bone,
+      fontFamily: FONTS.mono, fontSize: 8, color: t.onAccent,
       fontWeight: '600', letterSpacing: 1,
     },
     authorDate: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 1, marginTop: 3 },
@@ -337,16 +325,16 @@ function makeStyles(t: Theme) {
       backgroundColor: t.ink, borderTopWidth: 1, borderTopColor: t.hairline,
     },
     composerInput: {
-      flex: 1, minHeight: 36, maxHeight: 100, backgroundColor: t.surface,
-      borderWidth: 1, borderColor: t.hairline, borderRadius: 18,
+      flex: 1, minHeight: Layout.touchTarget, maxHeight: 100, backgroundColor: t.surface,
+      borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg,
       paddingHorizontal: 14, paddingVertical: 9,
       fontFamily: FONTS.body, fontSize: 13, color: t.bone,
     },
     sendBtn: {
-      width: 36, height: 36, borderRadius: 18, backgroundColor: t.crimson,
+      width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.round, backgroundColor: t.crimson,
       alignItems: 'center', justifyContent: 'center',
     },
     sendBtnDisabled: { backgroundColor: t.elevated },
-    sendIcon: { color: t.bone, fontSize: 14 },
+    sendIcon: { color: t.onAccent, fontSize: 14 },
   });
 }
