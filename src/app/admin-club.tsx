@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { DateTimeField } from '@/components/date-time-field';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { DetailHeader, IconButton } from '@/components/ui/rft-ui';
 import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
@@ -29,6 +30,14 @@ const TABS: [Tab, string][] = [
 
 const today = () => new Date().toISOString().slice(0, 10);
 const money = (cents: number, currency = 'EUR') => new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(cents / 100);
+const pad = (value: number) => String(value).padStart(2, '0');
+const apiDate = (value: Date) => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+const apiTime = (value: Date | null) => value ? `${pad(value.getHours())}:${pad(value.getMinutes())}` : null;
+const timeAt = (hours: number, minutes: number) => {
+  const value = new Date();
+  value.setHours(hours, minutes, 0, 0);
+  return value;
+};
 
 export default function AdminClubScreen() {
   const { theme: t } = useTheme();
@@ -42,9 +51,9 @@ export default function AdminClubScreen() {
   const [members, setMembers] = useState<Member[]>([]);
 
   const [sessionTitle, setSessionTitle] = useState('Cours adultes');
-  const [sessionDate, setSessionDate] = useState(today());
-  const [sessionTime, setSessionTime] = useState('19:30');
-  const [sessionEndTime, setSessionEndTime] = useState('21:00');
+  const [sessionDate, setSessionDate] = useState(new Date());
+  const [sessionTime, setSessionTime] = useState(() => timeAt(19, 30));
+  const [sessionEndTime, setSessionEndTime] = useState<Date | null>(() => timeAt(21, 0));
   const [sessionDiscipline, setSessionDiscipline] = useState('BJJ');
   const [sessionPlace, setSessionPlace] = useState('Dojo RFT');
   const [sessionCapacity, setSessionCapacity] = useState('30');
@@ -94,9 +103,9 @@ export default function AdminClubScreen() {
 
   const createSession = () => run('session', () => api.post('/api/club/admin/sessions', {
     title: sessionTitle,
-    sessionDate,
-    startTime: sessionTime,
-    endTime: sessionEndTime || null,
+    sessionDate: apiDate(sessionDate),
+    startTime: apiTime(sessionTime),
+    endTime: apiTime(sessionEndTime),
     discipline: sessionDiscipline,
     place: sessionPlace,
     capacity: Number(sessionCapacity),
@@ -128,7 +137,7 @@ export default function AdminClubScreen() {
       <SafeAreaView edges={['top']}>
         <DetailHeader eyebrow="Administration" title="GESTION DU CLUB" onBack={() => safeBack('/(tabs)/accueil')} action={<IconButton icon="eye-outline" label="Prévisualiser la page publique" onPress={() => router.push('/club-public' as never)} />} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
-          {TABS.map(([key, label]) => <Pressable key={key} style={[styles.tab, tab === key && styles.tabActive]} onPress={() => changeTab(key)}><Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text></Pressable>)}
+          {TABS.map(([key, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === key }} key={key} style={[styles.tab, tab === key && styles.tabActive]} onPress={() => changeTab(key)}><Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text></Pressable>)}
         </ScrollView>
       </SafeAreaView>
 
@@ -145,8 +154,9 @@ export default function AdminClubScreen() {
             <Section text="CRÉER UN COURS" styles={styles} />
             <View style={styles.card}>
               <Field label="TITRE" value={sessionTitle} onChangeText={setSessionTitle} styles={styles} t={t} />
-              <View style={styles.twoCols}><View style={styles.flex}><Field label="DATE" value={sessionDate} onChangeText={setSessionDate} styles={styles} t={t} /></View><View style={styles.flex}><Field label="DÉBUT" value={sessionTime} onChangeText={setSessionTime} styles={styles} t={t} /></View></View>
-              <View style={styles.twoCols}><View style={styles.flex}><Field label="FIN" value={sessionEndTime} onChangeText={setSessionEndTime} styles={styles} t={t} /></View><View style={styles.flex}><Field label="PLACES" value={sessionCapacity} onChangeText={setSessionCapacity} keyboardType="number-pad" styles={styles} t={t} /></View></View>
+              <DateTimeField label="DATE" mode="date" value={sessionDate} onChange={(value) => value && setSessionDate(value)} minimumDate={new Date()} />
+              <View style={styles.twoCols}><DateTimeField label="DÉBUT" mode="time" value={sessionTime} onChange={(value) => value && setSessionTime(value)} /><DateTimeField label="FIN" mode="time" value={sessionEndTime} onChange={setSessionEndTime} optional /></View>
+              <Field label="PLACES" value={sessionCapacity} onChangeText={setSessionCapacity} keyboardType="number-pad" styles={styles} t={t} />
               <Field label="RÉPÉTER PENDANT (SEMAINES)" value={sessionRepeat} onChangeText={setSessionRepeat} keyboardType="number-pad" styles={styles} t={t} />
               <Field label="DISCIPLINE" value={sessionDiscipline} onChangeText={setSessionDiscipline} styles={styles} t={t} />
               <Field label="LIEU" value={sessionPlace} onChangeText={setSessionPlace} styles={styles} t={t} />
@@ -244,12 +254,12 @@ function makeStyles(t: Theme) {
     secondary: { minHeight: 46, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', marginTop: 9 }, secondaryText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 8, fontWeight: '800', letterSpacing: 1 },
     listRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11, backgroundColor: t.surface, borderBottomWidth: 1, borderBottomColor: t.hairline }, listTitle: { color: t.bone, fontSize: 13, fontWeight: '800' }, meta: { color: t.textMute, fontFamily: FONTS.mono, fontSize: 7.5, marginTop: 4, letterSpacing: 0.5 },
     dateSquare: { width: 42, alignItems: 'center' }, dateDay: { color: t.bone, fontFamily: FONTS.display, fontSize: 20, fontWeight: '900' }, dateMonth: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7 },
-    smallAction: { borderWidth: 1, borderColor: t.crimson, paddingHorizontal: 9, paddingVertical: 7 }, smallActionText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7, fontWeight: '800' },
+    smallAction: { minHeight: Layout.touchTarget, borderWidth: 1, borderColor: t.crimson, borderRadius: Radii.sm, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' }, smallActionText: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 7, fontWeight: '800' },
     status: { borderWidth: 1, borderColor: t.success + '77', borderRadius: Radii.round, paddingHorizontal: 7, paddingVertical: 4 }, statusText: { color: t.success, fontFamily: FONTS.mono, fontSize: 7, letterSpacing: 0.7 },
-    chips: { gap: 7, paddingBottom: 8 }, chip: { minWidth: 130, padding: 10, borderWidth: 1, borderColor: t.hairlineStrong, backgroundColor: t.surface }, chipActive: { borderColor: t.crimson }, chipText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 8 }, chipSub: { color: t.textMute, fontSize: 10, marginTop: 4 }, chipTextActive: { color: t.crimson },
-    attendanceActions: { flexDirection: 'row', gap: 6 }, attendanceButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.hairlineStrong }, present: { backgroundColor: '#4A8F6D', borderColor: '#4A8F6D' }, absent: { backgroundColor: t.crimson, borderColor: t.crimson },
-    pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }, pill: { paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: t.hairlineStrong }, pillActive: { borderColor: t.crimson, backgroundColor: t.crimson + '15' }, pillText: { color: t.textMute, fontSize: 10 }, pillTextActive: { color: t.crimson, fontWeight: '700' },
-    right: { alignItems: 'flex-end' }, amount: { color: t.bone, fontWeight: '900', fontSize: 14 }, link: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 6.5, marginTop: 6 }, row: { flexDirection: 'row', alignItems: 'center', gap: 10 }, actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 }, secondarySmall: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.crimson }, primarySmall: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson },
+    chips: { gap: 7, paddingBottom: 8 }, chip: { minWidth: 130, minHeight: Layout.touchTarget, padding: 10, borderWidth: 1, borderColor: t.hairlineStrong, borderRadius: Radii.md, backgroundColor: t.surface }, chipActive: { borderColor: t.crimson, backgroundColor: t.crimson + '10' }, chipText: { color: t.bone, fontFamily: FONTS.mono, fontSize: 8 }, chipSub: { color: t.textMute, fontSize: 10, marginTop: 4 }, chipTextActive: { color: t.crimson },
+    attendanceActions: { flexDirection: 'row', gap: 6 }, attendanceButton: { width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.hairlineStrong }, present: { backgroundColor: t.success, borderColor: t.success }, absent: { backgroundColor: t.crimson, borderColor: t.crimson },
+    pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }, pill: { minHeight: Layout.touchTarget, paddingHorizontal: 11, justifyContent: 'center', borderRadius: Radii.round, borderWidth: 1, borderColor: t.hairlineStrong }, pillActive: { borderColor: t.crimson, backgroundColor: t.crimson + '15' }, pillText: { color: t.textMute, fontSize: 10 }, pillTextActive: { color: t.crimson, fontWeight: '700' },
+    right: { alignItems: 'flex-end' }, amount: { color: t.bone, fontWeight: '900', fontSize: 14 }, link: { color: t.crimson, fontFamily: FONTS.mono, fontSize: 6.5, marginTop: 6 }, row: { flexDirection: 'row', alignItems: 'center', gap: 10 }, actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 }, secondarySmall: { flex: 1, minHeight: Layout.touchTarget, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.crimson }, primarySmall: { flex: 1, minHeight: Layout.touchTarget, borderRadius: Radii.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson },
     empty: { padding: 26, alignItems: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.hairline, borderRadius: Radii.lg }, muted: { color: t.textMute, fontSize: 12 },
   });
 }

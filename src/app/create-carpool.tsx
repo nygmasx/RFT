@@ -243,7 +243,8 @@ export default function CreateCarpoolScreen() {
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             locale="fr-FR"
             minimumDate={new Date()}
-            onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setDate(d); }}
+            onValueChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); setDate(d); }}
+            onDismiss={() => setShowDatePicker(false)}
           />
         )}
         {showTimePicker && (
@@ -252,7 +253,8 @@ export default function CreateCarpoolScreen() {
             mode="time"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             is24Hour
-            onChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); if (d) setTime(d); }}
+            onValueChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); setTime(d); }}
+            onDismiss={() => setShowTimePicker(false)}
           />
         )}
 

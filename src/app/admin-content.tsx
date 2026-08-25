@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, TextInpu
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { DateTimeField } from '@/components/date-time-field';
 import { DetailHeader } from '@/components/ui/rft-ui';
 import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
 import { AddressAutocomplete, AddressSuggestion } from '@/components/address-autocomplete';
@@ -13,6 +14,10 @@ import { Announcement, Competition } from '@/lib/database.types';
 import { api } from '@/lib/api';
 
 type Section = 'announcements' | 'competitions';
+
+const pad = (value: number) => String(value).padStart(2, '0');
+const apiDate = (value: Date | null) => value ? `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}` : null;
+const parseDate = (value: string | null) => value ? new Date(`${value}T12:00:00`) : null;
 
 export default function AdminContentScreen() {
   const { theme: t } = useTheme();
@@ -29,10 +34,10 @@ export default function AdminContentScreen() {
   const [tag, setTag] = useState('INFO');
   const [pinned, setPinned] = useState(false);
   const [name, setName] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState<Date>(new Date());
   const [location, setLocation] = useState('');
   const [locationPoint, setLocationPoint] = useState<AddressSuggestion | null>(null);
-  const [deadline, setDeadline] = useState('');
+  const [deadline, setDeadline] = useState<Date | null>(null);
   const [registrationUrl, setRegistrationUrl] = useState('');
   const [compType, setCompType] = useState('GI');
   const [status, setStatus] = useState('open');
@@ -55,7 +60,7 @@ export default function AdminContentScreen() {
 
   const reset = () => {
     setEditingId(null); setTitle(''); setBody(''); setTag('INFO'); setPinned(false);
-    setName(''); setDate(''); setLocation(''); setLocationPoint(null); setDeadline(''); setRegistrationUrl(''); setCompType('GI'); setStatus('open'); setImportance('regional');
+    setName(''); setDate(new Date()); setLocation(''); setLocationPoint(null); setDeadline(null); setRegistrationUrl(''); setCompType('GI'); setStatus('open'); setImportance('regional');
   };
 
   const editAnnouncement = (item: Announcement) => {
@@ -63,8 +68,8 @@ export default function AdminContentScreen() {
     setTag(item.tag ?? 'INFO'); setPinned(item.pinned);
   };
   const editCompetition = (item: Competition) => {
-    setSection('competitions'); setEditingId(item.id); setName(item.name); setDate(item.comp_date);
-    setLocation(item.location ?? ''); setDeadline(item.registration_deadline ?? '');
+    setSection('competitions'); setEditingId(item.id); setName(item.name); setDate(parseDate(item.comp_date) ?? new Date());
+    setLocation(item.location ?? ''); setDeadline(parseDate(item.registration_deadline));
     setRegistrationUrl(item.registration_url ?? '');
     setLocationPoint(item.latitude != null && item.longitude != null ? {
       label: item.location ?? '', latitude: item.latitude, longitude: item.longitude,
@@ -85,7 +90,7 @@ export default function AdminContentScreen() {
         else await api.post('/api/announcements', payload);
       } else {
         const payload = {
-          name, comp_date: date, location, registration_deadline: deadline || null, registration_url: registrationUrl.trim() || null, comp_type: compType, status, importance,
+          name, comp_date: apiDate(date), location, registration_deadline: apiDate(deadline), registration_url: registrationUrl.trim() || null, comp_type: compType, status, importance,
           latitude: locationPoint?.latitude ?? null, longitude: locationPoint?.longitude ?? null,
         };
         if (editingId) await api.put(`/api/competitions/${editingId}`, payload);
@@ -123,14 +128,14 @@ export default function AdminContentScreen() {
           <View style={styles.switchRow}><Text style={styles.label}>ÉPINGLER</Text><Switch value={pinned} onValueChange={setPinned} trackColor={{ true: t.crimson }} /></View>
         </> : <>
           <TextInput style={styles.input} placeholder="Nom" placeholderTextColor={t.textMute} value={name} onChangeText={setName} />
-          <TextInput style={styles.input} placeholder="Date AAAA-MM-JJ" placeholderTextColor={t.textMute} value={date} onChangeText={setDate} />
+          <DateTimeField label="DATE DE LA COMPÉTITION" mode="date" value={date} onChange={(value) => value && setDate(value)} />
           <AddressAutocomplete
             placeholder="Adresse complète du lieu"
             value={location}
             onChange={(value) => { setLocation(value); setLocationPoint(null); }}
             onSelect={(suggestion) => { setLocation(suggestion.label); setLocationPoint(suggestion); }}
           />
-          <TextInput style={styles.input} placeholder="Clôture AAAA-MM-JJ (facultatif)" placeholderTextColor={t.textMute} value={deadline} onChangeText={setDeadline} />
+          <DateTimeField label="CLÔTURE DES INSCRIPTIONS" mode="date" value={deadline} onChange={setDeadline} optional maximumDate={date} />
           <TextInput style={styles.input} placeholder="Lien d’inscription https://…" placeholderTextColor={t.textMute} value={registrationUrl} onChangeText={setRegistrationUrl} autoCapitalize="none" keyboardType="url" />
           <View style={styles.choiceRow}>{['GI', 'NO-GI', 'OPEN'].map((value) => <Pressable key={value} onPress={() => setCompType(value)} style={[styles.choice, compType === value && styles.choiceActive]}><Text style={styles.choiceText}>{value}</Text></Pressable>)}</View>
           <Text style={styles.label}>IMPORTANCE POUR LE CLASSEMENT</Text>

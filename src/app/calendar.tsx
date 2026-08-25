@@ -269,7 +269,8 @@ export default function CalendarScreen() {
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   locale="fr-FR"
-                  onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setNewDate(d); }}
+                  onValueChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); setNewDate(d); }}
+                  onDismiss={() => setShowDatePicker(false)}
                 />
               )}
             </View>
@@ -307,7 +308,8 @@ export default function CalendarScreen() {
                   mode="time"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   is24Hour
-                  onChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); if (d) setNewTime(d); }}
+                  onValueChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); setNewTime(d); }}
+                  onDismiss={() => setShowTimePicker(false)}
                 />
               )}
             </View>

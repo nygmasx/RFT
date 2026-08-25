@@ -80,7 +80,7 @@ export default function MesCovoituragesScreen() {
             <>
               <SectionHeading title="À VENIR" meta={`${upcoming.length} trajet${upcoming.length > 1 ? 's' : ''}`} />
               {upcoming.map((c) => (
-                <View key={c.id} style={[styles.carpoolCard, styles.carpoolUpcoming]}>
+                <View key={`${c.role}-${c.id}`} style={[styles.carpoolCard, styles.carpoolUpcoming]}>
                   <View style={styles.cardTopRow}>
                     <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.crimson : t.elevated, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
                       <Ionicons name={c.role === 'driver' ? 'car-outline' : 'person-outline'} size={12} color={c.role === 'driver' ? t.onAccent : t.bone} />
@@ -116,7 +116,7 @@ export default function MesCovoituragesScreen() {
             <>
               <SectionHeading title="PASSÉS" meta={`${completed.length} trajet${completed.length > 1 ? 's' : ''}`} />
               {completed.map((c, i) => (
-                <View key={c.id} style={[styles.carpoolCard, i > 0 && { marginTop: 8 }]}>
+                <View key={`${c.role}-${c.id}`} style={[styles.carpoolCard, i > 0 && { marginTop: 8 }]}>
                   <View style={styles.cardTopRow}>
                     <View style={[styles.roleBadge, { backgroundColor: c.role === 'driver' ? t.elevated : 'rgba(59,130,246,0.15)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
                       <Ionicons name={c.role === 'driver' ? 'car-outline' : 'person-outline'} size={12} color={c.role === 'driver' ? t.textDim : '#3B82F6'} />

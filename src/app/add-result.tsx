@@ -135,7 +135,8 @@ export default function AddResultScreen() {
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 locale="fr-FR"
                 maximumDate={new Date()}
-                onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setCompDate(d); }}
+                onValueChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); setCompDate(d); }}
+                onDismiss={() => setShowDatePicker(false)}
               />
             )}
           </View>

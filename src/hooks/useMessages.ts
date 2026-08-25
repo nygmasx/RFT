@@ -1,7 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { MentionableMember, Message, MessageReceiptDetails, MessageUnreadMarker } from '@/lib/database.types';
+
+const POLL_INTERVAL_MS = 5_000;
+
+function messageVersion(message: Message) {
+  const reactions = message.reactions.map(({ emoji, count, reacted }) => `${emoji}:${count}:${reacted ? 1 : 0}`).join(',');
+  const poll = message.poll
+    ? `${message.poll.totalVoters}:${message.poll.options.map(({ id, voteCount, voted }) => `${id}:${voteCount}:${voted ? 1 : 0}`).join(',')}`
+    : '';
+  return `${message.id}|${message.updatedAt ?? ''}|${message.body}|${message.readCount}|${message.recipientCount}|${reactions}|${poll}`;
+}
+
+function mergeMessages(current: Message[], next: Message[]) {
+  if (current.length !== next.length) return next;
+  let changed = false;
+  const merged = next.map((message, index) => {
+    const previous = current[index];
+    if (previous && messageVersion(previous) === messageVersion(message)) return previous;
+    changed = true;
+    return message;
+  });
+  return changed ? merged : current;
+}
 
 export function useMessages(channelId: string) {
   const { user } = useAuth();
@@ -10,16 +33,23 @@ export function useMessages(channelId: string) {
   const [members, setMembers] = useState<MentionableMember[]>([]);
   const [unreadMarker, setUnreadMarker] = useState<MessageUnreadMarker | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const requestInFlightRef = useRef<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
-    if (!channelId) return;
+    if (!channelId || requestInFlightRef.current === channelId) return;
+    requestInFlightRef.current = channelId;
     try {
       const rows = await api.get<Message[]>(`/api/messages/${channelId}`);
-      setMessages(rows ?? []);
+      if (requestInFlightRef.current !== channelId) return;
+      const next = rows ?? [];
+      setMessages((current) => mergeMessages(current, next));
     } catch (e: any) {
       console.error('[useMessages]', e.message);
     } finally {
-      setLoading(false);
+      if (requestInFlightRef.current === channelId) {
+        requestInFlightRef.current = null;
+        setLoading(false);
+      }
     }
   }, [channelId]);
 
@@ -43,16 +73,35 @@ export function useMessages(channelId: string) {
 
   useEffect(() => {
     if (!channelId) return;
+    const stopPolling = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+    };
+    const startPolling = () => {
+      stopPolling();
+      pollRef.current = setInterval(fetchMessages, POLL_INTERVAL_MS);
+    };
     const initialFetch = setTimeout(() => {
-      void fetchUnreadMarker().finally(fetchMessages);
+      requestInFlightRef.current = null;
+      setLoading(true);
+      setMessages([]);
+      setMembers([]);
+      setUnreadMarker(null);
+      void Promise.all([fetchUnreadMarker(), fetchMessages()]);
     }, 0);
     const memberFetch = setTimeout(fetchMembers, 0);
-    // Poll every 3s for new messages
-    pollRef.current = setInterval(fetchMessages, 3000);
+    startPolling();
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void fetchMessages();
+        startPolling();
+      } else stopPolling();
+    });
     return () => {
       clearTimeout(initialFetch);
       clearTimeout(memberFetch);
-      if (pollRef.current) clearInterval(pollRef.current);
+      appStateSubscription.remove();
+      stopPolling();
     };
   }, [channelId, fetchMembers, fetchMessages, fetchUnreadMarker]);
 

@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FormScrollView } from '@/components/form-scroll-view';
+import { DateTimeField } from '@/components/date-time-field';
 import { SmoothRefreshControl } from '@/components/smooth-refresh-control';
 import { DetailHeader, IconButton } from '@/components/ui/rft-ui';
 import { FONTS, Layout, Radii, Theme } from '@/constants/theme';
@@ -31,6 +32,12 @@ function money(cents: number, currency = 'EUR') {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(cents / 100);
 }
 
+function apiDate(value: Date | null) {
+  if (!value) return null;
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
 export default function ClubScreen() {
   const { theme: t } = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
@@ -41,7 +48,7 @@ export default function ClubScreen() {
   const [notice, setNotice] = useState('');
   const [familyFirstName, setFamilyFirstName] = useState('');
   const [familyLastName, setFamilyLastName] = useState('');
-  const [familyBirthDate, setFamilyBirthDate] = useState('');
+  const [familyBirthDate, setFamilyBirthDate] = useState<Date | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
   const [documentCategory, setDocumentCategory] = useState('medical');
 
@@ -79,9 +86,9 @@ export default function ClubScreen() {
       await api.post('/api/club/family', {
         firstName: familyFirstName,
         lastName: familyLastName,
-        birthDate: familyBirthDate || null,
+        birthDate: apiDate(familyBirthDate),
       });
-      setFamilyFirstName(''); setFamilyLastName(''); setFamilyBirthDate('');
+      setFamilyFirstName(''); setFamilyLastName(''); setFamilyBirthDate(null);
       await refetch();
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'Ajout impossible');
@@ -126,7 +133,7 @@ export default function ClubScreen() {
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           {(Object.keys(TAB_LABELS) as Tab[]).map((key) => (
-            <Pressable key={key} style={[styles.tab, tab === key && styles.tabActive]} onPress={() => setTab(key)}>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === key }} key={key} style={[styles.tab, tab === key && styles.tabActive]} onPress={() => setTab(key)}>
               <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{TAB_LABELS[key]}</Text>
             </Pressable>
           ))}
@@ -208,12 +215,12 @@ export default function ClubScreen() {
 
           {tab === 'famille' && <>
             <SectionTitle text="PROFILS RATTACHÉS" styles={styles} />
-            {data.familyProfiles.map((profile) => <View key={profile.id} style={styles.listRow}><View style={styles.familyAvatar}><Text style={styles.familyInitial}>{profile.firstName[0]}{profile.lastName[0]}</Text></View><View style={styles.flex}><Text style={styles.listTitle}>{profile.firstName} {profile.lastName}</Text><Text style={styles.meta}>{[profile.category, profile.birthDate].filter(Boolean).join(' · ') || 'PROFIL FAMILLE'}</Text></View><Pressable onPress={async () => { setBusy(profile.id); await api.delete(`/api/club/family/${profile.id}`); await refetch(); setBusy(''); }}><Ionicons name="trash-outline" size={18} color={t.crimson} /></Pressable></View>)}
+            {data.familyProfiles.map((profile) => <View key={profile.id} style={styles.listRow}><View style={styles.familyAvatar}><Text style={styles.familyInitial}>{profile.firstName[0]}{profile.lastName[0]}</Text></View><View style={styles.flex}><Text style={styles.listTitle}>{profile.firstName} {profile.lastName}</Text><Text style={styles.meta}>{[profile.category, profile.birthDate].filter(Boolean).join(' · ') || 'PROFIL FAMILLE'}</Text></View><Pressable accessibilityLabel={`Supprimer le profil de ${profile.firstName}`} style={styles.iconAction} onPress={async () => { setBusy(profile.id); await api.delete(`/api/club/family/${profile.id}`); await refetch(); setBusy(''); }}><Ionicons name="trash-outline" size={18} color={t.crimson} /></Pressable></View>)}
             <SectionTitle text="AJOUTER UN PROFIL" styles={styles} />
             <View style={styles.card}>
               <TextInput value={familyFirstName} onChangeText={setFamilyFirstName} placeholder="Prénom" placeholderTextColor={t.textMute} style={styles.input} />
               <TextInput value={familyLastName} onChangeText={setFamilyLastName} placeholder="Nom" placeholderTextColor={t.textMute} style={styles.input} />
-              <TextInput value={familyBirthDate} onChangeText={setFamilyBirthDate} placeholder="Date de naissance (AAAA-MM-JJ)" placeholderTextColor={t.textMute} style={styles.input} keyboardType="numbers-and-punctuation" />
+              <DateTimeField label="DATE DE NAISSANCE (OPTIONNELLE)" mode="date" value={familyBirthDate} onChange={setFamilyBirthDate} optional maximumDate={new Date()} />
               <Pressable style={styles.primaryButton} onPress={addFamilyProfile} disabled={busy === 'family'}>{busy === 'family' ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryText}>AJOUTER LE PROFIL</Text>}</Pressable>
             </View>
           </>}
@@ -279,6 +286,7 @@ function makeStyles(t: Theme) {
     alignRight: { alignItems: 'flex-end' },
     documentIcon: { width: 40, height: 40, borderRadius: Radii.round, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
     familyAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: t.elevated },
+    iconAction: { width: Layout.touchTarget, height: Layout.touchTarget, borderRadius: Radii.round, alignItems: 'center', justifyContent: 'center', backgroundColor: t.crimson + '10' },
     familyInitial: { color: t.bone, fontWeight: '900', fontSize: 12 },
     flex: { flex: 1, minWidth: 0 },
     input: { minHeight: 50, color: t.bone, borderBottomWidth: 1, borderBottomColor: t.hairlineStrong, fontSize: 14, paddingHorizontal: 4 },

@@ -290,7 +290,8 @@ export default function AdminScreen() {
                         mode="date"
                         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                         locale="fr-FR"
-                        onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setEvtDate(d); }}
+                        onValueChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); setEvtDate(d); }}
+                        onDismiss={() => setShowDatePicker(false)}
                       />
                     )}
                   </View>
@@ -321,7 +322,8 @@ export default function AdminScreen() {
                         mode="time"
                         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                         is24Hour
-                        onChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); if (d) setEvtTime(d); }}
+                        onValueChange={(_, d) => { setShowTimePicker(Platform.OS === 'ios'); setEvtTime(d); }}
+                        onDismiss={() => setShowTimePicker(false)}
                       />
                     )}
                   </View>

@@ -68,7 +68,7 @@ Les thèmes existants sont conservés. Les couleurs sémantiques sont définies 
 - Accueil membre : header, carte éditoriale, accès club, agenda, classement et salons.
 - Compétitions membre : en-tête, filtres, cartes, états vides, inscriptions et résultats.
 
-Les flux coach restent fonctionnels et bénéficient de la nouvelle navigation. Leur migration complète vers les primitives partagées est prévue dans un lot suivant.
+Les flux coach restent fonctionnels et bénéficient de la nouvelle navigation. Leur migration complète est documentée dans les tranches 6 et 8 ci-dessous.
 
 ## Périmètre de la tranche 2 — Conversations
 
@@ -107,6 +107,23 @@ Le prochain lot porte sur le calendrier et les covoiturages, puis sur les parcou
 - Tableau de bord coach, gestion du club, contenus, résultats et timer.
 - Hiérarchie, entêtes secondaires et actions rendus cohérents avec les écrans membre.
 - Les contrôles de rôle, mutations et contrats API restent inchangés.
+
+## Périmètre de la tranche 7 — Club et saisies temporelles
+
+- Pilotage coach, espace Club, planning, adhésions, documents, famille, contenu et résultats ont été contrôlés avec les données réelles du compte coach.
+- Les dates de compétition, clôtures d’inscription, dates de séance, horaires de début/fin et dates de naissance utilisent de vrais sélecteurs natifs.
+- Le web conserve des champs HTML `date` / `time` dédiés ; iOS et Android utilisent `@react-native-community/datetimepicker` dans la version recommandée par Expo SDK 56.
+- Les callbacks dépréciés ont été remplacés par `onValueChange` et `onDismiss`.
+
+## Périmètre de la tranche 8 — Stabilisation et couverture complète
+
+- La variante coach de Compétitions emploie désormais les mêmes primitives que la variante membre : grand titre, synthèse, contrôle segmenté, cartes, statuts et états vides.
+- Les 36 routes de l’application et leurs variantes membre/coach ont été auditées statiquement. Deux panoramas iOS couvrent les écrans principaux, Club/admin et les formulaires secondaires.
+- Les conversations affichent des séparateurs temporels (`Aujourd’hui`, `Hier`, date complète), un accès au premier message non lu et un menu de salon fonctionnel.
+- La liste de 146 messages du salon de production a été inversée : le message le plus récent est à l’offset zéro et seuls les éléments visibles sont montés. Le chargement initial ne traverse plus la conversation par paliers.
+- Les requêtes initiales messages/non-lus sont parallèles, les réponses obsolètes d’un autre salon sont ignorées, le polling est suspendu hors premier plan et une réponse identique conserve les références React existantes.
+- Le clavier s’appuie sur `KeyboardChatScrollView`, `KeyboardStickyView` et `KeyboardGestureArea` afin d’éviter le double déplacement du composeur et de la liste.
+- Les doublons conducteur/passager dans Mes covoiturages disposent de clés React distinctes ; l’overlay et le recyclage incorrect des cartes ont disparu.
 
 ## Validation de la tranche
 

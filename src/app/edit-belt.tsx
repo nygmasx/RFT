@@ -204,7 +204,8 @@ export default function EditBeltScreen() {
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 locale="fr-FR"
                 maximumDate={new Date()}
-                onChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); if (d) setPromotedDate(d); }}
+                onValueChange={(_, d) => { setShowDatePicker(Platform.OS === 'ios'); setPromotedDate(d); }}
+                onDismiss={() => setShowDatePicker(false)}
               />
             )}
           </View>
