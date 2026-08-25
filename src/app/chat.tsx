@@ -507,6 +507,7 @@ export default function ChatScreen() {
   const showJumpToLatestRef = useRef(false);
   const renderedMessageCountRef = useRef(0);
   const renderedChannelRef = useRef(channel);
+  const pinToLatestAfterSendRef = useRef(false);
   const positioningChannelRef = useRef<string | null>(null);
   const positionSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const extraContentPadding = useSharedValue(0);
@@ -530,6 +531,10 @@ export default function ChatScreen() {
   useEffect(() => () => {
     if (positionSettleTimerRef.current) clearTimeout(positionSettleTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    pinToLatestAfterSendRef.current = false;
+  }, [channel]);
 
   const channelName = name ?? 'Salon';
   const validPollOptionCount = pollOptions.filter((option) => option.trim()).length;
@@ -587,9 +592,17 @@ export default function ChatScreen() {
     scrollToListEnd(animated);
   };
 
+  const pinNextOwnMessageToLatest = () => {
+    pinToLatestAfterSendRef.current = true;
+    isNearEndRef.current = true;
+    updateJumpToLatestVisibility(false);
+  };
+
   const handleSend = async () => {
     const body = messageText.trim();
     if (!body) return;
+    const createsMessage = !editingMessage;
+    if (createsMessage) pinNextOwnMessageToLatest();
     setMessageText('');
     const selectedIds = mentionIds;
     setMentionIds([]);
@@ -599,8 +612,8 @@ export default function ChatScreen() {
       haptics.light();
       setEditingMessage(null);
       setReplyingTo(null);
-      setTimeout(() => scrollToListEnd(true), 50);
     } catch (error) {
+      if (createsMessage) pinToLatestAfterSendRef.current = false;
       haptics.error();
       setMessageText(body);
       Alert.alert('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
@@ -650,6 +663,7 @@ export default function ChatScreen() {
 
   const sendPendingImage = async () => {
     if (!pendingPhoto || sendingMedia) return;
+    pinNextOwnMessageToLatest();
     setSendingMedia(true);
     try {
       await sendMedia({
@@ -665,8 +679,8 @@ export default function ChatScreen() {
       setMentionIds([]);
       setReplyingTo(null);
       haptics.success();
-      setTimeout(() => scrollToListEnd(true), 50);
     } catch (error) {
+      pinToLatestAfterSendRef.current = false;
       haptics.error();
       Alert.alert('Photo non envoyée', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally { setSendingMedia(false); }
@@ -693,13 +707,14 @@ export default function ChatScreen() {
   const submitPoll = async () => {
     const options = pollOptions.map((option) => option.trim()).filter(Boolean);
     if (!pollQuestion.trim() || options.length < 2 || sendingPoll) return;
+    pinNextOwnMessageToLatest();
     setSendingPoll(true);
     try {
       await createPoll({ question: pollQuestion.trim(), options, allows_multiple: pollAllowsMultiple });
       haptics.success();
       closePollComposer();
-      setTimeout(() => scrollToListEnd(true), 60);
     } catch (error) {
+      pinToLatestAfterSendRef.current = false;
       haptics.error();
       Alert.alert('Sondage non créé', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally {
@@ -737,12 +752,14 @@ export default function ChatScreen() {
       await recorder.stop();
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       if (!recorder.uri || duration < 300) return;
+      pinNextOwnMessageToLatest();
       setSendingMedia(true);
       const base64 = await new File(recorder.uri).base64();
       await sendMedia({ data_url: `data:audio/mp4;base64,${base64}`, file_name: 'vocal.m4a', duration_ms: duration, reply_to_id: replyingTo?.id });
       setReplyingTo(null);
       haptics.success();
     } catch (error) {
+      pinToLatestAfterSendRef.current = false;
       haptics.error();
       Alert.alert('Vocal non envoyé', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally { setSendingMedia(false); }
@@ -998,11 +1015,13 @@ export default function ChatScreen() {
           renderedMessageCountRef.current = messages.length;
           if (loading) return;
           if (positionedChannel !== channel) return;
-          if (isNearEndRef.current) {
-            const hasNewMessages = messages.length > previousCount;
-            requestAnimationFrame(() => jumpToLatest(hasNewMessages));
-          } else if (messages.length > previousCount) {
-            setNewMessagesWhileAway((current) => current + messages.length - previousCount);
+          const addedMessageCount = messages.length - previousCount;
+          if (addedMessageCount <= 0) return;
+          if (pinToLatestAfterSendRef.current || isNearEndRef.current) {
+            pinToLatestAfterSendRef.current = false;
+            requestAnimationFrame(() => jumpToLatest(false));
+          } else {
+            setNewMessagesWhileAway((current) => current + addedMessageCount);
             updateJumpToLatestVisibility(true);
           }
         }}
@@ -1104,6 +1123,10 @@ export default function ChatScreen() {
             value={messageText}
             onChangeText={setMessageText}
             onSubmitEditing={handleSend}
+            autoCapitalize="sentences"
+            autoCorrect
+            spellCheck
+            keyboardType="default"
             returnKeyType="send"
             multiline
             blurOnSubmit={false}
