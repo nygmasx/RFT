@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { api } from '@/lib/api';
-import { notificationHref } from '@/lib/notification-navigation';
+import { notificationHref, notificationRequiresProfileRefresh } from '@/lib/notification-navigation';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -30,9 +30,15 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function openNotification(data: Record<string, unknown>) {
+async function openNotification(
+  data: Record<string, unknown>,
+  refreshProfileStatus?: () => Promise<unknown>,
+) {
+  if (notificationRequiresProfileRefresh(data)) await refreshProfileStatus?.();
   const href = notificationHref(data);
-  if (href) router.push(href);
+  if (!href) return;
+  if (notificationRequiresProfileRefresh(data)) router.replace(href);
+  else router.push(href);
 }
 
 async function registerForPushNotifications(): Promise<string | null> {
@@ -64,7 +70,10 @@ async function registerForPushNotifications(): Promise<string | null> {
   return data;
 }
 
-export function usePushNotifications(userId: string | undefined) {
+export function usePushNotifications(
+  userId: string | undefined,
+  refreshProfileStatus?: () => Promise<unknown>,
+) {
   const [foregroundNotification, setForegroundNotification] = useState<ForegroundNotification | null>(null);
   const dismissForegroundNotification = useCallback(() => setForegroundNotification(null), []);
 
@@ -96,7 +105,10 @@ export function usePushNotifications(userId: string | undefined) {
     // Handle tap on notification → navigate to chat
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-      openNotification(response.notification.request.content.data as Record<string, unknown>);
+      void openNotification(
+        response.notification.request.content.data as Record<string, unknown>,
+        refreshProfileStatus,
+      );
       void Notifications.clearLastNotificationResponseAsync();
     });
 
@@ -106,14 +118,14 @@ export function usePushNotifications(userId: string | undefined) {
       responseSub.remove();
       setForegroundNotification(null);
     };
-  }, [userId]);
+  }, [refreshProfileStatus, userId]);
 
   const openForegroundNotification = useCallback(() => {
     if (!foregroundNotification) return;
     const { data } = foregroundNotification;
     setForegroundNotification(null);
-    openNotification(data);
-  }, [foregroundNotification]);
+    void openNotification(data, refreshProfileStatus);
+  }, [foregroundNotification, refreshProfileStatus]);
 
   return {
     foregroundNotification,

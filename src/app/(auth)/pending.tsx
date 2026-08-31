@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,16 +11,20 @@ import { Radii } from '@/constants/theme';
 
 export default function PendingScreen() {
   const { theme: t } = useTheme();
-  const { signOut, refreshProfileStatus } = useAuth();
+  const { user, signOut, refreshProfileStatus } = useAuth();
   const [checking, setChecking] = useState(false);
 
   const handleCheck = async () => {
     setChecking(true);
-    await refreshProfileStatus();
+    const refreshedUser = await refreshProfileStatus();
     setChecking(false);
+    if (refreshedUser?.status === 'approved' || refreshedUser?.role === 'coach' || refreshedUser?.role === 'admin') {
+      router.replace('/(tabs)/accueil');
+    }
   };
 
   const s = useMemo(() => styles(t), [t]);
+  const rejected = user?.status === 'rejected';
 
   return (
     <View style={s.container}>
@@ -37,14 +42,14 @@ export default function PendingScreen() {
 
         {/* Status */}
         <View style={s.statusBlock}>
-          <View style={s.badge}>
-            <Text style={s.badgeText}>EN ATTENTE</Text>
+          <View style={[s.badge, rejected && s.badgeRejected]}>
+            <Text style={[s.badgeText, rejected && s.badgeTextRejected]}>{rejected ? 'NON RETENUE' : 'EN ATTENTE'}</Text>
           </View>
-          <Text style={s.heading}>Demande envoyée</Text>
+          <Text style={s.heading}>{rejected ? 'Demande non retenue' : 'Demande envoyée'}</Text>
           <Text style={s.body}>
-            Ton profil a bien été reçu. Le coach va valider ton inscription sous peu.
-            {'\n\n'}
-            Tu recevras un accès dès validation.
+            {rejected
+              ? 'Le club n’a pas pu valider ta demande pour le moment. Contacte le coach si tu souhaites obtenir plus d’informations.'
+              : 'Ton email est confirmé et ton profil a bien été reçu. Le coach va maintenant valider ton inscription.\n\nTu recevras une notification dès que ton accès sera ouvert.'}
           </Text>
 
           <View style={s.infoCard}>
@@ -68,7 +73,7 @@ export default function PendingScreen() {
           >
             {checking
               ? <ActivityIndicator color="#FFFFFF" size="small" />
-              : <Text style={s.btnCheckText}>VÉRIFIER L’ÉTAT →</Text>
+              : <Text style={s.btnCheckText}>ACTUALISER MON STATUT →</Text>
             }
           </Pressable>
 
@@ -95,6 +100,8 @@ const styles = (t: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20,
   },
   badgeText: { fontSize: 11, fontWeight: '700', color: t.gold, letterSpacing: 2 },
+  badgeRejected: { backgroundColor: t.crimson + '22', borderColor: t.crimson },
+  badgeTextRejected: { color: t.crimson },
   heading: { fontSize: 26, fontWeight: '900', color: t.bone, textAlign: 'center' },
   body: { fontSize: 15, color: t.textDim, textAlign: 'center', lineHeight: 22 },
   infoCard: {

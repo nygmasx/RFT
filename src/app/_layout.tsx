@@ -10,12 +10,12 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 function PushNotificationRegistrar() {
-  const { user } = useAuth();
+  const { user, refreshProfileStatus } = useAuth();
   const {
     foregroundNotification,
     dismissForegroundNotification,
     openForegroundNotification,
-  } = usePushNotifications(user?.id);
+  } = usePushNotifications(user?.id, refreshProfileStatus);
 
   if (!foregroundNotification) return null;
 

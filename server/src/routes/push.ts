@@ -155,7 +155,11 @@ export async function notifyMembers(
 app.post('/notify-registration', requireSession, async (c) => {
   const user = c.get('user');
   const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
-  await notifyCoaches('🥋 Nouvelle demande', `${name} souhaite rejoindre le club.`);
+  await notifyCoaches(
+    '🥋 Nouvelle demande',
+    `${name} souhaite rejoindre le club.`,
+    { screen: 'admin_membership_requests', memberId: user.id },
+  );
   return c.json({ ok: true });
 });
 

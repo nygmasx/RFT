@@ -10,8 +10,17 @@ export function notificationHref(data: Record<string, unknown>): Href | null {
   const messageId = stringValue(data.messageId);
   const announcementId = stringValue(data.announcementId);
   const competitionId = stringValue(data.competitionId);
+  const memberId = stringValue(data.memberId);
   const screen = stringValue(data.screen);
 
+  if (screen === 'admin_membership_requests') {
+    return {
+      pathname: '/admin',
+      params: { tab: 'pending', ...(memberId ? { memberId } : {}) },
+    };
+  }
+  if (screen === 'membership_approved') return '/(tabs)/accueil';
+  if (screen === 'membership_rejected') return '/(auth)/pending';
   if (screen === 'add_result') {
     return { pathname: '/add-result', params: competitionId ? { competitionId } : {} };
   }
@@ -33,4 +42,9 @@ export function notificationHref(data: Record<string, unknown>): Href | null {
   if (stringValue(data.calendarEventId)) return '/calendar';
   if (stringValue(data.carpoolId)) return '/(tabs)/covoiturage';
   return '/notifications';
+}
+
+export function notificationRequiresProfileRefresh(data: Record<string, unknown>): boolean {
+  const screen = stringValue(data.screen);
+  return screen === 'membership_approved' || screen === 'membership_rejected';
 }

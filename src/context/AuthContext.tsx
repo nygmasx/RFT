@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authClient } from '@/lib/auth-client';
 
 type UserProfile = {
@@ -20,7 +20,7 @@ type AuthContextType = {
   loading: boolean;
   profileStatus: 'pending' | 'approved' | 'rejected' | null;
   signOut: () => Promise<void>;
-  refreshProfileStatus: () => Promise<void>;
+  refreshProfileStatus: () => Promise<UserProfile | null>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,28 +28,29 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   profileStatus: null,
   signOut: async () => {},
-  refreshProfileStatus: async () => {},
+  refreshProfileStatus: async () => null,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const fetchUser = async (): Promise<UserProfile | null> => {
+  const fetchUser = useCallback(async (): Promise<UserProfile | null> => {
     const { data } = await authClient.getSession();
     return data?.user ? data.user as UserProfile : null;
-  };
+  }, []);
 
   useEffect(() => {
     fetchUser().then((u) => {
       setUser(u);
       setLoading(false);
     });
-  }, []);
+  }, [fetchUser]);
 
-  const refreshProfileStatus = async () => {
+  const refreshProfileStatus = useCallback(async () => {
     const u = await fetchUser();
     setUser(u);
-  };
+    return u;
+  }, [fetchUser]);
 
   const signOut = async () => {
     await authClient.signOut();

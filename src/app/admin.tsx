@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Modal, Platform, Pressable,
@@ -76,8 +76,11 @@ export default function AdminScreen() {
   const { theme: t } = useTheme();
   const { user } = useAuth();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
 
-  const [tab, setTab] = useState<Tab>('pending');
+  const [tab, setTab] = useState<Tab>(() => (
+    requestedTab === 'members' || requestedTab === 'calendar' ? requestedTab : 'pending'
+  ));
   const [pending, setPending] = useState<Member[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);

@@ -145,9 +145,21 @@ app.put('/:id/status', requireCoach, async (c) => {
 
   // Notify the member of their status change
   if (status === 'approved') {
-    notifyUser(c.req.param('id'), '✅ Inscription validée', 'Ton compte a été approuvé. Bienvenue chez Ronin Fight Team !');
+    void notifyUser(
+      c.req.param('id'),
+      '✅ Inscription validée',
+      'Ton compte a été approuvé. Bienvenue chez Ronin Fight Team !',
+      { screen: 'membership_approved' },
+      'registration',
+    );
   } else if (status === 'rejected') {
-    notifyUser(c.req.param('id'), '❌ Inscription refusée', 'Ton inscription n\'a pas été acceptée. Contacte le coach pour plus d\'infos.');
+    void notifyUser(
+      c.req.param('id'),
+      '❌ Inscription refusée',
+      'Ton inscription n\'a pas été acceptée. Contacte le coach pour plus d\'infos.',
+      { screen: 'membership_rejected' },
+      'registration',
+    );
   }
 
   return c.json(updated);
