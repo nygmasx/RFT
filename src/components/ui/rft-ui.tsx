@@ -301,10 +301,10 @@ function createStyles(theme: Theme) {
     screenTitle: {
       color: theme.bone,
       fontFamily: FONTS.display,
-      fontSize: 44,
+      fontSize: 40,
       fontWeight: '900',
       letterSpacing: -1.2,
-      lineHeight: 48,
+      lineHeight: 44,
       marginTop: 2,
     },
     headerAction: { flexDirection: 'row', alignItems: 'center', gap: 8 },

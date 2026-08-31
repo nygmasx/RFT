@@ -23,3 +23,10 @@ test('unknown routes return a JSON 404', async () => {
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { error: 'Route introuvable' });
 });
+
+test('support page is publicly available', async () => {
+  const response = await app.request('/support');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') ?? '', /text\/html/);
+  assert.match(await response.text(), /contact@roninbjj\.fr/);
+});

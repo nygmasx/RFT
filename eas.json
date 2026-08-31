@@ -16,6 +16,12 @@
         "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev"
       }
     },
+    "simulator": {
+      "extends": "preview",
+      "ios": {
+        "simulator": true
+      }
+    },
     "production": {
       "autoIncrement": true,
       "channel": "production",
