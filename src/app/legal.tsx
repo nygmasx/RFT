@@ -8,7 +8,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { safeBack } from '@/lib/navigation';
 
-const UPDATED_AT = '12 août 2026';
+const UPDATED_AT = '31 août 2026';
 
 const DOCUMENTS = {
   terms: {
@@ -49,7 +49,6 @@ export default function LegalScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{content.title}</Text>
         <Text style={styles.updated}>MISE À JOUR · {UPDATED_AT.toUpperCase()}</Text>
-        <Text style={styles.notice}>Document d’information à faire valider par le responsable légal du club avant publication publique.</Text>
         {content.sections.map(([title, body]) => (
           <View key={title} style={styles.section}>
             <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text>
@@ -72,7 +71,6 @@ function makeStyles(t: Theme) {
     scroll: { padding: 22 },
     title: { fontFamily: FONTS.display, fontSize: 28, lineHeight: 32, color: t.bone, fontWeight: '900', marginBottom: 8 },
     updated: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.2, marginBottom: 24 },
-    notice: { fontFamily: FONTS.body, fontSize: 12, color: t.gold, lineHeight: 18, marginBottom: 18 },
     section: { borderTopWidth: 1, borderTopColor: t.hairline, paddingVertical: 18, gap: 8 },
     sectionTitle: { fontFamily: FONTS.mono, fontSize: 10, color: t.crimson, fontWeight: '700', letterSpacing: 1.5 },
     body: { fontFamily: FONTS.body, fontSize: 14, color: t.text, lineHeight: 22 },

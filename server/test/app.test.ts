@@ -30,3 +30,12 @@ test('support page is publicly available', async () => {
   assert.match(response.headers.get('content-type') ?? '', /text\/html/);
   assert.match(await response.text(), /contact@roninbjj\.fr/);
 });
+
+test('privacy policy is publicly available', async () => {
+  const response = await app.request('/privacy');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') ?? '', /text\/html/);
+  const html = await response.text();
+  assert.match(html, /Politique de confidentialité/);
+  assert.match(html, /contact@roninbjj\.fr/);
+});
