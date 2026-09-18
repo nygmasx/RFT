@@ -10,7 +10,10 @@
     "ios": {
       "bundleIdentifier": "com.nygmasx.RFT",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "RFT utilise votre photothèque uniquement lorsque vous choisissez une photo de profil ou joignez une photo à un message privé du club.",
+        "NSCameraUsageDescription": "RFT utilise l’appareil photo uniquement lorsque vous choisissez de prendre une photo de profil ou de joindre une photo à un message privé du club.",
+        "NSMicrophoneUsageDescription": "RFT utilise le microphone uniquement lorsque vous choisissez d’enregistrer et d’envoyer un message vocal dans un salon privé du club."
       }
     },
     "android": {
@@ -53,12 +56,21 @@
         }
       ],
       "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RFT utilise votre photothèque uniquement lorsque vous choisissez une photo de profil ou joignez une photo à un message privé du club.",
+          "cameraPermission": "RFT utilise l’appareil photo uniquement lorsque vous choisissez de prendre une photo de profil ou de joindre une photo à un message privé du club.",
+          "microphonePermission": "RFT utilise le microphone uniquement lorsque vous choisissez d’enregistrer et d’envoyer un message vocal dans un salon privé du club."
+        }
+      ],
       "expo-web-browser",
       [
         "expo-audio",
         {
-          "microphonePermission": "Autoriser RFT à enregistrer des messages vocaux.",
-          "enableBackgroundRecording": false
+          "microphonePermission": "RFT utilise le microphone uniquement lorsque vous choisissez d’enregistrer et d’envoyer un message vocal dans un salon privé du club.",
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
         }
       ],
       "expo-asset"
