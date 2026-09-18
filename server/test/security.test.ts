@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { canAccessMemberFeatures, isStaff } from '../src/lib/access';
-import { parseProfileUpdate } from '../src/lib/profile-input';
+import { parseProfileUpdate, parseRoleUpdate } from '../src/lib/profile-input';
 import { parseSettingsUpdate } from '../src/lib/settings-input';
 
 test('staff roles are recognized explicitly', () => {
@@ -50,5 +50,18 @@ test('settings updates reject unknown fields and invalid visibility', () => {
   assert.deepEqual(parseSettingsUpdate({ profileVisibility: 'everyone' }), {
     ok: false,
     error: 'Visibilité du profil invalide',
+  });
+});
+
+test('role updates accept only known member roles', () => {
+  assert.deepEqual(parseRoleUpdate({ role: 'coach' }, 'coach-1', 'member-1'), { ok: true, value: 'coach' });
+  assert.deepEqual(parseRoleUpdate({ role: 'owner' }, 'coach-1', 'member-1'), { ok: false, error: 'Rôle invalide' });
+  assert.deepEqual(parseRoleUpdate({}, 'coach-1', 'member-1'), { ok: false, error: 'Rôle invalide' });
+});
+
+test('role updates refuse self-demotion so the club keeps an administrator', () => {
+  assert.deepEqual(parseRoleUpdate({ role: 'member' }, 'coach-1', 'coach-1'), {
+    ok: false,
+    error: 'Impossible de modifier son propre rôle',
   });
 });

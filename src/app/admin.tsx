@@ -19,6 +19,7 @@ import { safeBack } from '@/lib/navigation';
 
 type Tab = 'pending' | 'members' | 'calendar';
 type EventType = 'cours' | 'stage' | 'compet';
+type MemberRole = 'member' | 'coach' | 'admin';
 
 interface Member {
   id: string;
@@ -26,7 +27,7 @@ interface Member {
   lastName: string;
   email: string;
   status: 'pending' | 'approved' | 'rejected';
-  role: string;
+  role: MemberRole;
   category: string | null;
   weightClass: string | null;
   stance: string | null;
@@ -71,6 +72,25 @@ const EVT_LABELS: Record<EventType, string> = {
 
 const EVT_TYPES: EventType[] = ['cours', 'stage', 'compet'];
 
+const ROLES: MemberRole[] = ['member', 'coach', 'admin'];
+
+const ROLE_LABELS: Record<MemberRole, string> = {
+  member: 'MEMBRE', coach: 'COACH', admin: 'ADMIN',
+};
+
+const ROLE_HINTS: Record<MemberRole, string> = {
+  member: 'Accès aux fonctionnalités du club.',
+  coach: 'Accès à l’administration : membres, cours, compétitions, contenu.',
+  admin: 'Accès coach + gestion complète du club.',
+};
+
+// Le rôle par défaut n’est pas mis en avant : seuls les rôles staff sont colorés.
+function roleColor(role: MemberRole, t: Theme): string {
+  if (role === 'admin') return t.crimson;
+  if (role === 'coach') return t.gold;
+  return t.textMute;
+}
+
 export default function AdminScreen() {
   const { theme: t } = useTheme();
   const { user } = useAuth();
@@ -87,6 +107,8 @@ export default function AdminScreen() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [memberBelt, setMemberBelt] = useState<BeltInfo | null>(null);
   const [beltLoading, setBeltLoading] = useState(false);
+  const [roleLoading, setRoleLoading] = useState<MemberRole | null>(null);
+  const [roleError, setRoleError] = useState('');
 
   const [showCreate, setShowCreate] = useState(false);
   const [evtTitle, setEvtTitle] = useState('');
@@ -142,10 +164,25 @@ export default function AdminScreen() {
     setSelectedMember(null);
   };
 
+  const handleRoleChange = async (id: string, role: MemberRole) => {
+    setRoleLoading(role);
+    setRoleError('');
+    try {
+      const updated = await api.put<Member>(`/api/profile/${id}/role`, { role });
+      const nextRole = updated?.role ?? role;
+      setSelectedMember((current) => (current && current.id === id ? { ...current, role: nextRole } : current));
+      await fetchData();
+    } catch (e: any) {
+      setRoleError(e?.message ?? 'Changement de rôle impossible.');
+    }
+    setRoleLoading(null);
+  };
+
   const openMember = async (member: Member) => {
     setSelectedMember(member);
     setMemberBelt(null);
     setBeltLoading(true);
+    setRoleError('');
     const belt = await api.get<BeltInfo | null>(`/api/belt/${member.id}`).catch(() => null);
     setMemberBelt(belt);
     setBeltLoading(false);
@@ -396,6 +433,10 @@ export default function AdminScreen() {
                 belt={memberBelt}
                 beltLoading={beltLoading}
                 actionLoading={actionLoading === selectedMember.id}
+                canEditRole={selectedMember.id !== user?.id}
+                roleLoading={roleLoading}
+                roleError={roleError}
+                onChangeRole={(role) => handleRoleChange(selectedMember.id, role)}
                 onClose={() => setSelectedMember(null)}
                 onRevoke={() => handleRevoke(selectedMember.id)}
                 onEditBelt={() => {
@@ -476,7 +517,14 @@ function MemberRow({ member, styles, t }: { member: Member; styles: ReturnType<t
         : <View style={[styles.memberAvatar, styles.memberAvatarFallback]}><Text style={styles.memberInitials}>{initials}</Text></View>
       }
       <View style={styles.memberInfo}>
-        <Text style={styles.memberName}>{member.firstName} {member.lastName}</Text>
+        <View style={styles.memberNameRow}>
+          <Text style={styles.memberName}>{member.firstName} {member.lastName}</Text>
+          {member.role !== 'member' && (
+            <View style={[styles.roleBadge, { borderColor: roleColor(member.role, t), backgroundColor: roleColor(member.role, t) + '22' }]}>
+              <Text style={[styles.roleBadgeText, { color: roleColor(member.role, t) }]}>{ROLE_LABELS[member.role]}</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.memberMeta}>{member.category ?? '—'}{member.memberId ? ` · #${member.memberId}` : ''}</Text>
       </View>
       {member.category && <View style={[styles.catDot, { backgroundColor: catColor }]} />}
@@ -485,8 +533,13 @@ function MemberRow({ member, styles, t }: { member: Member; styles: ReturnType<t
   );
 }
 
-function MemberDetailSheet({ member, belt, beltLoading, actionLoading, onClose, onRevoke, onEditBelt, styles, t }: {
+function MemberDetailSheet({
+  member, belt, beltLoading, actionLoading, canEditRole, roleLoading, roleError,
+  onChangeRole, onClose, onRevoke, onEditBelt, styles, t,
+}: {
   member: Member; belt: BeltInfo | null; beltLoading: boolean; actionLoading: boolean;
+  canEditRole: boolean; roleLoading: MemberRole | null; roleError: string;
+  onChangeRole: (role: MemberRole) => void;
   onClose: () => void; onRevoke: () => void; onEditBelt: () => void;
   styles: ReturnType<typeof makeStyles>; t: Theme;
 }) {
@@ -520,6 +573,38 @@ function MemberDetailSheet({ member, belt, beltLoading, actionLoading, onClose, 
               <Text style={styles.infoCellValue}>{value}</Text>
             </View>
           ))}
+        </View>
+
+        <View style={styles.sheetSection}>
+          <Text style={styles.sheetSectionLabel}>RÔLE</Text>
+          <View style={styles.roleRow}>
+            {ROLES.map((role) => {
+              const active = member.role === role;
+              const color = roleColor(role, t);
+              const busy = roleLoading === role;
+              return (
+                <Pressable
+                  key={role}
+                  style={[
+                    styles.roleChip,
+                    active && { borderColor: color, backgroundColor: color + '22' },
+                    (!canEditRole || roleLoading !== null) && !active && { opacity: 0.45 },
+                  ]}
+                  disabled={!canEditRole || active || roleLoading !== null}
+                  onPress={() => onChangeRole(role)}
+                >
+                  {busy
+                    ? <ActivityIndicator color={color} size="small" />
+                    : <Text style={[styles.roleChipText, { color: active ? color : t.textMute }]}>{ROLE_LABELS[role]}</Text>
+                  }
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.roleHint}>
+            {canEditRole ? ROLE_HINTS[member.role] : 'Tu ne peux pas modifier ton propre rôle.'}
+          </Text>
+          {!!roleError && <Text style={styles.roleError}>{roleError}</Text>}
         </View>
 
         <View style={styles.sheetSection}>
@@ -605,7 +690,10 @@ function makeStyles(t: Theme) {
     memberAvatarFallback: { backgroundColor: t.elevated, alignItems: 'center', justifyContent: 'center' },
     memberInitials: { fontSize: 15, fontWeight: '700', color: t.bone },
     memberInfo: { flex: 1 },
+    memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     memberName: { fontSize: 14, fontWeight: '600', color: t.bone },
+    roleBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 2, borderWidth: 1 },
+    roleBadgeText: { fontFamily: FONTS.mono, fontSize: 8.5, fontWeight: '700', letterSpacing: 1 },
     memberMeta: { fontSize: 11, color: t.textMute, marginTop: 2 },
     catDot: { width: 10, height: 10, borderRadius: 5 },
     memberArrow: { fontSize: 20, color: t.textMute, lineHeight: 22 },
@@ -648,6 +736,14 @@ function makeStyles(t: Theme) {
     infoCellValue: { fontFamily: FONTS.body, fontSize: 13, color: t.bone, fontWeight: '600' },
     sheetSection: { gap: 0 },
     sheetSectionLabel: { fontFamily: FONTS.mono, fontSize: 9.5, color: t.textMute, letterSpacing: 2 },
+    roleRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    roleChip: {
+      flex: 1, minHeight: 34, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 10, borderRadius: 3, borderWidth: 1, borderColor: t.hairlineStrong,
+    },
+    roleChipText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+    roleHint: { fontFamily: FONTS.body, fontSize: 11, color: t.textMute, marginTop: 8 },
+    roleError: { fontFamily: FONTS.body, fontSize: 11, color: t.crimson, marginTop: 6 },
     beltMeta: { fontFamily: FONTS.mono, fontSize: 10, color: t.textMute, letterSpacing: 0.5 },
     beltEmpty: { fontFamily: FONTS.body, fontSize: 13, color: t.textMute, marginTop: 8 },
     editBeltBtn: { marginTop: 10, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: t.crimson, borderRadius: 3 },

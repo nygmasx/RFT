@@ -53,3 +53,26 @@ export function parseProfileUpdate(input: unknown): ParseResult {
   if (Object.keys(value).length === 0) return { ok: false, error: 'Aucune modification fournie' };
   return { ok: true, value };
 }
+
+export const MEMBER_ROLES = ['member', 'coach', 'admin'] as const;
+export type MemberRole = typeof MEMBER_ROLES[number];
+
+type RoleParseResult =
+  | { ok: true; value: MemberRole }
+  | { ok: false; error: string };
+
+// Staff role assignment. A coach cannot change their own role: that would let
+// the last admin demote themselves and lock the club out of administration.
+export function parseRoleUpdate(input: unknown, actorId: string, targetId: string): RoleParseResult {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return { ok: false, error: 'Corps de requête invalide' };
+  }
+  const { role } = input as Record<string, unknown>;
+  if (typeof role !== 'string' || !MEMBER_ROLES.includes(role as MemberRole)) {
+    return { ok: false, error: 'Rôle invalide' };
+  }
+  if (actorId === targetId) {
+    return { ok: false, error: 'Impossible de modifier son propre rôle' };
+  }
+  return { ok: true, value: role as MemberRole };
+}

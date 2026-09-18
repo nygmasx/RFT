@@ -5,7 +5,7 @@ import { users, userSettings } from '../db/schema';
 import { requireApproved, requireCoach, requireSession } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { notifyCoaches, notifyUser } from './push';
-import { parseProfileUpdate } from '../lib/profile-input';
+import { parseProfileUpdate, parseRoleUpdate } from '../lib/profile-input';
 import { isStaff } from '../lib/access';
 import { uploadAvatar } from '../lib/object-storage';
 
@@ -148,6 +148,27 @@ app.put('/:id/status', requireCoach, async (c) => {
     notifyUser(c.req.param('id'), '✅ Inscription validée', 'Ton compte a été approuvé. Bienvenue chez Ronin Fight Team !');
   } else if (status === 'rejected') {
     notifyUser(c.req.param('id'), '❌ Inscription refusée', 'Ton inscription n\'a pas été acceptée. Contacte le coach pour plus d\'infos.');
+  }
+
+  return c.json(updated);
+});
+
+// PUT /api/profile/:id/role — coach/admin only
+app.put('/:id/role', requireCoach, async (c) => {
+  const actor = c.get('user');
+  const targetId = c.req.param('id');
+  const parsed = parseRoleUpdate(await c.req.json<unknown>(), actor.id, targetId);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const [updated] = await db
+    .update(users)
+    .set({ role: parsed.value, updatedAt: new Date() })
+    .where(eq(users.id, targetId))
+    .returning();
+  if (!updated) return c.json({ error: 'Membre introuvable' }, 404);
+
+  if (parsed.value === 'coach' || parsed.value === 'admin') {
+    notifyUser(targetId, '⭐️ Nouveau rôle', `Tu es désormais ${parsed.value} au sein du Ronin Fight Team.`);
   }
 
   return c.json(updated);
