@@ -107,8 +107,8 @@ export default function AdminScreen() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [memberBelt, setMemberBelt] = useState<BeltInfo | null>(null);
   const [beltLoading, setBeltLoading] = useState(false);
-  const [roleLoading, setRoleLoading] = useState<MemberRole | null>(null);
-  const [roleError, setRoleError] = useState('');
+  const [rolePending, setRolePending] = useState<{ id: string; role: MemberRole } | null>(null);
+  const [roleError, setRoleError] = useState<{ id: string; message: string } | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [evtTitle, setEvtTitle] = useState('');
@@ -165,24 +165,28 @@ export default function AdminScreen() {
   };
 
   const handleRoleChange = async (id: string, role: MemberRole) => {
-    setRoleLoading(role);
-    setRoleError('');
+    setRolePending({ id, role });
+    setRoleError(null);
     try {
       const updated = await api.put<Member>(`/api/profile/${id}/role`, { role });
       const nextRole = updated?.role ?? role;
+      // A role change never moves anyone between the pending and approved lists,
+      // so patch the row in place instead of refetching the whole directory.
+      const patch = (list: Member[]) => list.map((u) => (u.id === id ? { ...u, role: nextRole } : u));
+      setPending(patch);
+      setMembers(patch);
       setSelectedMember((current) => (current && current.id === id ? { ...current, role: nextRole } : current));
-      await fetchData();
     } catch (e: any) {
-      setRoleError(e?.message ?? 'Changement de rôle impossible.');
+      setRoleError({ id, message: e?.message ?? 'Changement de rôle impossible.' });
     }
-    setRoleLoading(null);
+    setRolePending(null);
   };
 
   const openMember = async (member: Member) => {
     setSelectedMember(member);
     setMemberBelt(null);
     setBeltLoading(true);
-    setRoleError('');
+    setRoleError(null);
     const belt = await api.get<BeltInfo | null>(`/api/belt/${member.id}`).catch(() => null);
     setMemberBelt(belt);
     setBeltLoading(false);
@@ -434,8 +438,8 @@ export default function AdminScreen() {
                 beltLoading={beltLoading}
                 actionLoading={actionLoading === selectedMember.id}
                 canEditRole={selectedMember.id !== user?.id}
-                roleLoading={roleLoading}
-                roleError={roleError}
+                roleLoading={rolePending?.id === selectedMember.id ? rolePending.role : null}
+                roleError={roleError?.id === selectedMember.id ? roleError.message : ''}
                 onChangeRole={(role) => handleRoleChange(selectedMember.id, role)}
                 onClose={() => setSelectedMember(null)}
                 onRevoke={() => handleRevoke(selectedMember.id)}

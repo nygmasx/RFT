@@ -61,8 +61,10 @@ type RoleParseResult =
   | { ok: true; value: MemberRole }
   | { ok: false; error: string };
 
-// Staff role assignment. A coach cannot change their own role: that would let
-// the last admin demote themselves and lock the club out of administration.
+// Body validation for a staff role assignment. A coach cannot change their own
+// role: nobody should be able to promote themselves, and a lone admin should not
+// be able to demote themselves by accident. The checks that depend on the target
+// row live in checkRoleTransition below.
 export function parseRoleUpdate(input: unknown, actorId: string, targetId: string): RoleParseResult {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return { ok: false, error: 'Corps de requête invalide' };
@@ -75,4 +77,34 @@ export function parseRoleUpdate(input: unknown, actorId: string, targetId: strin
     return { ok: false, error: 'Impossible de modifier son propre rôle' };
   }
   return { ok: true, value: role as MemberRole };
+}
+
+type RoleTransitionCheck =
+  | { ok: true }
+  | { ok: false; error: string };
+
+// Policy that needs the target's current row. Kept pure so it can be tested
+// without a database; the route supplies the row and the admin head count.
+export function checkRoleTransition(input: {
+  nextRole: MemberRole;
+  targetRole: MemberRole;
+  targetStatus: string;
+  adminCount: number;
+}): RoleTransitionCheck {
+  const { nextRole, targetRole, targetStatus, adminCount } = input;
+  if (nextRole === targetRole) return { ok: true };
+
+  // canAccessMemberFeatures short-circuits on isStaff, so a staff role bypasses
+  // the approval gate entirely: granting one to someone who was never approved
+  // would hand them full member access without any review.
+  if (nextRole !== 'member' && targetStatus !== 'approved') {
+    return { ok: false, error: 'Valide d’abord l’inscription de ce membre' };
+  }
+
+  // Demoting the only admin would leave the club with nobody able to administer it.
+  if (targetRole === 'admin' && adminCount <= 1) {
+    return { ok: false, error: 'Le club doit garder au moins un admin' };
+  }
+
+  return { ok: true };
 }

@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { users, userSettings } from '../db/schema';
 import { requireApproved, requireCoach, requireSession } from '../middleware/session';
 import type { AuthUser } from '../auth';
 import { notifyCoaches, notifyUser } from './push';
-import { parseProfileUpdate, parseRoleUpdate } from '../lib/profile-input';
+import { checkRoleTransition, parseProfileUpdate, parseRoleUpdate, type MemberRole } from '../lib/profile-input';
 import { isStaff } from '../lib/access';
 import { uploadAvatar } from '../lib/object-storage';
 
@@ -153,12 +153,34 @@ app.put('/:id/status', requireCoach, async (c) => {
   return c.json(updated);
 });
 
+const ROLE_RANK: Record<MemberRole, number> = { member: 0, coach: 1, admin: 2 };
+const ROLE_LABELS: Record<MemberRole, string> = { member: 'membre', coach: 'coach', admin: 'admin' };
+
 // PUT /api/profile/:id/role — coach/admin only
 app.put('/:id/role', requireCoach, async (c) => {
   const actor = c.get('user');
   const targetId = c.req.param('id');
   const parsed = parseRoleUpdate(await c.req.json<unknown>(), actor.id, targetId);
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const [target] = await db
+    .select({ role: users.role, status: users.status })
+    .from(users)
+    .where(eq(users.id, targetId));
+  if (!target) return c.json({ error: 'Membre introuvable' }, 404);
+
+  const targetRole = target.role as MemberRole;
+  const [admins] = target.role === 'admin'
+    ? await db.select({ value: count() }).from(users).where(eq(users.role, 'admin'))
+    : [{ value: 0 }];
+
+  const allowed = checkRoleTransition({
+    nextRole: parsed.value,
+    targetRole,
+    targetStatus: target.status,
+    adminCount: admins?.value ?? 0,
+  });
+  if (!allowed.ok) return c.json({ error: allowed.error }, 409);
 
   const [updated] = await db
     .update(users)
@@ -167,8 +189,12 @@ app.put('/:id/role', requireCoach, async (c) => {
     .returning();
   if (!updated) return c.json({ error: 'Membre introuvable' }, 404);
 
-  if (parsed.value === 'coach' || parsed.value === 'admin') {
-    notifyUser(targetId, '⭐️ Nouveau rôle', `Tu es désormais ${parsed.value} au sein du Ronin Fight Team.`);
+  // Same action, both directions: announce a promotion, acknowledge a demotion.
+  const label = ROLE_LABELS[parsed.value];
+  if (ROLE_RANK[parsed.value] > ROLE_RANK[targetRole]) {
+    notifyUser(targetId, '⭐️ Nouveau rôle', `Tu es désormais ${label} au sein du Ronin Fight Team.`);
+  } else if (ROLE_RANK[parsed.value] < ROLE_RANK[targetRole]) {
+    notifyUser(targetId, 'Rôle mis à jour', `Ton rôle est désormais ${label} au sein du Ronin Fight Team.`);
   }
 
   return c.json(updated);
