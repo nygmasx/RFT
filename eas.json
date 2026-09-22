@@ -13,14 +13,16 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev"
+        "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev",
+        "EXPO_PUBLIC_SUPPORT_EMAIL": "roninft.contact@gmail.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev"
+        "EXPO_PUBLIC_API_URL": "https://rfteam.fly.dev",
+        "EXPO_PUBLIC_SUPPORT_EMAIL": "roninft.contact@gmail.com"
       }
     }
   },

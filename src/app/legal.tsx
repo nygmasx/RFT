@@ -24,13 +24,13 @@ const DOCUMENTS = {
   privacy: {
     title: 'POLITIQUE DE CONFIDENTIALITÉ',
     sections: [
-      ['Responsable', 'Ronin Fight Team est responsable du traitement des données utilisées par cette application. Toute demande peut être envoyée à contact@roninbjj.fr.'],
+      ['Responsable', 'Ronin Fight Team est responsable du traitement des données utilisées par cette application. Toute demande peut être envoyée à roninft.contact@gmail.com.'],
       ['Données traitées', 'L’application traite les informations du profil (nom, adresse email, téléphone, catégorie, grade), les messages échangés dans les salons, les inscriptions aux cours et compétitions, les résultats sportifs, les trajets de covoiturage, les préférences d’affichage et les identifiants techniques nécessaires aux notifications.'],
       ['Finalités', 'Ces données servent exclusivement à gérer les membres, organiser les activités du club, permettre les échanges internes et envoyer les notifications demandées.'],
       ['Accès et visibilité', 'L’accès est limité aux membres validés et au staff. Les réglages permettent de réduire la visibilité du profil, du grade et du palmarès.'],
       ['Sous-traitants', 'Pour fonctionner, l’application confie certaines données à des prestataires techniques, sans leur en transférer la propriété : Neon (hébergement de la base de données, Union européenne), Fly.io (hébergement de l’API, région de Paris), Resend (envoi des emails de vérification et de réinitialisation de mot de passe), Expo et Apple Push Notification service (acheminement des notifications). Lorsque le stockage d’images est activé, les photos de profil sont hébergées chez un fournisseur de stockage objet compatible S3.'],
       ['Conservation et sécurité', 'Les données sont conservées pendant la durée nécessaire à la vie du compte et protégées par des contrôles d’accès. Les mots de passe sont stockés sous forme de condensats sécurisés et ne sont jamais lisibles par le club.'],
-      ['Vos droits', 'Vous pouvez modifier vos informations, quitter le club ou supprimer définitivement votre compte depuis l’application, dans Réglages. Pour exercer un droit d’accès, de rectification, d’effacement ou d’opposition, écrivez à contact@roninbjj.fr. Vous pouvez également introduire une réclamation auprès de la CNIL.'],
+      ['Vos droits', 'Vous pouvez modifier vos informations, quitter le club ou supprimer définitivement votre compte depuis l’application, dans Réglages. Pour exercer un droit d’accès, de rectification, d’effacement ou d’opposition, écrivez à roninft.contact@gmail.com. Vous pouvez également introduire une réclamation auprès de la CNIL.'],
     ],
   },
 } as const;

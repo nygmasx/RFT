@@ -53,7 +53,7 @@ export default function PendingScreen() {
             </View>
             <View style={s.infoRow}>
               <Ionicons name="mail-outline" size={14} color={s.infoRowText.color as string} />
-              <Text style={s.infoRowText}>contact@roninbjj.fr</Text>
+              <Text style={s.infoRowText}>roninft.contact@gmail.com</Text>
             </View>
           </View>
         </View>

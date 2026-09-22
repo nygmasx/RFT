@@ -4,7 +4,7 @@
 
 export const LEGAL_UPDATED_AT = '22 septembre 2026';
 
-export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL ?? 'contact@roninbjj.fr';
+export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL ?? 'roninft.contact@gmail.com';
 
 export type LegalDocument = {
   slug: 'privacy' | 'terms' | 'support';

@@ -24,7 +24,7 @@ import { authClient } from '@/lib/auth-client';
 import { safeBack } from '@/lib/navigation';
 
 const CLUB_CODE = 'RONIN-2026';
-const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? 'contact@roninbjj.fr';
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? 'roninft.contact@gmail.com';
 
 const THEME_SWATCHES: Record<ThemeKey, string> = {
   sumi: '#0A0A0A',
