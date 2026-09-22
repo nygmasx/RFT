@@ -49,8 +49,12 @@ export const auth = betterAuth({
     additionalFields: {
       firstName:   { type: 'string', required: true,  input: true },
       lastName:    { type: 'string', required: true,  input: true },
-      status:      { type: 'string', defaultValue: 'pending' },
-      role:        { type: 'string', defaultValue: 'member' },
+      // input: false is load-bearing. Better Auth only refuses a client-supplied
+      // value when input is explicitly false, so without it anyone could sign up
+      // as { role: 'admin', status: 'approved' } and skip coach approval entirely.
+      // With a defaultValue set, the default replaces whatever the client sends.
+      status:      { type: 'string', defaultValue: 'pending', input: false },
+      role:        { type: 'string', defaultValue: 'member',  input: false },
       memberId:    { type: 'string', required: false, input: true },
       category:    { type: 'string', defaultValue: 'Adultes', input: true },
       weightClass: { type: 'string', required: false, input: true },

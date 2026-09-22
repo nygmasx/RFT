@@ -523,3 +523,26 @@ test('complete member, staff, content, messaging and carpool flows', async () =>
   assert.equal(revoke.status, 200, await revoke.clone().text());
   assert.equal((await call('/api/profile', { token: member.token })).status, 401);
 });
+
+// Better Auth only refuses a client-supplied value for an additional field when
+// `input: false` is set. Without it, sign-up was a one-request path to an
+// approved admin account, skipping the coach approval workflow entirely.
+test('sign-up cannot grant itself a role or an approved status', async () => {
+  const response = await call('/api/auth/sign-up/email', { method: 'POST', body: {
+    email: 'escalation.integration@example.com', password: 'Password123!',
+    name: 'Esc Alation', firstName: 'Esc', lastName: 'Alation',
+    status: 'approved', role: 'admin', category: 'Adultes',
+  } });
+  assert.equal(response.status, 200, await response.clone().text());
+  const payload = await response.json() as { user: { id: string } };
+
+  const [row] = await db.select({ role: users.role, status: users.status })
+    .from(users).where(eq(users.id, payload.user.id));
+  assert.equal(row?.role, 'member', 'the requested role must be ignored');
+  assert.equal(row?.status, 'pending', 'the requested status must be ignored');
+
+  // And the account really is locked out of member and staff surfaces.
+  const token = (payload as unknown as { token: string }).token;
+  assert.equal((await call('/api/profile/all', { token })).status, 403);
+  assert.equal((await call('/api/profile/directory', { token })).status, 403);
+});
