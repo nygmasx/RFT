@@ -13,6 +13,7 @@ import { channelsRouter } from './routes/channels';
 import { competitionsRouter } from './routes/competitions';
 import { messagesRouter } from './routes/messages';
 import { geolocationRouter } from './routes/geolocation';
+import { legalRouter } from './routes/legal';
 import { notificationsRouter } from './routes/notifications';
 import { palmaresRouter } from './routes/palmares';
 import { profileRouter } from './routes/profile';
@@ -72,6 +73,10 @@ app.route('/api/rankings', rankingsRouter);
 app.route('/api/settings', settingsRouter);
 app.route('/api/notifications', notificationsRouter);
 app.route('/api/club', clubRouter);
+
+// Public legal pages — App Store Connect requires reachable privacy, terms
+// and support URLs, so these sit outside /api and need no session.
+app.route('/', legalRouter);
 
 app.get('/health', (c) => c.json({ ok: true }));
 app.notFound((c) => c.json({ error: 'Route introuvable' }, 404));

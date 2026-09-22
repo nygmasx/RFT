@@ -7,7 +7,7 @@ import { FONTS, Theme } from '@/constants/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { safeBack } from '@/lib/navigation';
 
-const UPDATED_AT = '12 août 2026';
+const UPDATED_AT = '22 septembre 2026';
 
 const DOCUMENTS = {
   terms: {
@@ -25,11 +25,12 @@ const DOCUMENTS = {
     title: 'POLITIQUE DE CONFIDENTIALITÉ',
     sections: [
       ['Responsable', 'Ronin Fight Team est responsable du traitement des données utilisées par cette application. Toute demande peut être envoyée à contact@roninbjj.fr.'],
-      ['Données traitées', 'L’application traite les informations du profil, les messages, inscriptions, grades, résultats sportifs, covoiturages, préférences et identifiants techniques nécessaires aux notifications.'],
+      ['Données traitées', 'L’application traite les informations du profil (nom, adresse email, téléphone, catégorie, grade), les messages échangés dans les salons, les inscriptions aux cours et compétitions, les résultats sportifs, les trajets de covoiturage, les préférences d’affichage et les identifiants techniques nécessaires aux notifications.'],
       ['Finalités', 'Ces données servent exclusivement à gérer les membres, organiser les activités du club, permettre les échanges internes et envoyer les notifications demandées.'],
       ['Accès et visibilité', 'L’accès est limité aux membres validés et au staff. Les réglages permettent de réduire la visibilité du profil, du grade et du palmarès.'],
+      ['Sous-traitants', 'Pour fonctionner, l’application confie certaines données à des prestataires techniques, sans leur en transférer la propriété : Neon (hébergement de la base de données, Union européenne), Fly.io (hébergement de l’API, région de Paris), Resend (envoi des emails de vérification et de réinitialisation de mot de passe), Expo et Apple Push Notification service (acheminement des notifications). Lorsque le stockage d’images est activé, les photos de profil sont hébergées chez un fournisseur de stockage objet compatible S3.'],
       ['Conservation et sécurité', 'Les données sont conservées pendant la durée nécessaire à la vie du compte et protégées par des contrôles d’accès. Les mots de passe sont stockés sous forme de condensats sécurisés et ne sont jamais lisibles par le club.'],
-      ['Vos droits', 'Vous pouvez modifier vos informations, quitter le club ou supprimer votre compte depuis l’application. Pour exercer un droit d’accès, de rectification, d’effacement ou d’opposition, écrivez à contact@roninbjj.fr.'],
+      ['Vos droits', 'Vous pouvez modifier vos informations, quitter le club ou supprimer définitivement votre compte depuis l’application, dans Réglages. Pour exercer un droit d’accès, de rectification, d’effacement ou d’opposition, écrivez à contact@roninbjj.fr. Vous pouvez également introduire une réclamation auprès de la CNIL.'],
     ],
   },
 } as const;
@@ -54,7 +55,6 @@ export default function LegalScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{content.title}</Text>
         <Text style={styles.updated}>MISE À JOUR · {UPDATED_AT.toUpperCase()}</Text>
-        <Text style={styles.notice}>Document d’information à faire valider par le responsable légal du club avant publication publique.</Text>
         {content.sections.map(([title, body]) => (
           <View key={title} style={styles.section}>
             <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text>
@@ -77,7 +77,6 @@ function makeStyles(t: Theme) {
     scroll: { padding: 22 },
     title: { fontFamily: FONTS.display, fontSize: 28, lineHeight: 32, color: t.bone, fontWeight: '900', marginBottom: 8 },
     updated: { fontFamily: FONTS.mono, fontSize: 9, color: t.textMute, letterSpacing: 1.2, marginBottom: 24 },
-    notice: { fontFamily: FONTS.body, fontSize: 12, color: t.gold, lineHeight: 18, marginBottom: 18 },
     section: { borderTopWidth: 1, borderTopColor: t.hairline, paddingVertical: 18, gap: 8 },
     sectionTitle: { fontFamily: FONTS.mono, fontSize: 10, color: t.crimson, fontWeight: '700', letterSpacing: 1.5 },
     body: { fontFamily: FONTS.body, fontSize: 14, color: t.text, lineHeight: 22 },

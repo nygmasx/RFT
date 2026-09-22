@@ -32,11 +32,16 @@ type AuthResult<T> = { data: T | null; error: { message: string } | null };
 
 function readableRequestError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : '';
+  if (/abort/i.test(message)) {
+    return 'Le serveur met trop de temps à répondre. Réessaie dans un instant.';
+  }
   if (/fetch failed|network request failed|could not connect|internet connection/i.test(message)) {
     return 'Impossible de joindre le serveur. Vérifie ta connexion Internet puis réessaie.';
   }
   return message || fallback;
 }
+
+const AUTH_TIMEOUT_MS = 20_000;
 
 async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
@@ -46,7 +51,13 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string> ?? {}),
   };
-  return fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, { ...options, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function storeToken(data: any) {

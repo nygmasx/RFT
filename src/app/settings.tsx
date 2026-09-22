@@ -319,7 +319,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>RONIN FIGHT TEAM · v1.0 (BETA)</Text>
+          <Text style={styles.footerText}>RONIN FIGHT TEAM · v1.0</Text>
           <View style={styles.footerSub}>
             <Text style={styles.footerSubText}>Fabriqué avec </Text>
             <Ionicons name="heart" size={12} color={t.crimson} />

@@ -297,7 +297,7 @@ export default function ProfilScreen() {
         </View>
 
         {/* ── Footer ───────────────────────────────────────── */}
-        <Text style={styles.footer}>RONIN FIGHT TEAM — v1.0 (BETA)</Text>
+        <Text style={styles.footer}>RONIN FIGHT TEAM — v1.0</Text>
         <View style={{ height: 32 }} />
       </ScrollView>
     </View>
